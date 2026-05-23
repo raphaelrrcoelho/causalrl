@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import gymnasium as gym
 
 from causalrl.scm.scm import StructuralCausalModel

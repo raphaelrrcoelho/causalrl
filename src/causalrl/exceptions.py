@@ -1,7 +1,5 @@
 """Typed exceptions. Causal misuse fails loudly, never silently."""
 
-from __future__ import annotations
-
 
 class CausalRLError(Exception):
     """Base class for all causalrl errors."""

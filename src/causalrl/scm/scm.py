@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import torch
 from torch.distributions import Distribution
 

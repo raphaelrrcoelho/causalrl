@@ -1,5 +1,5 @@
 # Multi-stage build using the official uv image.
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS base
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS base
 WORKDIR /app
 
 # Install dependencies first (cached layer)

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import networkx as nx
 
 from causalrl.exceptions import CausalGraphError

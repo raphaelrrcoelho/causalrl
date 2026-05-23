@@ -1,7 +1,5 @@
 """Thin numerics seam. PyTorch today; an alternate backend can re-implement this module."""
 
-from __future__ import annotations
-
 import torch
 
 # torch.Generator/Tensor are public API but not re-exported in torch's type stubs.
