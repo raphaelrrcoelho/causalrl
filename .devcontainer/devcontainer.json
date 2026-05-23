@@ -1,0 +1,10 @@
+{
+  "name": "causalrl",
+  "build": { "dockerfile": "../Dockerfile" },
+  "customizations": {
+    "vscode": {
+      "extensions": ["charliermarsh.ruff", "ms-python.python", "ms-python.vscode-pylance"]
+    }
+  },
+  "postCreateCommand": "uv sync --extra dev"
+}
