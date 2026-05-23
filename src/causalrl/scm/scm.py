@@ -3,8 +3,9 @@ from __future__ import annotations
 import torch
 from torch.distributions import Distribution
 
+from causalrl.exceptions import CausalGraphError
 from causalrl.scm.graph import CausalGraph
-from causalrl.scm.mechanisms import Mechanism
+from causalrl.scm.mechanisms import FunctionalMechanism, Mechanism
 
 Tensor = torch.Tensor
 
@@ -39,6 +40,21 @@ class StructuralCausalModel:
             parent_values = {p: values[p] for p in self.graph.parents(node)}
             values[node] = mech(parent_values, noise[node])
         return values
+
+    def do(self, interventions: dict[str, float]) -> StructuralCausalModel:
+        """Layer 2: return the mutilated SCM under do(interventions). Original is unchanged."""
+        graph = self.graph
+        mechanisms = dict(self.mechanisms)
+        for node, value in interventions.items():
+            if node not in self.mechanisms:
+                raise CausalGraphError(f"cannot intervene on unknown node: {node!r}")
+            graph = graph.remove_incoming_edges(node)
+            const = float(value)
+            mechanisms[node] = FunctionalMechanism(
+                [],
+                lambda pa, u, _c=const: torch.full_like(u, _c),  # type: ignore[reportPrivateImportUsage]
+            )
+        return StructuralCausalModel(graph, mechanisms, self.exogenous)
 
     def see(self, n: int, *, seed: int | None = None) -> dict[str, Tensor]:
         """Layer 1: draw n observational samples P(V)."""
