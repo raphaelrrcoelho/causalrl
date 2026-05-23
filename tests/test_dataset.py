@@ -37,9 +37,9 @@ def test_mean_reward():
 def test_generate_logs_shapes():
     env = DTREnv(seed=0)
     d = generate_logs(env, n_episodes=100, seed=0)
-    # 2 transitions per episode (stage 0 -> stage 1 -> terminal)
-    assert len(d) == 200
-    assert d.n_states == 5
+    # the contextual DTR is horizon 1: one transition per episode
+    assert len(d) == 100
+    assert d.n_states == 3
     assert d.n_actions == 2
-    # behavior policy ties action to U, so stage-0 propensity is strictly between 0 and 1
+    # behavior ties the action to the hidden U, so per-subtype propensity is strictly mixed
     assert 0.0 < d.behavior_propensity(0, 0) < 1.0
