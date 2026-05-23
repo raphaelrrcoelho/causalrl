@@ -1,4 +1,18 @@
 from dataclasses import dataclass
+from typing import Any, Protocol
+
+
+class RolloutEnv(Protocol):
+    """Minimal interface required by :func:`generate_logs`."""
+
+    n_states: int
+    n_actions: int
+
+    def reset(self, *, seed: int | None = None) -> tuple[Any, Any]: ...
+
+    def step(self, action: int) -> tuple[Any, float, bool, bool, Any]: ...
+
+    def behavior_policy(self, observation: Any) -> int: ...
 
 
 @dataclass(frozen=True)
@@ -49,3 +63,27 @@ class ConfoundedTrajectoryDataset:
         if n == 0:
             return 0.0
         return self._reward_sums[state][action] / n
+
+
+def generate_logs(env: RolloutEnv, n_episodes: int, seed: int) -> ConfoundedTrajectoryDataset:
+    """Roll out an env's confounded behavior_policy to build an offline dataset.
+
+    The env must expose ``n_states``, ``n_actions``, ``reset(seed=...)``, ``step(action)``,
+    and ``behavior_policy(observation)``. Rewards are recorded as the per-step reward; for
+    the finite-horizon envs here the terminal step carries the return.
+    """
+    transitions: list[Transition] = []
+    obs, _ = env.reset(seed=seed)
+    for ep in range(n_episodes):
+        if ep > 0:
+            obs, _ = env.reset()
+        done = False
+        while not done:
+            state = int(obs["state"])
+            action = int(env.behavior_policy(obs))
+            next_obs, reward, done, _trunc, _info = env.step(action)
+            transitions.append(
+                Transition(state, action, float(reward), int(next_obs["state"]), bool(done))
+            )
+            obs = next_obs
+    return ConfoundedTrajectoryDataset(transitions, n_states=env.n_states, n_actions=env.n_actions)

@@ -61,7 +61,19 @@ class DTREnv(ConfoundedMDP):
         return {"state": _TERMINAL, "t": 2}, reward, True, False, {"u": self._u}
 
     def behavior_policy(self, observation: dict[str, int]) -> int:
-        """Confounded logging: clinicians play the severity U with prob 0.9, else uniform."""
-        if self._rng.random() < 0.9:
-            return self._u
+        """Confounded logging policy.
+
+        Stage 0: clinicians observe the hidden severity U and prescribe it with prob 0.9
+        (else uniform). This creates confounding in the offline log.
+
+        Stage 1: clinicians observe only the stage-1 context (state) and pick uniformly,
+        so stage-1 mean rewards are driven purely by the U-induced selection bias from
+        stage 0 — making it easy to verify confounding in offline data.
+        """
+        if observation["t"] == 0:
+            # Confounded at stage 0: correlate action with hidden U
+            if self._rng.random() < 0.9:
+                return self._u
+            return int(self._rng.integers(0, 2))
+        # Stage 1: uniform random — stage-1 rewards are confounded by stage-0 selection
         return int(self._rng.integers(0, 2))
