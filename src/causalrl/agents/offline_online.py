@@ -17,7 +17,14 @@ class UCDTR(Agent):
     confounded offline point estimates, so it corrects to the true optimum online.
     """
 
-    def __init__(self, n_states: int, n_actions: int, seed: int | None = None) -> None:
+    def __init__(
+        self,
+        n_states: int,
+        n_actions: int,
+        seed: int | None = None,
+        *,
+        require_identified: bool = False,
+    ) -> None:
         self.n_states = n_states
         self.n_actions = n_actions
         self._counts = np.zeros((n_states, n_actions))
@@ -25,8 +32,15 @@ class UCDTR(Agent):
         self._t = 1
         self._rng = np.random.default_rng(seed)
         self._allowed: dict[int, list[int]] = {s: list(range(n_actions)) for s in range(n_states)}
+        self._require_identified = require_identified
 
     def ingest_offline(self, dataset: ConfoundedTrajectoryDataset) -> None:
+        if self._require_identified:
+            from causalrl.identification.bounds import causal_q_bounds
+
+            for s in range(self.n_states):
+                for a in range(self.n_actions):
+                    causal_q_bounds(dataset, s, a, require_identified=True)
         for s in range(self.n_states):
             self._allowed[s] = non_dominated_actions(dataset, s) or list(range(self.n_actions))
 
