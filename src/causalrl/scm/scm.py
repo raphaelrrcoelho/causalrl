@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 from torch.distributions import Distribution
 
-from causalrl.exceptions import CausalGraphError
+from causalrl.exceptions import CausalGraphError, RealizabilityError
 from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import FunctionalMechanism, Mechanism
 
@@ -55,6 +55,41 @@ class StructuralCausalModel:
                 lambda pa, u, _c=const: torch.full_like(u, _c),  # type: ignore[reportPrivateImportUsage]
             )
         return StructuralCausalModel(graph, mechanisms, self.exogenous)
+
+    def counterfactual(
+        self,
+        evidence: dict[str, float],
+        interventions: dict[str, float],
+        n: int,
+        *,
+        seed: int | None = None,
+        atol: float = 1e-6,
+    ) -> dict[str, Tensor]:
+        """Layer 3: abduction-action-prediction via rejection sampling.
+
+        Draw n exogenous samples, keep those whose factual evaluation matches `evidence`,
+        then re-evaluate the mutilated model under `interventions` with the retained noise.
+        """
+        if seed is not None:
+            torch.manual_seed(seed)  # type: ignore[reportUnknownMemberType]
+        noise = self._sample_exogenous(n, None)
+        factual = self._evaluate(noise)
+
+        mask = torch.ones(n, dtype=torch.bool)  # type: ignore[reportPrivateImportUsage]
+        for node, val in evidence.items():
+            if node not in self.mechanisms:
+                raise CausalGraphError(f"unknown evidence node: {node!r}")
+            mask &= (factual[node] - float(val)).abs() <= atol
+        kept = int(mask.sum())
+        if kept == 0:
+            raise RealizabilityError(
+                f"no exogenous draws match evidence {evidence!r}; "
+                "increase n or check that the evidence has nonzero probability"
+            )
+
+        retained = {name: u[mask] for name, u in noise.items()}
+        cf_model = self.do(interventions) if interventions else self
+        return cf_model._evaluate(retained)
 
     def see(self, n: int, *, seed: int | None = None) -> dict[str, Tensor]:
         """Layer 1: draw n observational samples P(V)."""
