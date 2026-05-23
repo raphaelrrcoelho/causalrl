@@ -34,6 +34,15 @@ def test_counterfactual_consistent_with_evidence_when_no_intervention():
     assert torch.allclose(cf["Y"].mean(), torch.tensor(0.0), atol=1e-6)
 
 
+def test_counterfactual_no_intervention_returns_factual_consistent():
+    # Empty interventions exercises the `else self` branch: pure abduction + prediction.
+    # Evidence X=0 -> U=0, so with no intervention X stays 0 and Y = 0 xor 0 = 0.
+    scm = build_scm()
+    cf = scm.counterfactual(evidence={"X": 0.0}, interventions={}, n=2000, seed=3)
+    assert torch.allclose(cf["X"].mean(), torch.tensor(0.0), atol=1e-6)
+    assert torch.allclose(cf["Y"].mean(), torch.tensor(0.0), atol=1e-6)
+
+
 def test_impossible_evidence_raises():
     scm = build_scm()
     with pytest.raises(RealizabilityError):

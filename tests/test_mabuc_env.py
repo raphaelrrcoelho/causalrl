@@ -37,3 +37,20 @@ def test_optimal_intuition_policy_beats_half():
         obs, _ = env.reset()
         total += r
     assert total / n > 0.7
+
+
+def test_env_reward_matches_scm_interventional_distribution():
+    # Guard against the env's step() logic drifting from its backing SCM: rolling out a
+    # fixed arm should reproduce E[Y|do(X=a)] from the SCM (~0.5 for either arm).
+    env = MABUCEnv(seed=4)
+    scm_mean = env.scm.do({"X": 0.0}).see(20000, seed=4)["Y"].mean().item()
+    n = 20000
+    total = 0.0
+    env.reset(seed=4)
+    for _ in range(n):
+        _, r, _, _, _ = env.step(0)
+        env.reset()
+        total += r
+    env_mean = total / n
+    assert abs(env_mean - scm_mean) < 0.02
+    assert abs(env_mean - 0.5) < 0.02

@@ -1,3 +1,5 @@
+import numpy as np
+
 from causalrl.agents.bandits import CausalThompsonSampling, NaiveThompsonSampling
 
 
@@ -21,3 +23,20 @@ def test_causal_agent_learns_arm_equals_intuition():
         # after learning, greedy action should equal intuition
         votes = [agent.act({"intuition": intuition}) for _ in range(200)]
         assert sum(v == intuition for v in votes) > 150
+
+
+def test_seed_is_reproducible_and_independent():
+    # Same seed -> identical action sequence, independent of global RNG state.
+    obs = {"intuition": 0}
+    np.random.seed(12345)
+    a = NaiveThompsonSampling(n_arms=2, seed=7)
+    seq_a = [a.act(obs) for _ in range(50)]
+    np.random.seed(999)  # perturb global RNG; must not affect the seeded agent
+    b = NaiveThompsonSampling(n_arms=2, seed=7)
+    seq_b = [b.act(obs) for _ in range(50)]
+    assert seq_a == seq_b
+
+    # Different seeds -> different sequences (the seed actually flows through).
+    c = NaiveThompsonSampling(n_arms=2, seed=8)
+    seq_c = [c.act(obs) for _ in range(50)]
+    assert seq_a != seq_c

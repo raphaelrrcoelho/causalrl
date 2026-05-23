@@ -23,3 +23,12 @@ def test_bow_arc_not_identifiable():
 def test_no_backdoor_path_empty_set():
     g = CausalGraph(directed_edges=[("X", "Y")])
     assert backdoor_adjustment_set(g, "X", "Y") == set()
+
+
+def test_frontdoor_is_a_known_v0_1_limitation():
+    # X -> M -> Y with X <-> Y: identifiable via the FRONT-door formula, but v0.1's scoped
+    # helpers don't handle it. This test documents (locks in) the known limitation so the
+    # behavior is explicit rather than silently wrong. See criteria.py docstrings.
+    g = CausalGraph(directed_edges=[("X", "M"), ("M", "Y")], bidirected_edges=[("X", "Y")])
+    assert backdoor_adjustment_set(g, "X", "Y") == set()  # NOT a valid estimand here
+    assert is_identifiable(g, "X", "Y") is True  # optimistic: no direct bow arc detected
