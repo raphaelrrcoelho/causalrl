@@ -20,6 +20,8 @@ dev = [
     "ruff>=0.5",
     "pyright>=1.1.370",
     "pre-commit>=3.7",
+    "jupyter>=1.0",
+    "nbconvert>=7.0",
 ]
 
 [build-system]
