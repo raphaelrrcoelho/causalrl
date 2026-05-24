@@ -37,13 +37,39 @@ The causal agent converges to ~0.75 reward/step; a `NaiveThompsonSampling` basel
 ignores the intuition is stuck near 0.50. See `examples/mabuc_vertical_slice.ipynb` for the
 full walkthrough across every layer (SCM, environment, agents, evaluation).
 
+## v0.2: Causal offline-to-online (Task 1)
+
+Combine confounded offline logs with online interaction. On a confounded dynamic treatment
+regime, an agent that reads the logs through **Manski causal bounds** (UC-DTR / DOVI /
+DeepDeconfoundedQ) reaches the optimal policy, while a **naive** offline learner that trusts
+the logs is *biased* — it picks the wrong treatment and never recovers.
+
+```python
+from causalrl.agents.offline_online import UCDTR
+from causalrl.data.dataset import generate_logs
+from causalrl.envs.suite.dtr import DTREnv
+from causalrl.eval.harness import run_episodes
+
+logs = generate_logs(DTREnv(seed=100), n_episodes=4000, seed=100)
+agent = UCDTR(n_states=3, n_actions=2, seed=0)
+agent.ingest_offline(logs)              # reads logs via causal bounds, not raw means
+returns = run_episodes(agent, DTREnv(seed=0), n_episodes=4000, seed=0)
+# UC-DTR ~0.73 (optimal 0.75) vs naive-offline ~0.675 (biased by the confounding)
+```
+
+A note on scope: Manski *natural* bounds cannot strictly prune, so the headline is
+**causal-vs-naive** (not a regret win over from-scratch online learning). The deep agent is a
+lightweight net for the toy demo; `d3rlpy` is the designated backbone at real scale. See
+`examples/offline_to_online.ipynb` for the three-way comparison.
+
 ## Layout
 
 - `causalrl.scm` — `CausalGraph`, mechanisms, and `StructuralCausalModel` (`see`/`do`/`counterfactual`)
-- `causalrl.identification` — back-door sets and identifiability criteria
-- `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`)
-- `causalrl.agents` — causal and baseline bandit agents
-- `causalrl.eval` — regret metrics and off-policy evaluation under confounding
+- `causalrl.identification` — back-door sets, identifiability criteria, and Manski `causal_q_bounds`
+- `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`)
+- `causalrl.data` — `ConfoundedTrajectoryDataset` and offline-log generation
+- `causalrl.agents` — bandit agents plus causal offline-to-online learners (`UCDTR`, `DOVI`, `DeepDeconfoundedQ`) and baselines
+- `causalrl.eval` — regret metrics, the offline-to-online harness, and OPE under confounding
 
 ## Development
 
