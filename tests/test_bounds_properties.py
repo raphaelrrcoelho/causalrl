@@ -7,10 +7,10 @@ from causalrl.identification.bounds import causal_q_bounds
 
 
 @given(
-    p_action0=st.floats(min_value=0.05, max_value=0.95),
+    p_action0=st.floats(min_value=0.25, max_value=0.75),  # avoid near-vacuous propensities
     r0=st.floats(min_value=0.0, max_value=1.0),
     r1=st.floats(min_value=0.0, max_value=1.0),
-    n=st.integers(min_value=200, max_value=600),
+    n=st.integers(min_value=3000, max_value=6000),  # tight empirical estimates
     seed=st.integers(min_value=0, max_value=2**31 - 1),
 )
 @settings(max_examples=40, deadline=None)
@@ -31,4 +31,4 @@ def test_manski_bounds_bracket_true_do_effect(p_action0, r0, r1, n, seed):
     for a in (0, 1):
         true_do = 0.5 * reward(a, 0) + 0.5 * reward(a, 1)
         lo, hi = causal_q_bounds(d, state=0, action=a)
-        assert lo - 0.1 <= true_do <= hi + 0.1
+        assert lo - 0.03 <= true_do <= hi + 0.03  # sharp: small Monte-Carlo slack only
