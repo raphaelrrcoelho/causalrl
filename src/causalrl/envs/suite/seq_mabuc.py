@@ -7,22 +7,34 @@ from causalrl.envs.base import ConfoundedMDP
 
 
 class SequentialMABUCEnv(ConfoundedMDP):
-    """A horizon-H sequential bandit with an observed intuition signal.
+    """Horizon-H contextual bandit with an unobserved confounder (a genuine MABUC).
 
-    Each step draws D, B ~ Bernoulli(0.5); the intuition I = D xor B is OBSERVED (it is the
-    state, step*2 + I); the lucky arm equals I; reward is 0.75 if the chosen arm matches the
-    lucky arm else 0.25 (Bernoulli). The behavior policy plays I.
+    Each step is an independent confounded contextual-bandit decision: an observed context
+    ``C ~ Bernoulli(0.5)`` (the state, ``stage*2 + C``; terminal = ``2H``) and a HIDDEN
+    ``U ~ Bernoulli(0.5)`` are drawn, then ``reward ~ Bernoulli(p(C, a, U))``. The logging
+    policy follows the hidden ``U`` (plays ``a = U`` with prob 0.85), so conditional on the
+    observed context the logged action is tied to ``U`` — which also drives the reward.
+    Naive-offline therefore over-prescribes treatment 1 in every context (its apparent reward
+    is inflated by ``U``), exactly as in ``DTREnv``, but here repeated across the horizon.
 
-    SCOPE (v0.2) — honesty note: because the intuition fully reveals the optimal action and
-    is observed, this env is NOT confounded in the hidden-U sense (conditional on the state,
-    E[Y|s,a] = E[Y|do(a),s]); the behavior policy simply leaves the off-arm unexplored
-    (vacuous bound) rather than biased. It is used to exercise the deep agent's online
-    learning + bound-clamping, not to demonstrate a confounding effect. A genuinely
-    confounded sequential variant (a hidden component not recoverable from the state) is a
-    v0.3 refinement (see the v0.2 spec backlog).
+    There are no state transitions: this is the bandit member of the suite. The
+    sequential-credit-assignment lesson lives in ``SequentialDTREnv``.
     """
 
     n_actions = 2
+
+    # P(R = 1 | C, a, U). do-optimal a = C (value 0.75/step); U inflates treatment 1.
+    _REWARD_PROB: ClassVar[dict[tuple[int, int, int], float]] = {
+        (0, 0, 0): 0.70,
+        (0, 0, 1): 0.70,
+        (0, 1, 0): 0.20,
+        (0, 1, 1): 0.90,
+        (1, 0, 0): 0.20,
+        (1, 0, 1): 0.20,
+        (1, 1, 0): 0.70,
+        (1, 1, 1): 0.90,
+    }
+    _BEHAVIOR_FOLLOW_U = 0.85
 
     metadata: ClassVar[dict[str, list[str]]] = {"render_modes": []}  # type: ignore[misc]  # gymnasium Env.metadata is an instance var in the base
 
@@ -37,12 +49,21 @@ class SequentialMABUCEnv(ConfoundedMDP):
         self._rng = np.random.default_rng(seed)
         self._terminal = horizon * 2
         self._t = 0
-        self._intuition = 0
+        self._c = 0
+        self._u = 0
 
-    def _draw_intuition(self) -> int:
-        d = int(self._rng.integers(0, 2))
-        b = int(self._rng.integers(0, 2))
-        return d ^ b
+    def do_value(self, c: int, a: int) -> float:
+        """Per-step interventional value E[R | do(a), C=c], averaged over U ~ Bernoulli(0.5)."""
+        return 0.5 * self._REWARD_PROB[(c, a, 0)] + 0.5 * self._REWARD_PROB[(c, a, 1)]
+
+    @property
+    def optimal_value(self) -> float:
+        """Per-step value of the do-optimal policy a*(C) = argmax_a do_value(C, a)."""
+        return 0.5 * sum(max(self.do_value(c, 0), self.do_value(c, 1)) for c in (0, 1))
+
+    def _draw(self) -> None:
+        self._c = int(self._rng.integers(0, 2))
+        self._u = int(self._rng.integers(0, 2))
 
     def reset(  # type: ignore[override]
         self, *, seed: int | None = None, options: dict[str, Any] | None = None
@@ -50,21 +71,23 @@ class SequentialMABUCEnv(ConfoundedMDP):
         if seed is not None:
             self._rng = np.random.default_rng(seed)
         self._t = 0
-        self._intuition = self._draw_intuition()
-        return {"state": self._intuition, "t": 0}, {}
+        self._draw()
+        return {"state": self._c, "t": 0}, {}
 
     def step(  # type: ignore[override]
         self, action: int
     ) -> tuple[dict[str, int], float, bool, bool, dict[str, Any]]:
-        lucky = self._intuition
-        p = 0.75 if action == lucky else 0.25
+        p = self._REWARD_PROB[(self._c, action, self._u)]
         reward = float(self._rng.random() < p)
         self._t += 1
         if self._t >= self.horizon:
             return {"state": self._terminal, "t": self._t}, reward, True, False, {}
-        self._intuition = self._draw_intuition()
-        state = self._t * 2 + self._intuition
+        self._draw()
+        state = self._t * 2 + self._c
         return {"state": state, "t": self._t}, reward, False, False, {}
 
     def behavior_policy(self, observation: dict[str, int]) -> int:
-        return int(observation["state"] % 2)  # play the intuition
+        """Confounded logging: follows the hidden U (plays a = U with prob 0.85)."""
+        if self._rng.random() < self._BEHAVIOR_FOLLOW_U:
+            return self._u
+        return 1 - self._u
