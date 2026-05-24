@@ -7,10 +7,19 @@ from causalrl.envs.base import ConfoundedMDP
 
 
 class SequentialMABUCEnv(ConfoundedMDP):
-    """A horizon-H sequential MABUC. Each step draws confounders D, B ~ Bernoulli(0.5);
-    intuition I = D xor B is observed; the lucky arm equals I; reward is 0.75 if the chosen
-    arm matches the lucky arm else 0.25 (Bernoulli). State encodes (step, intuition) as
-    step*2 + I, with a terminal sink. The confounded behavior policy always plays I.
+    """A horizon-H sequential bandit with an observed intuition signal.
+
+    Each step draws D, B ~ Bernoulli(0.5); the intuition I = D xor B is OBSERVED (it is the
+    state, step*2 + I); the lucky arm equals I; reward is 0.75 if the chosen arm matches the
+    lucky arm else 0.25 (Bernoulli). The behavior policy plays I.
+
+    SCOPE (v0.2) — honesty note: because the intuition fully reveals the optimal action and
+    is observed, this env is NOT confounded in the hidden-U sense (conditional on the state,
+    E[Y|s,a] = E[Y|do(a),s]); the behavior policy simply leaves the off-arm unexplored
+    (vacuous bound) rather than biased. It is used to exercise the deep agent's online
+    learning + bound-clamping, not to demonstrate a confounding effect. A genuinely
+    confounded sequential variant (a hidden component not recoverable from the state) is a
+    v0.3 refinement (see the v0.2 spec backlog).
     """
 
     n_actions = 2

@@ -9,12 +9,19 @@ from causalrl.data.dataset import ConfoundedTrajectoryDataset
 
 
 class DOVI(Agent):
-    """Deconfounded Optimistic Value Iteration (Wang et al. 2021), tabular form.
+    """Deconfounded optimistic learning (after Wang et al. 2021), tabular form.
 
-    The Manski UPPER causal bound on each (state, action) caps an optimistic Q estimate, so
-    online optimism never exceeds the causally-valid ceiling. Online, Q is the running mean
-    plus a UCB bonus, clamped to that ceiling — deconfounding the optimism that pure UCB
-    would otherwise overstate.
+    The Manski UPPER causal bound on each (state, action) caps an optimistic estimate, so
+    online optimism never exceeds the causally-valid ceiling. Online, the estimate is the
+    running mean plus a UCB bonus, clamped to that ceiling — deconfounding the optimism that
+    pure UCB would otherwise overstate.
+
+    SCOPE (v0.2): the ceiling is built from the *immediate per-step reward* (Manski bounds
+    over ``dataset.mean_reward``), so the deconfounding guarantee is exact for **contextual /
+    horizon-1** problems (e.g. the DTR). On multi-step environments this agent performs
+    bound-capped online learning per state but does NOT yet bootstrap next-state values — a
+    full horizon-indexed Bellman backup with bounds on the *return* Q is a v0.3 refinement
+    (see the v0.2 spec backlog). The ``horizon`` argument is accepted for that future use.
     """
 
     def __init__(
