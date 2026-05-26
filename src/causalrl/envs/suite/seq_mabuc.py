@@ -39,6 +39,8 @@ class SequentialMABUCEnv(ConfoundedMDP):
     metadata: ClassVar[dict[str, list[str]]] = {"render_modes": []}  # type: ignore[misc]  # gymnasium Env.metadata is an instance var in the base
 
     def __init__(self, horizon: int = 3, seed: int | None = None) -> None:
+        if horizon < 1:
+            raise ValueError(f"horizon must be >= 1, got {horizon}")
         super().__init__()
         self.horizon = horizon
         self.n_states = horizon * 2 + 1

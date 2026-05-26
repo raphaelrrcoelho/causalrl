@@ -1,3 +1,5 @@
+import pytest
+
 from causalrl.data.dataset import generate_logs
 from causalrl.envs.suite.seq_dtr import SequentialDTREnv
 
@@ -42,3 +44,8 @@ def test_logs_generate():
     d = generate_logs(env, n_episodes=300, seed=0)
     assert len(d) == 600  # 2 stages per episode
     assert d.n_actions == 2
+
+
+def test_horizon_must_be_positive():
+    with pytest.raises(ValueError):
+        SequentialDTREnv(horizon=0)

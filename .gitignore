@@ -10,3 +10,6 @@ build/
 .coverage
 htmlcov/
 .ipynb_checkpoints/
+
+# Claude Code local worktrees / settings (not part of the project)
+.claude/

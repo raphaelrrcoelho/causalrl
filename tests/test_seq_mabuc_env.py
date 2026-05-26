@@ -1,3 +1,5 @@
+import pytest
+
 from causalrl.agents.baselines import NaiveOffline
 from causalrl.agents.dovi import DOVI
 from causalrl.data.dataset import generate_logs
@@ -51,3 +53,8 @@ def test_logs_generate():
     d = generate_logs(env, n_episodes=300, seed=0)
     assert len(d) == 900  # 3 steps per episode
     assert d.n_actions == 2
+
+
+def test_horizon_must_be_positive():
+    with pytest.raises(ValueError):
+        SequentialMABUCEnv(horizon=0)
