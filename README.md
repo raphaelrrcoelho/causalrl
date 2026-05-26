@@ -1,5 +1,10 @@
 # causalrl
 
+[![CI](https://github.com/raphaelrrcoelho/causalrl/actions/workflows/ci.yml/badge.svg)](https://github.com/raphaelrrcoelho/causalrl/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 Causal reinforcement learning: structural causal models meet RL.
 
 `causalrl` provides a Pearl-Causal-Hierarchy-aware substrate — structural causal models
@@ -66,7 +71,7 @@ lightweight net for the toy demo; `d3rlpy` is the designated backbone at real sc
 
 - `causalrl.scm` — `CausalGraph`, mechanisms, and `StructuralCausalModel` (`see`/`do`/`counterfactual`)
 - `causalrl.identification` — back-door sets, identifiability criteria, and Manski `causal_q_bounds`
-- `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`)
+- `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `SequentialDTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`)
 - `causalrl.data` — `ConfoundedTrajectoryDataset` and offline-log generation
 - `causalrl.agents` — bandit agents plus causal offline-to-online learners (`UCDTR`, `DOVI`, `DeepDeconfoundedQ`) and baselines
 - `causalrl.eval` — regret metrics, the offline-to-online harness, and OPE under confounding
