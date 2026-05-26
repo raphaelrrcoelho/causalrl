@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 import networkx as nx
 
 from causalrl.exceptions import CausalGraphError
@@ -62,4 +64,44 @@ class CausalGraph:
         self._check(node)
         directed = [(u, v) for u, v in self._dag.edges if v != node]
         bidirected = list(self._bi.edges)
+        return CausalGraph(directed, bidirected, nodes=self.nodes)
+
+    def _as_node_set(self, nodes: str | Iterable[str]) -> set[str]:
+        ns = {nodes} if isinstance(nodes, str) else set(nodes)
+        for n in ns:
+            self._check(n)
+        return ns
+
+    def ancestors(self, nodes: str | Iterable[str]) -> set[str]:
+        """Ancestors of `nodes` via directed edges, INCLUDING the inputs (the inclusive An(·)
+        convention used by the identification/POMIS literature)."""
+        ns = self._as_node_set(nodes)
+        result = set(ns)
+        for n in ns:
+            result |= set(nx.ancestors(self._dag, n))  # type: ignore[reportUnknownMemberType]
+        return result
+
+    def descendants(self, nodes: str | Iterable[str]) -> set[str]:
+        """Strict descendants of `nodes` via directed edges (excludes the inputs)."""
+        ns = self._as_node_set(nodes)
+        result: set[str] = set()
+        for n in ns:
+            result |= set(nx.descendants(self._dag, n))  # type: ignore[reportUnknownMemberType]
+        return result
+
+    def induced_subgraph(self, nodes: str | Iterable[str]) -> CausalGraph:
+        """Subgraph on `nodes`: keep directed/bidirected edges with both endpoints in `nodes`."""
+        keep = self._as_node_set(nodes)
+        directed = [(u, v) for u, v in self._dag.edges if u in keep and v in keep]
+        bidirected = [(u, v) for u, v in self._bi.edges if u in keep and v in keep]
+        return CausalGraph(directed, bidirected, nodes=list(keep))
+
+    def do_mutilate(self, intervened: str | Iterable[str]) -> CausalGraph:
+        """ADMG mutilation for do(intervened): drop incoming directed edges to each
+        intervened node AND every bidirected edge incident to an intervened node
+        (intervention severs latent confounding into the set). Distinct from
+        ``remove_incoming_edges``, which keeps bidirected edges."""
+        x = self._as_node_set(intervened)
+        directed = [(u, v) for u, v in self._dag.edges if v not in x]
+        bidirected = [(u, v) for u, v in self._bi.edges if u not in x and v not in x]
         return CausalGraph(directed, bidirected, nodes=self.nodes)
