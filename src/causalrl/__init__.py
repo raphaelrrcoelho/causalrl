@@ -22,6 +22,7 @@ from causalrl.agents.offline_online import UCDTR
 from causalrl.agents.scbandit import (
     BruteForceInterventionTS,
     FixedSetThompsonSampling,
+    NaivePOMISThompsonSampling,
     POMISThompsonSampling,
 )
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition, generate_logs
@@ -76,6 +77,7 @@ __all__ = [
     "MABUCEnv",
     "Mechanism",
     "NaiveOffline",
+    "NaivePOMISThompsonSampling",
     "NaiveThompsonSampling",
     "NeuralMechanism",
     "NotIdentifiableError",
