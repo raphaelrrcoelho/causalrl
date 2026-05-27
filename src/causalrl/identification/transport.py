@@ -29,6 +29,7 @@ import networkx as nx
 
 from causalrl.exceptions import CausalGraphError
 from causalrl.identification.counterfactual import counterfactual_expectation
+from causalrl.identification.id_algorithm import Estimand, identify_transport
 from causalrl.scm.graph import CausalGraph
 
 if TYPE_CHECKING:
@@ -41,6 +42,7 @@ __all__ = [
     "TransportFormula",
     "is_backdoor_admissible",
     "is_transportable",
+    "transport_estimand",
     "transport_formula",
     "transported_effect",
 ]
@@ -167,6 +169,19 @@ def transport_formula(
 def is_transportable(diagram: SelectionDiagram, *, treatment: str, outcome: str) -> bool:
     """Whether the target effect is provably transportable (see :func:`transport_formula`)."""
     return transport_formula(diagram, treatment=treatment, outcome=outcome) is not None
+
+
+def transport_estimand(diagram: SelectionDiagram, *, treatment: str, outcome: str) -> Estimand:
+    """The general (sID) transport estimand for ``P*(outcome | do(treatment))`` over ``diagram``.
+
+    A :class:`SelectionDiagram` adapter over
+    :func:`causalrl.identification.id_algorithm.identify_transport`: each target c-factor is taken
+    from the source if its mechanism is invariant, else identified from the target. Raises
+    :class:`~causalrl.exceptions.NotIdentifiableError` when not transportable. Generalizes the
+    direct / S-admissible-adjustment :func:`transport_formula` (which returns a readable closed form
+    for those two cases).
+    """
+    return identify_transport(diagram.graph, [treatment], [outcome], diagram.selection_variables)
 
 
 def transported_effect(

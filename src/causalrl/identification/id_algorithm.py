@@ -39,10 +39,13 @@ __all__ = [
     "Estimand",
     "estimate_effect",
     "estimate_effect_with_experiments",
+    "estimate_transported_effect",
     "identify_effect",
     "identify_effect_with_experiments",
+    "identify_transport",
     "is_gid_identifiable",
     "is_identifiable_effect",
+    "is_transportable_effect",
 ]
 
 
@@ -177,32 +180,57 @@ class _Experiment(Estimand):
         return f"P({','.join(sorted(self.variables))} | do({do}))"
 
 
-def _evaluate(
-    estimand: Estimand, joint: _Factor, experiments: Mapping[frozenset[str], _Factor] | None = None
-) -> _Factor:
-    """Evaluate an estimand on the observational ``joint`` (and any experimental factors)."""
+@dataclass(frozen=True)
+class _DomainJoint(Estimand):
+    """The observational marginal ``P_domain(variables)`` in a named domain (source or target)."""
+
+    domain: str
+    variables: frozenset[str]
+
+    def render(self) -> str:
+        return f"P_{self.domain}({','.join(sorted(self.variables))})"
+
+
+@dataclass(frozen=True)
+class _EvalContext:
+    """The data an estimand evaluates against: observational, experimental, and domain joints."""
+
+    joint: _Factor
+    experiments: Mapping[frozenset[str], _Factor]
+    domains: Mapping[str, _Factor]
+
+
+def _evaluate(estimand: Estimand, ctx: _EvalContext) -> _Factor:
+    """Evaluate an estimand against the observational, experimental, and domain data in ``ctx``."""
     if isinstance(estimand, _Joint):
-        return joint.marginalize(set(joint.variables) - estimand.variables)
+        return ctx.joint.marginalize(set(ctx.joint.variables) - estimand.variables)
+    if isinstance(estimand, _DomainJoint):
+        if estimand.domain not in ctx.domains:
+            raise CausalGraphError(f"missing {estimand.domain!r} domain data")
+        domain = ctx.domains[estimand.domain]
+        return domain.marginalize(set(domain.variables) - estimand.variables)
     if isinstance(estimand, _Experiment):
-        if experiments is None or estimand.intervened not in experiments:
+        if estimand.intervened not in ctx.experiments:
             raise CausalGraphError(f"missing experiment do({sorted(estimand.intervened)})")
-        full = experiments[estimand.intervened]  # the joint over V with `intervened` randomized
+        full = ctx.experiments[estimand.intervened]  # the joint over V with `intervened` randomized
         intervened = set(estimand.intervened)
         # Q[V\z] = P(V\z | do(z)) = P(V\z | z) under randomization: condition on the intervened set.
         conditional = full.divide(full.marginalize(set(full.variables) - intervened))
         return conditional.marginalize(set(full.variables) - (set(estimand.variables) | intervened))
     if isinstance(estimand, _Marginal):
-        return _evaluate(estimand.child, joint, experiments).marginalize(estimand.over)
+        return _evaluate(estimand.child, ctx).marginalize(estimand.over)
     if isinstance(estimand, _Product):
-        result = _evaluate(estimand.terms[0], joint, experiments)
+        result = _evaluate(estimand.terms[0], ctx)
         for term in estimand.terms[1:]:
-            result = result.product(_evaluate(term, joint, experiments))
+            result = result.product(_evaluate(term, ctx))
         return result
     if isinstance(estimand, _Quotient):
-        return _evaluate(estimand.numerator, joint, experiments).divide(
-            _evaluate(estimand.denominator, joint, experiments)
-        )
+        return _evaluate(estimand.numerator, ctx).divide(_evaluate(estimand.denominator, ctx))
     raise TypeError(f"unknown estimand node: {type(estimand).__name__}")
+
+
+def _eval_observational(estimand: Estimand, joint: _Factor) -> _Factor:
+    return _evaluate(estimand, _EvalContext(joint, {}, {}))
 
 
 def _marginal(over: Iterable[str], child: Estimand) -> Estimand:
@@ -249,6 +277,23 @@ def _identify_c_factor(
     t_c = next(frozenset(comp) for comp in g_a.c_components() if c <= frozenset(comp))
     q_tc = _product(_topo_conditionals(q_a, g_a.topological_order(), t_c))
     return _identify_c_factor(c, t_c, graph, q_tc)
+
+
+def _c_factor_from(
+    c: frozenset[str], t: frozenset[str], graph: CausalGraph, q: Estimand
+) -> Estimand:
+    """Compute ``Q[c]`` from ``q = Q[t]`` for any subset ``c`` of ``t``.
+
+    ``Identify`` assumes its domain is a single c-component, so first decompose ``G[t]`` into
+    c-components, take ``Q[D]`` for the component ``D`` that contains ``c`` (Tian's c-factorization
+    of ``q``), and only then run :func:`_identify_c_factor` within ``D``.
+    """
+    g_t = graph.induced_subgraph(t)
+    d = next(frozenset(comp) for comp in g_t.c_components() if c <= frozenset(comp))
+    if d == t:
+        return _identify_c_factor(c, t, graph, q)
+    q_d = _product(_topo_conditionals(q, g_t.topological_order(), d))
+    return _identify_c_factor(c, d, graph, q_d)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -315,7 +360,7 @@ def _id(
                 t = v_original - z
                 if s <= t:
                     try:
-                        q_s = _identify_c_factor(s, t, original, _Experiment(z, t))
+                        q_s = _c_factor_from(s, t, original, _Experiment(z, t))
                         return _marginal(s - y, q_s)
                     except NotIdentifiableError:
                         continue
@@ -448,7 +493,7 @@ def estimate_effect(
     in ``sorted(outcome)`` order.
     """
     estimand = identify_effect(graph, treatment, outcome)
-    factor = _evaluate(estimand, _empirical_joint(data, graph.nodes))
+    factor = _eval_observational(estimand, _empirical_joint(data, graph.nodes))
     factor = factor.condition(do)
     targets = sorted(outcome)
     factor = factor.marginalize(set(factor.variables) - set(targets)).reorder(targets)
@@ -477,7 +522,117 @@ def estimate_effect_with_experiments(
     experiments = {
         target: _empirical_joint(rows, graph.nodes) for target, rows in experiments_data.items()
     }
-    factor = _evaluate(estimand, obs, experiments).condition(do)
+    factor = _evaluate(estimand, _EvalContext(obs, experiments, {})).condition(do)
+    targets = sorted(outcome)
+    factor = factor.marginalize(set(factor.variables) - set(targets)).reorder(targets)
+    return dict(factor.table)
+
+
+# --------------------------------------------------------------------------------------------------
+# Transportability (sID): identify a target effect from source + target data across a selection
+# diagram. Each target c-factor is routed by s-invariance to whichever domain can supply it.
+# --------------------------------------------------------------------------------------------------
+def _transport(
+    y: frozenset[str], x: frozenset[str], graph: CausalGraph, selection: frozenset[str]
+) -> Estimand:
+    v = frozenset(graph.nodes)
+    if not x:
+        return _marginal(v - y, _DomainJoint("target", v))
+
+    an_y = frozenset(graph.ancestors(y))
+    if v != an_y:
+        return _transport(y, x & an_y, graph.induced_subgraph(an_y), selection)
+
+    g_cut = graph
+    for node in x:
+        g_cut = g_cut.remove_incoming_edges(node)
+    w = (v - x) - frozenset(g_cut.ancestors(y))
+    if w:
+        return _transport(y, x | w, graph, selection)
+
+    # Decompose the target effect into target c-factors and route each one by s-invariance: a factor
+    # whose variables all keep their mechanism (no selection mark) transfers from the source;
+    # otherwise it must be identified from the target's own observational distribution.
+    terms: list[Estimand] = []
+    for c in (frozenset(comp) for comp in graph.induced_subgraph(v - x).c_components()):
+        domain = "target" if c & selection else "source"
+        terms.append(_c_factor_from(c, v, graph, _DomainJoint(domain, v)))
+    return _marginal(v - (y | x), _product(terms))
+
+
+def identify_transport(
+    graph: CausalGraph,
+    treatment: Iterable[str],
+    outcome: Iterable[str],
+    selection: Iterable[str],
+) -> Estimand:
+    """Return an :class:`Estimand` for the *target* effect ``P*(outcome | do(treatment))`` across a
+    selection diagram, or raise :class:`NotIdentifiableError`.
+
+    ``selection`` lists the variables whose mechanism differs between source and target (each
+    carries an implicit selection node). The target effect is decomposed into c-factors; a c-factor
+    with no selection-marked variable is invariant and taken from the **source** distribution, while
+    one that contains a selection-marked variable is identified from the **target**'s observational
+    distribution. With an empty ``selection`` this reduces to source identification (the ID
+    algorithm).
+
+    This is the sound c-factor-routing transportability algorithm; it subsumes direct and
+    S-admissible-adjustment transportability. It is not the complete sID (a c-factor identifiable
+    only by combining source and target is reported as non-transportable rather than guessed).
+
+    Faithful to J. Pearl, E. Bareinboim, *Transportability of Causal and Statistical Relations*,
+    AAAI 2011 / *External Validity*, Statistical Science 2014, via Tian's c-factor decomposition.
+    """
+    x, y, s = frozenset(treatment), frozenset(outcome), frozenset(selection)
+    unknown = (x | y | s) - set(graph.nodes)
+    if unknown:
+        raise CausalGraphError(f"unknown nodes: {sorted(unknown)}")
+    if not y:
+        raise CausalGraphError("outcome must be non-empty")
+    if x & y:
+        raise CausalGraphError(f"treatment and outcome overlap: {sorted(x & y)}")
+    return _transport(y, x, graph, s)
+
+
+def is_transportable_effect(
+    graph: CausalGraph,
+    treatment: Iterable[str],
+    outcome: Iterable[str],
+    selection: Iterable[str],
+) -> bool:
+    """Whether the target effect ``P*(outcome | do(treatment))`` is transportable (see
+    :func:`identify_transport`)."""
+    try:
+        identify_transport(graph, treatment, outcome, selection)
+    except NotIdentifiableError:
+        return False
+    return True
+
+
+def estimate_transported_effect(
+    graph: CausalGraph,
+    treatment: Iterable[str],
+    outcome: Iterable[str],
+    selection: Iterable[str],
+    source_data: Mapping[str, np.ndarray],
+    target_data: Mapping[str, np.ndarray],
+    *,
+    do: Mapping[str, int],
+) -> dict[tuple[int, ...], float]:
+    """Estimate the target effect ``P*(outcome | do(treatment = do))`` from source + target data.
+
+    Identifies the transport estimand (:func:`identify_transport`), then evaluates it with source
+    c-factors read from ``source_data`` and target c-factors from ``target_data`` (both discrete
+    integer columns over ``graph.nodes``). Returns the outcome distribution keyed in
+    ``sorted(outcome)`` order.
+    """
+    estimand = identify_transport(graph, treatment, outcome, selection)
+    domains = {
+        "source": _empirical_joint(source_data, graph.nodes),
+        "target": _empirical_joint(target_data, graph.nodes),
+    }
+    context = _EvalContext(domains["target"], {}, domains)
+    factor = _evaluate(estimand, context).condition(do)
     targets = sorted(outcome)
     factor = factor.marginalize(set(factor.variables) - set(targets)).reorder(targets)
     return dict(factor.table)
