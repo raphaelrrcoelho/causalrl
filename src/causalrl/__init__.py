@@ -49,11 +49,13 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "POMISThompsonSampling": ("causalrl.agents.scbandit", "POMISThompsonSampling"),
     "RealizabilityError": ("causalrl.exceptions", "RealizabilityError"),
     "UnverifiedAssumptionError": ("causalrl.exceptions", "UnverifiedAssumptionError"),
+    "SelectionDiagram": ("causalrl.identification.transport", "SelectionDiagram"),
     "SequentialDTREnv": ("causalrl.envs.suite.seq_dtr", "SequentialDTREnv"),
     "SequentialMABUCEnv": ("causalrl.envs.suite.seq_mabuc", "SequentialMABUCEnv"),
     "StructuralCausalBanditEnv": ("causalrl.envs.suite.scbandit", "StructuralCausalBanditEnv"),
     "StructuralCausalModel": ("causalrl.scm.scm", "StructuralCausalModel"),
     "Transition": ("causalrl.data.dataset", "Transition"),
+    "TransportFormula": ("causalrl.identification.transport", "TransportFormula"),
     "backdoor_adjustment_set": ("causalrl.identification.criteria", "backdoor_adjustment_set"),
     "causal_q_bounds": ("causalrl.identification.bounds", "causal_q_bounds"),
     "counterfactual_expectation": (
@@ -69,6 +71,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "generate_logs": ("causalrl.data.dataset", "generate_logs"),
     "ipw_value": ("causalrl.eval.ope", "ipw_value"),
     "is_identifiable": ("causalrl.identification.criteria", "is_identifiable"),
+    "is_transportable": ("causalrl.identification.transport", "is_transportable"),
     "minimal_intervention_sets": (
         "causalrl.identification.intervention_sets",
         "minimal_intervention_sets",
@@ -78,6 +81,8 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "run_episodes": ("causalrl.eval.harness", "run_episodes"),
     "run_confounded_chain_benchmark": ("causalrl.eval.benchmark", "run_confounded_chain_benchmark"),
     "run_frontdoor_benchmark": ("causalrl.eval.benchmark", "run_frontdoor_benchmark"),
+    "transport_formula": ("causalrl.identification.transport", "transport_formula"),
+    "transported_effect": ("causalrl.identification.transport", "transported_effect"),
 }
 
 __all__ = [
@@ -111,11 +116,13 @@ __all__ = [
     "OnlineOnlyUCB",
     "POMISThompsonSampling",
     "RealizabilityError",
+    "SelectionDiagram",
     "SequentialDTREnv",
     "SequentialMABUCEnv",
     "StructuralCausalBanditEnv",
     "StructuralCausalModel",
     "Transition",
+    "TransportFormula",
     "UnverifiedAssumptionError",
     "__version__",
     "backdoor_adjustment_set",
@@ -127,12 +134,15 @@ __all__ = [
     "generate_logs",
     "ipw_value",
     "is_identifiable",
+    "is_transportable",
     "minimal_intervention_sets",
     "pomis",
     "report_to_dict",
     "run_confounded_chain_benchmark",
     "run_episodes",
     "run_frontdoor_benchmark",
+    "transport_formula",
+    "transported_effect",
 ]
 
 

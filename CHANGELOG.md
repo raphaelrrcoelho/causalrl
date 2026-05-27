@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-05-27
+
+### Added
+- **Transportability** (taxonomy Task 4, generalizability & robustness). `SelectionDiagram`
+  represents a source/target pair differing in some mechanisms; `transport_formula` /
+  `is_transportable` decide whether `P*(y | do(x))` transfers and return the transport formula
+  (direct or S-admissible adjustment); `transported_effect` computes the transported estimate by
+  reweighting source conditionals with the target covariate marginal. Conservative — returns `None`
+  outside the supported class (no hedge-based sID completeness check). Faithful to Bareinboim &
+  Pearl (AAAI 2012; J. Causal Inference 2013) and Pearl & Bareinboim (Statistical Science 2014).
+- `make_transport_domains` — the canonical covariate-shift demo (`Z→X, Z→Y, X→Y`, selection on
+  `Z`): the transport formula recovers the true target effect (~0.82) while naively reusing the
+  source effect is biased (~0.58).
+- `CausalGraph.directed_edges` and `CausalGraph.bidirected_edges` accessors.
+
 ## [0.6.0] - 2026-05-27
 
 ### Added

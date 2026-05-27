@@ -170,10 +170,36 @@ The ETT estimand (`effect_of_treatment_on_treated`) and the counterfactual estim
 Bareinboim, Forney & Pearl, *Bandits with Unobserved Confounders* (NeurIPS 2015) and Pearl,
 *Causality* §8.2.1.
 
+## v0.7: Transportability (Task 4)
+
+An effect learned in one population does not always hold in another. Given a **selection diagram**
+marking which mechanisms differ across domains, `transport_formula` decides whether the target
+effect is recoverable and how. On the canonical covariate-shift graph `Z→X, Z→Y, X→Y` (domains
+differ in `P(Z)`), reusing the source effect is biased, but reweighting the source conditionals by
+the *target* covariate distribution transports it exactly.
+
+```python
+from causalrl import transport_formula, transported_effect
+from causalrl.envs.suite.transport import make_transport_domains
+
+source, target, diagram = make_transport_domains()        # differ only in P(Z)
+formula = transport_formula(diagram, treatment="X", outcome="Y")
+print(formula.kind, sorted(formula.adjustment_set))       # adjustment ['Z']
+
+transported = transported_effect(
+    formula, treatment="X", treated_value=1.0, outcome="Y", source=source, target=target,
+)
+# transported ~0.82 matches the true target effect; the naive source effect is ~0.58.
+```
+
+Conservative by design — like the rest of `causalrl.identification`, it returns `None` outside the
+supported class (direct / S-admissible adjustment) rather than guessing. Faithful to Bareinboim &
+Pearl, *Transportability of Causal Effects* (AAAI 2012; J. Causal Inference 2013).
+
 ## Layout
 
 - `causalrl.scm` — ADMG graph operations plus explicit-latent DAG `StructuralCausalModel` (`see`/`do`/`counterfactual`)
-- `causalrl.identification` — scoped conservative criteria, Manski `causal_q_bounds`, POMIS (`pomis`, `minimal_intervention_sets`), and counterfactual ETT (`counterfactual_expectation`, `effect_of_treatment_on_treated`)
+- `causalrl.identification` — scoped conservative criteria, Manski `causal_q_bounds`, POMIS (`pomis`, `minimal_intervention_sets`), counterfactual ETT (`counterfactual_expectation`, `effect_of_treatment_on_treated`), and transportability (`transport_formula`, `transported_effect`)
 - `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `SequentialDTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`, `StructuralCausalBanditEnv`)
 - `causalrl.data` — `ConfoundedTrajectoryDataset` and offline-log generation
 - `causalrl.agents` — bandit agents plus causal offline-to-online learners (`UCDTR`, `DOVI`, `DeepDeconfoundedQ`) and baselines

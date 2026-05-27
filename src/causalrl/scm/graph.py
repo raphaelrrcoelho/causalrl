@@ -37,6 +37,16 @@ class CausalGraph:
     def nodes(self) -> list[str]:
         return list(self._dag.nodes)
 
+    @property
+    def directed_edges(self) -> list[tuple[str, str]]:
+        """The directed edges as ``(parent, child)`` pairs."""
+        return [(u, v) for u, v in self._dag.edges]
+
+    @property
+    def bidirected_edges(self) -> list[tuple[str, str]]:
+        """The bidirected (latent-confounding) edges."""
+        return [(u, v) for u, v in self._bi.edges]
+
     def _check(self, node: str) -> None:
         if node not in self._dag:
             raise CausalGraphError(f"unknown node: {node!r}")
