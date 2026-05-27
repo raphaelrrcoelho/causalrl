@@ -266,6 +266,26 @@ print(learner.masters(goal))                        # False — prerequisites vi
 Faithful to Bengio, Louradour, Collobert & Weston, *Curriculum Learning* (ICML 2009); the causal
 contribution is the topological ordering rule.
 
+## v0.11: Causal reward shaping (Task 8)
+
+Speed learning without changing the optimum. Potential-based shaping adds `γΦ(s') − Φ(s)` to the
+reward — policy-invariant for *any* potential — and using the causal value `V*` as the potential
+turns a sparse reward dense, so a learner converges far faster.
+
+```python
+from causalrl.shaping import causal_potential, q_learning, value_iteration
+from causalrl.envs.suite.shaping import make_sparse_chain_mdp
+
+mdp = make_sparse_chain_mdp(length=12)              # reward only at the goal
+optimal = value_iteration(mdp)[1]                   # "always right"
+shaped = q_learning(mdp, potential=causal_potential(mdp), episodes=20, seed=0)
+unshaped = q_learning(mdp, episodes=20, seed=0)
+print(shaped == optimal, unshaped == optimal)       # True False — shaping reaches it; sparse lags
+```
+
+The optimal policy is provably unchanged by any potential (Ng, Harada & Russell, ICML 1999); the
+causal contribution is using `V*` from the model as the potential.
+
 ## Layout
 
 - `causalrl.scm` — ADMG graph operations plus explicit-latent DAG `StructuralCausalModel` (`see`/`do`/`counterfactual`)
@@ -273,6 +293,7 @@ contribution is the topological ordering rule.
 - `causalrl.discovery` — constraint-based causal structure learning (`discover`, `conditional_mutual_information`, `CPDAG`)
 - `causalrl.imitation` — causal imitation learning (`is_imitable`, `imitation_backdoor_set`, `CausalImitator`, `BehavioralCloning`)
 - `causalrl.curriculum` — causal curriculum learning (`causal_curriculum`, `is_valid_curriculum`, `PrerequisiteLearner`)
+- `causalrl.shaping` — causal / potential-based reward shaping (`apply_potential_shaping`, `causal_potential`, `value_iteration`, `q_learning`, `TabularMDP`)
 - `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `SequentialDTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`, `StructuralCausalBanditEnv`)
 - `causalrl.data` — `ConfoundedTrajectoryDataset` and offline-log generation
 - `causalrl.agents` — bandit agents plus causal offline-to-online learners (`UCDTR`, `DOVI`, `DeepDeconfoundedQ`) and baselines

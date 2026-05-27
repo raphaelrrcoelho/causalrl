@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-05-27
+
+### Added
+- **Causal reward shaping** (taxonomy Task 8). `apply_potential_shaping` adds `gamma*Phi(s') - Phi(s)`
+  to an MDP's rewards — policy-invariant for any potential (Ng, Harada & Russell, ICML 1999) — and
+  `causal_potential` supplies the ideal potential `V*` from the causal model. With `TabularMDP`,
+  `value_iteration`, and tabular `q_learning`, causal-potential shaping makes a sparse reward dense:
+  the shaped learner reaches the optimal policy within a few episodes while unshaped Q-learning lags,
+  and the optimal policy is provably unchanged.
+- `make_sparse_chain_mdp` — the sparse-reward chain demo.
+
 ## [0.10.0] - 2026-05-27
 
 ### Added
