@@ -16,6 +16,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "UCDTR": ("causalrl.agents.offline_online", "UCDTR"),
     "Agent": ("causalrl.agents.base", "Agent"),
     "BruteForceInterventionTS": ("causalrl.agents.scbandit", "BruteForceInterventionTS"),
+    "BenchmarkEstimate": ("causalrl.eval.benchmark", "BenchmarkEstimate"),
     "CausalEnv": ("causalrl.envs.base", "CausalEnv"),
     "CausalGraph": ("causalrl.scm.graph", "CausalGraph"),
     "CausalGraphError": ("causalrl.exceptions", "CausalGraphError"),
@@ -58,12 +59,15 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     ),
     "pomis": ("causalrl.identification.intervention_sets", "pomis"),
     "run_episodes": ("causalrl.eval.harness", "run_episodes"),
+    "run_confounded_chain_benchmark": ("causalrl.eval.benchmark", "run_confounded_chain_benchmark"),
+    "run_frontdoor_benchmark": ("causalrl.eval.benchmark", "run_frontdoor_benchmark"),
 }
 
 __all__ = [
     "DOVI",
     "UCDTR",
     "Agent",
+    "BenchmarkEstimate",
     "BruteForceInterventionTS",
     "CausalEnv",
     "CausalGraph",
@@ -104,7 +108,9 @@ __all__ = [
     "is_identifiable",
     "minimal_intervention_sets",
     "pomis",
+    "run_confounded_chain_benchmark",
     "run_episodes",
+    "run_frontdoor_benchmark",
 ]
 
 

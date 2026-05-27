@@ -39,6 +39,11 @@ from causalrl.envs.suite.mabuc import MABUCEnv as MABUCEnv
 from causalrl.envs.suite.scbandit import StructuralCausalBanditEnv as StructuralCausalBanditEnv
 from causalrl.envs.suite.seq_dtr import SequentialDTREnv as SequentialDTREnv
 from causalrl.envs.suite.seq_mabuc import SequentialMABUCEnv as SequentialMABUCEnv
+from causalrl.eval.benchmark import BenchmarkEstimate as BenchmarkEstimate
+from causalrl.eval.benchmark import (
+    run_confounded_chain_benchmark as run_confounded_chain_benchmark,
+)
+from causalrl.eval.benchmark import run_frontdoor_benchmark as run_frontdoor_benchmark
 from causalrl.eval.harness import run_episodes as run_episodes
 from causalrl.eval.metrics import (
     cumulative_regret as cumulative_regret,
