@@ -3,6 +3,8 @@
 import inspect
 import subprocess
 import sys
+import tomllib
+from pathlib import Path
 
 import causalrl
 
@@ -45,7 +47,8 @@ def test_key_symbols_are_exported():
 
 
 def test_version_is_stamped():
-    assert causalrl.__version__ == "0.5.0"
+    pyproject = tomllib.loads((Path(__file__).parent.parent / "pyproject.toml").read_text())
+    assert causalrl.__version__ == pyproject["project"]["version"]
 
 
 def test_graph_and_tabular_exports_import_without_torch():
