@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-05-27
+
+### Added
+- **Cross-domain transportability (sID)** (taxonomy Task 4): `identify_transport` /
+  `is_transportable_effect` / `estimate_transported_effect` (and the `transport_estimand`
+  `SelectionDiagram` adapter) decide and compute the target effect `P*(y | do(x))` across a
+  selection diagram by routing each c-factor — invariant factors transfer from the source,
+  selection-marked factors are identified from the target. With no selection it reduces to ID.
+  Validated by simulation: under a covariate shift the transported estimate matches the target's
+  true `do()` distribution (and differs from naively reusing the source). It subsumes the
+  direct / S-admissible-adjustment cases; it is sound but not the *complete* sID.
+
+### Fixed
+- gID: Tian's `Identify` assumes its domain is a single c-component. Both gID and sID now route
+  through `_c_factor_from`, which decomposes the domain into c-components before extracting — fixing
+  a latent error on multi-component experiment/source domains (previous gID tests only hit the
+  single-component case).
+
+### Notes
+- The complete sID (transport c-factors identifiable only by combining source and target) is still
+  out of scope and reported as non-transportable rather than guessed.
+
 ## [0.14.0] - 2026-05-27
 
 ### Added

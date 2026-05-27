@@ -50,6 +50,16 @@
 
 ::: causalrl.identification.transport.is_backdoor_admissible
 
+### General Transportability (sID)
+
+::: causalrl.identification.transport.transport_estimand
+
+::: causalrl.identification.id_algorithm.identify_transport
+
+::: causalrl.identification.id_algorithm.is_transportable_effect
+
+::: causalrl.identification.id_algorithm.estimate_transported_effect
+
 ## General Identification (ID Algorithm)
 
 ::: causalrl.identification.id_algorithm.identify_effect

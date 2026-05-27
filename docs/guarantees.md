@@ -96,10 +96,16 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
   `estimate_effect_with_experiments` evaluates the result on observational plus (randomized)
   experimental data. With no experiments it coincides exactly with ID; validated by simulation on a
   graph that is not observationally identifiable but is identified by a surrogate experiment.
-- **Transportability.** `transport_formula` / `is_transportable` decide direct and S-admissible
-  adjustment transportability over selection diagrams (via m-separation); `transported_effect`
-  computes the reweighted estimate. This is the adjustment-based slice, not the full hedge-based
-  cross-domain sID — unsupported cases return `None`.
+- **Transportability (sID).** `transport_formula` / `is_transportable` give a readable closed form
+  for the two workhorse cases (direct and S-admissible adjustment) over selection diagrams.
+  `identify_transport` / `transport_estimand` / `is_transportable_effect` add the general
+  c-factor-routing algorithm: the target effect is decomposed into c-factors, each taken from the
+  **source** if its mechanism is invariant or identified from the **target** otherwise;
+  `estimate_transported_effect` evaluates it on source + target data. With no selection it reduces to
+  ID. Validated by simulation: under a covariate shift the transported estimate matches the target's
+  true `do()`. This routing is sound and subsumes direct/adjustment, but is not the *complete* sID —
+  a c-factor identifiable only by combining source and target is reported non-transportable rather
+  than guessed.
 - **Causal discovery.** `discover` runs the PC algorithm (conditional independence by conditional
   mutual information, then collider and Meek orientation) and returns a `CPDAG`;
   `discover_interventional` additionally orients edges from interventional (L2) data by the
@@ -122,11 +128,12 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
 
 ## Not Yet Claimed
 
-- Full cross-domain transportability (the complete sID algorithm). Single-domain observational ID
-  (`identify_effect`) and general identification from surrogate experiments (gID,
-  `identify_effect_with_experiments`) *are* implemented; transportability across domains remains the
-  direct / S-admissible-adjustment slice (the complete sID, which reduces to a conditional-gID over
-  an augmented selection diagram, is the next frontier).
+- The *complete* sID. Single-domain observational ID (`identify_effect`), general identification from
+  surrogate experiments (gID, `identify_effect_with_experiments`), and the sound c-factor-routing
+  transportability (`identify_transport`) *are* implemented. What remains is completeness for
+  transport c-factors that are identifiable only by *combining* source and target (the complete sID
+  reduces to a conditional-gID over an augmented selection diagram); those are reported
+  non-transportable rather than guessed.
 - Causal discovery with latent confounders (FCI) or score-based search (GES); mixed-strategy
   equilibria for more than two players.
 - Published confounding-sensitivity or doubly robust OPE bounds.
