@@ -59,6 +59,9 @@ from causalrl.exceptions import (
 from causalrl.exceptions import (
     RealizabilityError as RealizabilityError,
 )
+from causalrl.exceptions import (
+    UnverifiedAssumptionError as UnverifiedAssumptionError,
+)
 from causalrl.identification.bounds import causal_q_bounds as causal_q_bounds
 from causalrl.identification.criteria import (
     backdoor_adjustment_set as backdoor_adjustment_set,

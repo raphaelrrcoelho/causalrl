@@ -28,7 +28,13 @@ def test_horizon_dovi_beats_myopic_and_naive_on_sequential_dtr():
     logs = generate_logs(SequentialDTREnv(horizon=2, seed=11), n_episodes=8000, seed=11)
     n_states = SequentialDTREnv(horizon=2).n_states  # 5
 
-    full = DOVI(n_states=n_states, n_actions=2, horizon=2, seed=0)
+    full = DOVI(
+        n_states=n_states,
+        n_actions=2,
+        horizon=2,
+        seed=0,
+        transition_assumption="unconfounded",
+    )
     full.ingest_offline(logs)
     full_returns = run_episodes(full, SequentialDTREnv(horizon=2, seed=0), n_episodes=8000, seed=0)
     full_late = sum(full_returns[-2000:]) / 2000
@@ -56,7 +62,13 @@ def test_horizon_dovi_beats_myopic_and_naive_on_gridworld():
     env = ConfoundedGridworld(size=3, seed=0)
     logs = generate_logs(ConfoundedGridworld(size=3, seed=7), n_episodes=2000, seed=7)
 
-    full = DOVI(n_states=env.n_states, n_actions=4, horizon=env.horizon, seed=0)
+    full = DOVI(
+        n_states=env.n_states,
+        n_actions=4,
+        horizon=env.horizon,
+        seed=0,
+        allow_heuristic=True,
+    )
     full.ingest_offline(logs)
     full_returns = run_episodes(full, env, n_episodes=4000, seed=0)
     full_late = sum(full_returns[-500:]) / 500

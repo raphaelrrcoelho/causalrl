@@ -31,7 +31,13 @@ def test_causal_agent_beats_naive_offline():
     logs = generate_logs(SequentialMABUCEnv(horizon=3, seed=5), n_episodes=6000, seed=5)
     n_states = SequentialMABUCEnv(horizon=3).n_states
 
-    dovi = DOVI(n_states=n_states, n_actions=2, horizon=3, seed=0)
+    dovi = DOVI(
+        n_states=n_states,
+        n_actions=2,
+        horizon=3,
+        seed=0,
+        transition_assumption="unconfounded",
+    )
     dovi.ingest_offline(logs)
     dovi_returns = run_episodes(
         dovi, SequentialMABUCEnv(horizon=3, seed=0), n_episodes=6000, seed=0

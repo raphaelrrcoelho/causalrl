@@ -1,3 +1,4 @@
+import warnings
 from collections.abc import Iterable
 from typing import Any
 
@@ -45,10 +46,31 @@ class POMISThompsonSampling(_ArmSubsetThompsonSampling):
     """
 
     def __init__(
-        self, graph: CausalGraph, reward: str, arms: list[dict[str, int]], seed: int | None = None
+        self,
+        graph: CausalGraph,
+        reward: str,
+        arms: list[dict[str, int]],
+        seed: int | None = None,
+        *,
+        manipulable: Iterable[str] | None = None,
     ) -> None:
-        manipulable = {v for arm in arms for v in arm}
-        pomis_sets = set(pomis(graph, reward, manipulable=manipulable))
+        arm_variables = {v for arm in arms for v in arm}
+        if manipulable is None:
+            warnings.warn(
+                "inferring manipulable variables from arms is deprecated; "
+                "pass manipulable= explicitly",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            permitted = arm_variables
+        else:
+            permitted = set(manipulable)
+            unexpected = arm_variables - permitted
+            if unexpected:
+                raise ValueError(
+                    f"arms intervene on non-manipulable variables: {sorted(unexpected)}"
+                )
+        pomis_sets = set(pomis(graph, reward, manipulable=permitted))
         allowed = [i for i, arm in enumerate(arms) if frozenset(arm.keys()) in pomis_sets]
         super().__init__(allowed, seed)
 

@@ -1,11 +1,14 @@
 import math
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
 from causalrl.agents.base import Agent
 from causalrl.agents.primitives import bounds_table
 from causalrl.data.dataset import ConfoundedTrajectoryDataset
+from causalrl.exceptions import UnverifiedAssumptionError
+
+TransitionAssumption = Literal["unknown", "unconfounded"]
 
 
 class DOVI(Agent):
@@ -39,11 +42,20 @@ class DOVI(Agent):
         seed: int | None = None,
         *,
         reward_max: float = 1.0,
+        transition_assumption: TransitionAssumption = "unknown",
+        allow_heuristic: bool = False,
     ) -> None:
+        if transition_assumption not in ("unknown", "unconfounded"):
+            raise ValueError(
+                "transition_assumption must be 'unknown' or 'unconfounded', "
+                f"got {transition_assumption!r}"
+            )
         self.n_states = n_states
         self.n_actions = n_actions
         self.horizon = horizon
         self.reward_max = reward_max
+        self.transition_assumption = transition_assumption
+        self.allow_heuristic = allow_heuristic
         self._counts = np.zeros((n_states, n_actions))
         self._sums = np.zeros((n_states, n_actions))
         # Transition model: non-terminal next-state counts, and total transitions seen.
@@ -54,7 +66,18 @@ class DOVI(Agent):
         self._ceiling = np.ones((n_states, n_actions))  # Manski upper bound on immediate reward
         self._q: np.ndarray | None = None  # cached plan, shape (H+1, S, A), indexed h = 1..H
 
+    @property
+    def is_certified(self) -> bool:
+        """Whether value propagation is within the documented causal guarantee."""
+        return self.horizon <= 1 or self.transition_assumption == "unconfounded"
+
     def ingest_offline(self, dataset: ConfoundedTrajectoryDataset) -> None:
+        if not self.is_certified and not self.allow_heuristic:
+            raise UnverifiedAssumptionError(
+                "multi-stage DOVI requires transition_assumption='unconfounded' for "
+                "certified value propagation; set allow_heuristic=True to run without "
+                "that transition guarantee"
+            )
         for (s, a), (_lo, hi) in bounds_table(dataset).items():
             self._ceiling[s, a] = hi
         for tr in dataset.transitions:

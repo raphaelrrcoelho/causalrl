@@ -19,3 +19,7 @@ class NotIdentifiableError(CausalRLError):
 
 class RealizabilityError(CausalRLError):
     """A counterfactual query cannot be realized from the given evidence."""
+
+
+class UnverifiedAssumptionError(CausalRLError):
+    """A method's claimed guarantee requires an assumption the caller has not declared."""

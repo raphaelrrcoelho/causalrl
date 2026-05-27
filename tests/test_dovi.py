@@ -1,9 +1,11 @@
 import math
 
 import numpy as np
+import pytest
 
 from causalrl.agents.dovi import DOVI
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition
+from causalrl.exceptions import UnverifiedAssumptionError
 
 
 def test_optimistic_q_respects_upper_bound_after_ingest():
@@ -96,3 +98,39 @@ def test_done_transitions_do_not_bootstrap():
     # All stages: bootstrap is 0 (only a terminal transition observed) -> Q == r̃ == 0.4.
     assert abs(q[1, 0, 0] - 0.4) < 1e-9
     assert abs(q[3, 0, 0] - 0.4) < 1e-9
+
+
+def _two_stage_logs() -> ConfoundedTrajectoryDataset:
+    return ConfoundedTrajectoryDataset(
+        [Transition(0, 0, 0.5, 1, False), Transition(1, 0, 0.5, 2, True)],
+        n_states=3,
+        n_actions=1,
+    )
+
+
+def test_horizon_one_dovi_is_certified_without_transition_assumption():
+    assert DOVI(n_states=3, n_actions=1, horizon=1).is_certified is True
+
+
+def test_multistage_dovi_refuses_unknown_transition_assumption_by_default():
+    agent = DOVI(n_states=3, n_actions=1, horizon=2)
+    assert agent.is_certified is False
+    with pytest.raises(UnverifiedAssumptionError, match="transition"):
+        agent.ingest_offline(_two_stage_logs())
+
+
+def test_multistage_dovi_is_certified_when_transitions_are_declared_unconfounded():
+    agent = DOVI(
+        n_states=3,
+        n_actions=1,
+        horizon=2,
+        transition_assumption="unconfounded",
+    )
+    agent.ingest_offline(_two_stage_logs())
+    assert agent.is_certified is True
+
+
+def test_multistage_dovi_allows_explicit_heuristic_opt_in_without_claiming_certification():
+    agent = DOVI(n_states=3, n_actions=1, horizon=2, allow_heuristic=True)
+    agent.ingest_offline(_two_stage_logs())
+    assert agent.is_certified is False

@@ -97,7 +97,9 @@ from causalrl.envs.suite.scbandit import make_confounded_chain_env
 env = make_confounded_chain_env(seed=1)
 print(pomis(env.graph, "Y"))            # [frozenset(), frozenset({'X3'})]
 
-agent = POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0)
+agent = POMISThompsonSampling(
+    env.graph, env.reward, env.arms, seed=0, manipulable=env.manipulable
+)
 env.reset(seed=1)
 for _ in range(8000):
     a = agent.act({})

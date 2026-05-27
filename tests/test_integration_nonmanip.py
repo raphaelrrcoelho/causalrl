@@ -25,7 +25,10 @@ def test_manipulability_aware_pomis_beats_naive():
     env = make_frontdoor_env(seed=1)
 
     aware = _run(
-        POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0), env, n_steps, seed=1
+        POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0, manipulable=env.manipulable),
+        env,
+        n_steps,
+        seed=1,
     )
     naive = _run(
         NaivePOMISThompsonSampling(env.graph, env.reward, env.arms, seed=0), env, n_steps, seed=2

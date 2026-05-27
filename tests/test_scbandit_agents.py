@@ -10,7 +10,9 @@ from causalrl.envs.suite.scbandit import make_confounded_chain_env
 
 def test_pomis_agent_restricts_to_pomis_arms():
     env = make_confounded_chain_env(seed=0)
-    agent = POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0)
+    agent = POMISThompsonSampling(
+        env.graph, env.reward, env.arms, seed=0, manipulable=env.manipulable
+    )
     # POMIS = {empty, {X3}} -> allowed arms are {}, {X3:0}, {X3:1}.
     key_sets = [frozenset(env.arms[i].keys()) for i in agent.allowed]
     assert len(agent.allowed) == 3
@@ -35,7 +37,9 @@ def test_fixed_set_agent_restricts_to_one_set():
 
 def test_act_returns_allowed_index_and_update_runs():
     env = make_confounded_chain_env(seed=0)
-    agent = POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0)
+    agent = POMISThompsonSampling(
+        env.graph, env.reward, env.arms, seed=0, manipulable=env.manipulable
+    )
     a = agent.act({})
     assert a in agent.allowed
     agent.update({}, a, 1.0)  # must not raise
@@ -53,3 +57,15 @@ def test_reward_outside_unit_interval_is_rejected(reward: float):
     agent = BruteForceInterventionTS([{}], seed=0)
     with pytest.raises(ValueError, match=r"\[0, 1\]"):
         agent.update({}, 0, reward)
+
+
+def test_pomis_agent_inferred_manipulability_is_deprecated_for_compatibility():
+    env = make_confounded_chain_env(seed=0)
+    with pytest.warns(DeprecationWarning, match="manipulable"):
+        POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0)
+
+
+def test_pomis_agent_rejects_arm_outside_explicit_manipulable_contract():
+    env = make_confounded_chain_env(seed=0)
+    with pytest.raises(ValueError, match="non-manipulable"):
+        POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0, manipulable={"X1", "X2"})
