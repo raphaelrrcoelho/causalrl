@@ -26,6 +26,7 @@ def test_public_library_metadata_and_documentation_surface_exist():
         "docs/api.md",
         "CITATION.cff",
         "CONTRIBUTING.md",
+        ".github/workflows/docs.yml",
         ".github/workflows/publish.yml",
     ):
         assert (root / path).exists(), f"missing public library surface: {path}"
