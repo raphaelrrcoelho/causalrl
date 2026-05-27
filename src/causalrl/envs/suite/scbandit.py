@@ -121,3 +121,45 @@ def make_confounded_chain_env(
     """The demo `StructuralCausalBanditEnv` over X1->X2->X3->Y with X1<->Y."""
     scm, admg, reward, manipulable, domains = build_confounded_chain()
     return StructuralCausalBanditEnv(scm, admg, reward, manipulable, domains, n_mc=n_mc, seed=seed)
+
+
+def build_frontdoor() -> tuple[
+    StructuralCausalModel, CausalGraph, str, list[str], dict[str, list[int]]
+]:
+    """The front-door / cholesterol example from Lee & Bareinboim 2019 (R-40, appendix):
+    X->Z->Y with a latent confounder between X and Y, where Z (e.g. cholesterol) is
+    NON-manipulable and X is the manipulable lever. Under non-manipulability the POMIS is
+    {empty, {X}} (do(X) acts through the front-door). Means: observe ~0.50, do(X=0) ~0.44,
+    do(X=1) ~0.56 (optimal), so steering through X beats observing."""
+
+    def y_mech(pa: dict[str, torch.Tensor], u: torch.Tensor) -> torch.Tensor:
+        return ((u * pa["U_XY"]) != pa["Z"]).float()  # (u_Y AND U_XY) XOR Z
+
+    scm_graph = CausalGraph(
+        directed_edges=[("U_XY", "X"), ("U_XY", "Y"), ("X", "Z"), ("Z", "Y")]
+    )
+    mechanisms: dict[str, Mechanism] = {
+        "U_XY": FunctionalMechanism([], lambda pa, u: u),
+        "X": FunctionalMechanism(["U_XY"], lambda pa, u: (u != pa["U_XY"]).float()),
+        "Z": FunctionalMechanism(["X"], lambda pa, u: (u != pa["X"]).float()),
+        "Y": FunctionalMechanism(["Z", "U_XY"], y_mech),
+    }
+    exogenous: dict[str, Distribution] = {
+        "U_XY": Bernoulli(0.5),
+        "X": Bernoulli(0.5),
+        "Z": Bernoulli(0.4),
+        "Y": Bernoulli(0.4),
+    }
+    scm = StructuralCausalModel(scm_graph, mechanisms, exogenous)
+    # Abstracted ADMG: project out the latent U_XY -> X <-> Y. Z is observed but non-manipulable.
+    admg = CausalGraph(directed_edges=[("X", "Z"), ("Z", "Y")], bidirected_edges=[("X", "Y")])
+    return scm, admg, "Y", ["X"], {"X": [0, 1]}
+
+
+def make_frontdoor_env(
+    seed: int | None = None, *, n_mc: int = 20000
+) -> StructuralCausalBanditEnv:
+    """The front-door demo env (R-40): X->Z->Y, X<->Y, with Z non-manipulable (only X is a
+    lever). A higher default `n_mc` sharpens the ground-truth means around the ~0.06 gap."""
+    scm, admg, reward, manipulable, domains = build_frontdoor()
+    return StructuralCausalBanditEnv(scm, admg, reward, manipulable, domains, n_mc=n_mc, seed=seed)
