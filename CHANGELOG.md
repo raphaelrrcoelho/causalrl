@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-05-27
+
+### Added
+- **Mixed-strategy Nash equilibria for three or more players** (taxonomy Task 9): `mixed_nash_equilibria`
+  now handles any number of agents. Two-player games stay exact (rational support enumeration); games
+  with ≥3 agents use support enumeration with a numerical Newton solve of the multilinear indifference
+  system, and **every returned profile is verified to be an ε-Nash equilibrium**. Validated on a
+  three-player cyclic matching game (recovers the uniform `(1/2, 1/2)` equilibrium).
+
+### Changed
+- `mixed_nash_equilibria` no longer raises `NotImplementedError` for more than two agents; it raises
+  `CausalGraphError` only for fewer than two agents.
+
 ## [0.17.0] - 2026-05-27
 
 ### Added

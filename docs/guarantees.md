@@ -132,8 +132,9 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
 - **Causal games.** `CausalGame` / `pure_nash_equilibria` represent MACIDs and enumerate
   pure-strategy Nash equilibria for any number of agents; `mixed_nash_equilibria` finds all
   mixed-strategy equilibria of a two-player game exactly by support enumeration (rational
-  arithmetic). Mixed equilibria for more than two players need nonlinear solvers and stay out of
-  scope.
+  arithmetic), and for three or more agents by support enumeration with a numerical Newton solve of
+  the multilinear indifference system — every returned profile is verified to be an ε-Nash
+  equilibrium (no agent gains more than `1e-6` by deviating to a pure action).
 
 ## Not Yet Claimed
 
@@ -142,8 +143,7 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
   gID case) is reported non-transportable rather than guessed. Single-domain observational ID
   (`identify_effect`), gID (`identify_effect_with_experiments`), and the multi-domain mz/meta
   transportability (`identify_transport_general`) above are implemented and validated.
-- Score-based causal discovery (GES) and interventional FCI; mixed-strategy equilibria for more than
-  two players.
+- Score-based causal discovery (GES) and interventional FCI.
 - Published confounding-sensitivity or doubly robust OPE bounds.
 - Production-ready deep or offline-RL training integrations.
 - General statistical guarantees from the maintained toy benchmark environments.

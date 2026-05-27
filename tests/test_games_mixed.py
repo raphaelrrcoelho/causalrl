@@ -1,4 +1,4 @@
-"""Mixed-strategy Nash equilibria (Task 9): exact support enumeration for two-player games."""
+"""Mixed-strategy Nash equilibria (Task 9): exact two-player, verified-numerical for n>=3."""
 
 from __future__ import annotations
 
@@ -56,17 +56,49 @@ def test_every_pure_equilibrium_is_a_mixed_equilibrium() -> None:
         assert point_mass in mixed
 
 
-def _three_player_zero_game() -> CausalGame:
+def _three_player_cyclic_matching() -> CausalGame:
+    # Cyclic "matching pennies" for three: a wants to match b, b wants to match c, c wants to
+    # mismatch a. No pure equilibrium; the unique totally-mixed one is (1/2, 1/2) for everyone.
     agents = ("a", "b", "c")
     actions = {x: (0, 1) for x in agents}
     profiles = list(product((0, 1), (0, 1), (0, 1)))
-    utilities = {x: {p: 0.0 for p in profiles} for x in agents}
+    utilities = {
+        "a": {(x, y, z): 1.0 if x == y else 0.0 for (x, y, z) in profiles},
+        "b": {(x, y, z): 1.0 if y == z else 0.0 for (x, y, z) in profiles},
+        "c": {(x, y, z): 1.0 if z != x else 0.0 for (x, y, z) in profiles},
+    }
     decisions = [decision_node(x) for x in agents]
     utility_nodes = [utility_node(x) for x in agents]
     graph = CausalGraph(directed_edges=[(d, u) for d in decisions for u in utility_nodes])
     return CausalGame(agents, actions, utilities, graph)
 
 
-def test_more_than_two_players_is_out_of_scope() -> None:
-    with pytest.raises(NotImplementedError):
-        mixed_nash_equilibria(_three_player_zero_game())
+def test_three_player_cyclic_has_the_uniform_mixed_equilibrium() -> None:
+    equilibria = mixed_nash_equilibria(_three_player_cyclic_matching())
+    uniform = {0: 0.5, 1: 0.5}
+    assert any(
+        e["a"] == pytest.approx(uniform)
+        and e["b"] == pytest.approx(uniform)
+        and e["c"] == pytest.approx(uniform)
+        for e in equilibria
+    )
+
+
+def test_three_player_results_are_all_epsilon_nash() -> None:
+    from causalrl.games import _is_epsilon_nash
+
+    game = _three_player_cyclic_matching()
+    equilibria = mixed_nash_equilibria(game)
+    assert equilibria  # at least the uniform mix
+    assert all(_is_epsilon_nash(game, e, epsilon=1e-5) for e in equilibria)
+
+
+def test_fewer_than_two_agents_raises() -> None:
+    from causalrl.exceptions import CausalGraphError
+
+    agents = ("solo",)
+    actions = {"solo": (0, 1)}
+    utilities = {"solo": {(0,): 1.0, (1,): 0.0}}
+    graph = CausalGraph(directed_edges=[(decision_node("solo"), utility_node("solo"))])
+    with pytest.raises(CausalGraphError):
+        mixed_nash_equilibria(CausalGame(agents, actions, utilities, graph))

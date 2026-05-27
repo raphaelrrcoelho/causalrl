@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from fractions import Fraction
 from itertools import combinations, product
 
+import numpy as np
+
 from causalrl.exceptions import CausalGraphError
 from causalrl.scm.graph import CausalGraph
 
@@ -148,31 +150,8 @@ def _indifference_mix(
     return dict(zip(other_support, solution, strict=True))
 
 
-def mixed_nash_equilibria(game: CausalGame) -> list[dict[str, dict[int, float]]]:
-    """All Nash equilibria (pure and properly mixed) of a TWO-player game, by support enumeration.
-
-    For each pair of equal-size action supports, the players' indifference conditions form a square
-    rational linear system solved exactly with :class:`fractions.Fraction`; a candidate is kept when
-    both mixes are valid probability vectors and no off-support action is a strictly better
-    response. Each equilibrium maps an agent to ``{action: probability}`` (off-support actions carry
-    probability zero). Computation is exact internally and returned as floats, so symmetric games
-    yield exact mixes (matching pennies returns ``0.5``/``0.5``).
-
-    Raises :class:`NotImplementedError` for games without exactly two agents: mixed-equilibrium
-    computation for more than two players needs nonlinear solvers and is out of scope (use
-    :func:`pure_nash_equilibria`, which handles any number of agents). Assumes a non-degenerate
-    game; degenerate games may admit a continuum of equilibria, of which only support-extreme
-    points are enumerated.
-
-    Faithful to the support-enumeration method (R. Porter, E. Nudelman, Y. Shoham, *Simple Search
-    Methods for Finding a Nash Equilibrium*, Games and Economic Behavior 2008; B. von Stengel,
-    *Computing Equilibria for Two-Person Games*, Handbook of Game Theory 2002). No code is ported.
-    """
-    if len(game.agents) != 2:
-        raise NotImplementedError(
-            "mixed_nash_equilibria supports two-player games; "
-            "use pure_nash_equilibria for the general case"
-        )
+def _mixed_nash_two_player(game: CausalGame) -> list[dict[str, dict[int, float]]]:
+    """Exact two-player support enumeration over rational arithmetic."""
     p1, p2 = game.agents
     a1, a2 = game.actions[p1], game.actions[p2]
     u1, u2 = game.utilities[p1], game.utilities[p2]
@@ -210,3 +189,143 @@ def mixed_nash_equilibria(game: CausalGame) -> list[dict[str, dict[int, float]]]
                     }
                 )
     return equilibria
+
+
+def _profile_expected_utility(
+    game: CausalGame, agent: str, action: int, mix: Mapping[str, Mapping[int, float]]
+) -> float:
+    """``agent``'s expected payoff for ``action`` given the others' mixed strategies ``mix``."""
+    index = game.agents.index(agent)
+    others = [a for a in game.agents if a != agent]
+    total = 0.0
+    for combo in product(*(game.actions[o] for o in others)):
+        weight = 1.0
+        for other, act in zip(others, combo, strict=True):
+            weight *= mix[other].get(act, 0.0)
+        if weight == 0.0:
+            continue
+        joint = [0] * len(game.agents)
+        joint[index] = action
+        for other, act in zip(others, combo, strict=True):
+            joint[game.agents.index(other)] = act
+        total += weight * game.utilities[agent][tuple(joint)]
+    return total
+
+
+def _is_epsilon_nash(
+    game: CausalGame, mix: Mapping[str, Mapping[int, float]], *, epsilon: float
+) -> bool:
+    """Whether no agent can gain more than ``epsilon`` by deviating to any pure action."""
+    for agent in game.agents:
+        payoffs = {
+            act: _profile_expected_utility(game, agent, act, mix) for act in game.actions[agent]
+        }
+        current = sum(mix[agent].get(act, 0.0) * payoffs[act] for act in game.actions[agent])
+        if max(payoffs.values()) > current + epsilon:
+            return False
+    return True
+
+
+def _solve_support_numeric(
+    game: CausalGame, supports: Mapping[str, tuple[int, ...]], *, iterations: int = 200
+) -> dict[str, dict[int, float]] | None:
+    """Newton-solve the indifference system for one support profile (any number of players).
+
+    Returns ``None`` if it does not converge to a valid probability vector. The unknowns are the
+    on-support probabilities; the equations are, per agent, equal expected payoff across the support
+    plus a sum-to-one constraint (multilinear for three or more players).
+    """
+    agents = game.agents
+    sizes = [len(supports[a]) for a in agents]
+    offsets = [0]
+    for size in sizes:
+        offsets.append(offsets[-1] + size)
+    dim = offsets[-1]
+
+    def unpack(x: np.ndarray) -> dict[str, dict[int, float]]:
+        return {
+            a: {supports[a][j]: float(x[offsets[i] + j]) for j in range(sizes[i])}
+            for i, a in enumerate(agents)
+        }
+
+    def residual(x: np.ndarray) -> np.ndarray:
+        mix = unpack(x)
+        out: list[float] = []
+        for i, a in enumerate(agents):
+            support = supports[a]
+            eu = [_profile_expected_utility(game, a, act, mix) for act in support]
+            out.extend(eu[j] - eu[0] for j in range(1, len(support)))
+            out.append(float(np.sum(x[offsets[i] : offsets[i + 1]])) - 1.0)
+        return np.array(out)
+
+    x = np.concatenate([np.full(size, 1.0 / size) for size in sizes])
+    for _ in range(iterations):
+        fx = residual(x)
+        if np.max(np.abs(fx)) < 1e-12:
+            break
+        jac = np.zeros((dim, dim))
+        for k in range(dim):
+            bumped = x.copy()
+            bumped[k] += 1e-7
+            jac[:, k] = (residual(bumped) - fx) / 1e-7
+        try:
+            x = x + np.linalg.solve(jac, -fx)
+        except np.linalg.LinAlgError:
+            return None
+    if np.max(np.abs(residual(x))) > 1e-6 or bool(np.any(x < -1e-9)):
+        return None
+    return unpack(np.clip(x, 0.0, 1.0))
+
+
+def _mixed_nash_general(game: CausalGame) -> list[dict[str, dict[int, float]]]:
+    """Mixed Nash equilibria for three or more players: support enumeration, numerical solve, and
+    an ε-Nash verification of every candidate."""
+    agents = game.agents
+    supports_per_agent = {
+        a: [
+            combo
+            for k in range(1, len(game.actions[a]) + 1)
+            for combo in combinations(game.actions[a], k)
+        ]
+        for a in agents
+    }
+    equilibria: list[dict[str, dict[int, float]]] = []
+    seen: set[tuple[tuple[float, ...], ...]] = set()
+    for profile in product(*(supports_per_agent[a] for a in agents)):
+        supports = dict(zip(agents, profile, strict=True))
+        solution = _solve_support_numeric(game, supports)
+        if solution is None or not _is_epsilon_nash(game, solution, epsilon=1e-6):
+            continue
+        full = {a: {act: solution[a].get(act, 0.0) for act in game.actions[a]} for a in agents}
+        signature = tuple(tuple(round(full[a][act], 6) for act in game.actions[a]) for a in agents)
+        if signature in seen:
+            continue
+        seen.add(signature)
+        equilibria.append(full)
+    return equilibria
+
+
+def mixed_nash_equilibria(game: CausalGame) -> list[dict[str, dict[int, float]]]:
+    """All mixed-strategy Nash equilibria (pure and properly mixed), by support enumeration.
+
+    Two-player games are solved **exactly** over rational arithmetic (:class:`fractions.Fraction`),
+    so symmetric games yield exact mixes (matching pennies gives ``0.5``/``0.5``). Games with three
+    or more agents are solved by support enumeration with a **numerical** (Newton) solve of the
+    multilinear indifference system; every returned profile is then verified to be an ε-Nash
+    equilibrium (no agent can gain more than ``1e-6`` by deviating to a pure action). Each
+    equilibrium maps an agent to ``{action: probability}`` with off-support actions at zero.
+
+    Assumes a non-degenerate game; degenerate games may admit a continuum of equilibria, of which
+    only support-extreme points are enumerated, and the numerical solver may miss a support whose
+    system is ill-conditioned. Raises :class:`CausalGraphError` for fewer than two agents (use
+    :func:`pure_nash_equilibria` for pure equilibria of any game).
+
+    Faithful to the support-enumeration method (R. Porter, E. Nudelman, Y. Shoham, *Simple Search
+    Methods for Finding a Nash Equilibrium*, Games and Economic Behavior 2008; B. von Stengel,
+    *Computing Equilibria for Two-Person Games*, Handbook of Game Theory 2002). No code is ported.
+    """
+    if len(game.agents) < 2:
+        raise CausalGraphError("mixed_nash_equilibria needs at least two agents")
+    if len(game.agents) == 2:
+        return _mixed_nash_two_player(game)
+    return _mixed_nash_general(game)
