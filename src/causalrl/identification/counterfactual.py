@@ -11,8 +11,8 @@ Faithful to:
 - E. Bareinboim, A. Forney, J. Pearl, *Bandits with Unobserved Confounders: A Causal Approach*,
   NeurIPS 2015 — the Regret Decision Criterion (condition the choice on the agent's intuition).
 - J. Pearl, *Causality* (2nd ed.), §8.2.1 — the Effect of Treatment on the Treated.
-- A. Forney, J. Pearl, E. Bareinboim, *Counterfactual Data-Fusion for Online RL with Sleeping
-  Experts*, ICML 2017.
+- A. Forney, J. Pearl, E. Bareinboim, *Counterfactual Data-Fusion for Online Reinforcement
+  Learners*, ICML 2017.
 
 The estimands are implemented on our own SCM; no external code is ported.
 """

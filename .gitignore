@@ -14,3 +14,6 @@ site/
 
 # Claude Code local worktrees / settings (not part of the project)
 .claude/
+
+# Reference papers — kept locally for citation/reproducibility, not redistributed (copyright)
+papers/*.pdf
