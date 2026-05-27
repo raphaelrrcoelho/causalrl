@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-05-27
+
+### Added
+- **Causal imitation learning** (taxonomy Task 6). `is_imitable` / `imitation_backdoor_set` decide
+  whether an expert can be imitated from observed demonstrations and return the observed back-door
+  set to clone on; `CausalImitator` clones `P(A | Z)` and reproduces the expert's reward, while the
+  `BehavioralCloning` baseline (cloning the marginal `P(A)`) is biased by the confounding.
+  Conservative: returns `None` / `False` when no observed admissible set exists rather than a biased
+  policy. Faithful to Zhang, Kumor & Bareinboim, *Causal Imitation Learning with Unobserved
+  Confounders* (NeurIPS 2020).
+- `ImitationEnv` (`make_imitation_diagram`, `generate_demonstrations`, `expert_policy`): a confounded
+  one-step demo where the causal imitator matches the expert (~0.9) and naive BC is stuck near ~0.5.
+- `is_backdoor_admissible` (the back-door criterion check) is now public, shared by transportability
+  and imitation.
+
 ## [0.8.0] - 2026-05-27
 
 ### Added

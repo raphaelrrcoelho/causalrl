@@ -217,11 +217,39 @@ PC assumes causal sufficiency (no latent confounders) and faithfulness; the CPDA
 oriented, and `to_causal_graph` raises rather than guess. Faithful to Spirtes, Glymour & Scheines
 and Meek (UAI 1995).
 
+## v0.9: Causal imitation learning (Task 6)
+
+When an unobserved confounder drives both the expert's actions and the outcome, naively cloning the
+action distribution is **biased** — the cloner acts independently of the confounding the expert used.
+`is_imitable` says whether imitation is even feasible and, if so, which observed set to condition on;
+`CausalImitator` clones `P(A | Z)` and reproduces the expert's reward.
+
+```python
+from causalrl.imitation import CausalImitator, is_imitable
+from causalrl.envs.suite.imitation import (
+    ImitationEnv,
+    generate_demonstrations,
+    make_imitation_diagram,
+)
+
+graph, observable = make_imitation_diagram()      # observed confounder: W->A, W->Y, A->Y
+print(is_imitable(graph, action="A", outcome="Y", observable=observable))  # True (adjust on W)
+
+demos = generate_demonstrations(ImitationEnv(seed=0))
+imitator = CausalImitator(n_actions=2, adjustment=["W"])
+imitator.fit(demos, action="A")
+# Deployed, the causal imitator earns ~0.9 (matches the expert); marginal BC earns ~0.5.
+```
+
+When the confounder is latent (no observed admissible set) `is_imitable` returns `False` rather than
+a biased policy. Faithful to Zhang, Kumor & Bareinboim (NeurIPS 2020).
+
 ## Layout
 
 - `causalrl.scm` — ADMG graph operations plus explicit-latent DAG `StructuralCausalModel` (`see`/`do`/`counterfactual`)
-- `causalrl.identification` — scoped conservative criteria, Manski `causal_q_bounds`, POMIS (`pomis`, `minimal_intervention_sets`), counterfactual ETT (`counterfactual_expectation`, `effect_of_treatment_on_treated`), and transportability (`transport_formula`, `transported_effect`)
+- `causalrl.identification` — scoped conservative criteria, Manski `causal_q_bounds`, POMIS (`pomis`, `minimal_intervention_sets`), counterfactual ETT (`counterfactual_expectation`, `effect_of_treatment_on_treated`), and transportability (`transport_formula`, `transported_effect`, `is_backdoor_admissible`)
 - `causalrl.discovery` — constraint-based causal structure learning (`discover`, `conditional_mutual_information`, `CPDAG`)
+- `causalrl.imitation` — causal imitation learning (`is_imitable`, `imitation_backdoor_set`, `CausalImitator`, `BehavioralCloning`)
 - `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `SequentialDTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`, `StructuralCausalBanditEnv`)
 - `causalrl.data` — `ConfoundedTrajectoryDataset` and offline-log generation
 - `causalrl.agents` — bandit agents plus causal offline-to-online learners (`UCDTR`, `DOVI`, `DeepDeconfoundedQ`) and baselines

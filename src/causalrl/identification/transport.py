@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 __all__ = [
     "SelectionDiagram",
     "TransportFormula",
+    "is_backdoor_admissible",
     "is_transportable",
     "transport_formula",
     "transported_effect",
@@ -108,7 +109,7 @@ def _d_separated(
     return bool(nx.is_d_separator(dag, x, y, z))  # type: ignore[reportUnknownMemberType]
 
 
-def _is_backdoor_admissible(graph: CausalGraph, treatment: str, outcome: str, z: set[str]) -> bool:
+def is_backdoor_admissible(graph: CausalGraph, treatment: str, outcome: str, z: set[str]) -> bool:
     """Back-door criterion: `z` has no descendant of `treatment` and blocks every back-door path
     (``treatment ⊥ outcome | z`` in the graph with `treatment`'s outgoing edges removed)."""
     if z & graph.descendants(treatment):
@@ -154,7 +155,7 @@ def transport_formula(
     for size in range(min(max_adjustment_size, len(candidates)) + 1):
         for combo in combinations(candidates, size):
             z = set(combo)
-            if not _is_backdoor_admissible(graph, treatment, outcome, z):
+            if not is_backdoor_admissible(graph, treatment, outcome, z):
                 continue
             if not _d_separated(g_bar_x, s_nodes, {outcome}, z | {treatment}, selection):
                 continue
