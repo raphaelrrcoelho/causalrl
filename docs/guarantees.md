@@ -96,16 +96,21 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
   `estimate_effect_with_experiments` evaluates the result on observational plus (randomized)
   experimental data. With no experiments it coincides exactly with ID; validated by simulation on a
   graph that is not observationally identifiable but is identified by a surrogate experiment.
-- **Transportability (sID).** `transport_formula` / `is_transportable` give a readable closed form
-  for the two workhorse cases (direct and S-admissible adjustment) over selection diagrams.
-  `identify_transport` / `transport_estimand` / `is_transportable_effect` add the general
-  c-factor-routing algorithm: the target effect is decomposed into c-factors, each taken from the
-  **source** if its mechanism is invariant or identified from the **target** otherwise;
-  `estimate_transported_effect` evaluates it on source + target data. With no selection it reduces to
-  ID. Validated by simulation: under a covariate shift the transported estimate matches the target's
-  true `do()`. This routing is sound and subsumes direct/adjustment, but is not the *complete* sID —
-  a c-factor identifiable only by combining source and target is reported non-transportable rather
-  than guessed.
+- **Transportability (sID, mz, meta).** `transport_formula` / `is_transportable` give a readable
+  closed form for the two workhorse cases (direct and S-admissible adjustment) over selection
+  diagrams. `identify_transport` / `transport_estimand` / `is_transportable_effect` decompose the
+  target effect into c-factors and route each to whichever domain can supply it. At c-factor
+  granularity a factor is invariant exactly when it touches no selection-marked variable, so for a
+  single observational source this routing is the *complete* single-domain sID: it reduces to the ID
+  algorithm and raises a witnessing **transport-hedge** when no domain supplies a needed factor.
+  `Domain` + `identify_transport_general` / `is_transportable_general` / `estimate_transport_general`
+  generalize this to **multiple source domains** (meta-transportability) and to **surrogate
+  experiments** in a domain (mz-transportability): each c-factor is searched across the
+  domains/experiments that can supply it, with the target as the fallback. Validated by simulation: a
+  covariate-shift estimate matches the target's true `do()`, a source experiment breaks a bow-arc
+  hedge, and an effect is assembled from invariant factors contributed by different sources. Sound
+  throughout; the one case it does not stitch is a single c-factor identifiable only by *combining
+  several experiments* (resolved per-experiment, reported non-transportable rather than guessed).
 - **Causal discovery.** `discover` runs the PC algorithm (conditional independence by conditional
   mutual information, then collider and Meek orientation) and returns a `CPDAG`;
   `discover_interventional` additionally orients edges from interventional (L2) data by the
@@ -128,12 +133,11 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
 
 ## Not Yet Claimed
 
-- The *complete* sID. Single-domain observational ID (`identify_effect`), general identification from
-  surrogate experiments (gID, `identify_effect_with_experiments`), and the sound c-factor-routing
-  transportability (`identify_transport`) *are* implemented. What remains is completeness for
-  transport c-factors that are identifiable only by *combining* source and target (the complete sID
-  reduces to a conditional-gID over an augmented selection diagram); those are reported
-  non-transportable rather than guessed.
+- Multi-experiment c-factor stitching. Transportability resolves each c-factor from a single
+  domain/experiment; a c-factor identifiable only by *combining several experiments* (the deepest
+  gID case) is reported non-transportable rather than guessed. Single-domain observational ID
+  (`identify_effect`), gID (`identify_effect_with_experiments`), and the multi-domain mz/meta
+  transportability (`identify_transport_general`) above are implemented and validated.
 - Causal discovery with latent confounders (FCI) or score-based search (GES); mixed-strategy
   equilibria for more than two players.
 - Published confounding-sensitivity or doubly robust OPE bounds.

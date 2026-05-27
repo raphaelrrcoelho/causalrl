@@ -60,6 +60,16 @@
 
 ::: causalrl.identification.id_algorithm.estimate_transported_effect
 
+### Multiple Domains And Experiments (mz / meta)
+
+::: causalrl.identification.id_algorithm.Domain
+
+::: causalrl.identification.id_algorithm.identify_transport_general
+
+::: causalrl.identification.id_algorithm.is_transportable_general
+
+::: causalrl.identification.id_algorithm.estimate_transport_general
+
 ## General Identification (ID Algorithm)
 
 ::: causalrl.identification.id_algorithm.identify_effect

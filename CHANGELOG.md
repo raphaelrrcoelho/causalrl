@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-05-27
+
+### Added
+- **Multi-domain and experimental transportability (mz / meta)** (taxonomy Task 4): a general
+  engine resolves each c-factor of the target effect by searching the domains that can supply it.
+  - `Domain` describes a source domain — its selection-marked variables and the surrogate
+    experiments it offers.
+  - `identify_transport_general` / `is_transportable_general` / `estimate_transport_general` decide
+    and compute `P*(y | do(x))` across one or more `Domain`s plus the target. With a single
+    observational source they coincide with `identify_transport`; with no selection and no
+    experiments they reduce to the ID algorithm.
+  - **mz**: a surrogate experiment in a source domain supplies a c-factor that no observational
+    distribution can (validated: a source `do(X)` breaks a bow-arc hedge, matching simulation).
+  - **meta**: invariant c-factors are contributed by different source domains (validated: an effect
+    assembled from two sources marked on different covariates matches the target's true `do()`).
+- A [Transportability guide](docs/transportability.md) with runnable covariate-shift, mz, and meta
+  examples.
+
+### Changed
+- The single-source `identify_transport` now delegates to the general engine — behaviour-preserving;
+  its signature and results are unchanged.
+- Internal: S-node separation helpers moved to `causalrl.identification._separation` (shared by the
+  transport code and the ID engine; no public API change).
+
+### Notes
+- At c-factor granularity, invariance is exactly "touches no selection-marked variable", so
+  single-source observational transport was already complete; this release adds surrogate
+  experiments and multiple source domains. The one remaining edge — a single c-factor identifiable
+  only by *combining several experiments* — is reported non-transportable rather than guessed.
+
 ## [0.15.0] - 2026-05-27
 
 ### Added
