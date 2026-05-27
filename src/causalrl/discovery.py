@@ -330,3 +330,172 @@ def discover_interventional(
 
     _apply_meek_rules(nodes, directed, undirected)
     return CPDAG(tuple(nodes), frozenset(directed), frozenset(undirected))
+
+
+# --------------------------------------------------------------------------------------------------
+# FCI: causal discovery allowing latent confounders (and selection bias). Returns a PAG.
+# --------------------------------------------------------------------------------------------------
+def _pag_neighbors(marks: Mapping[tuple[str, str], str], a: str) -> set[str]:
+    return {b for (x, b) in marks if x == a}
+
+
+def _orient_colliders(
+    marks: dict[tuple[str, str], str],
+    nodes: Sequence[str],
+    sepset: Mapping[frozenset[str], tuple[str, ...]],
+) -> None:
+    """Orient every unshielded collider ``a *-> b <-* c`` (arrowheads at ``b``)."""
+    for b in nodes:
+        for a, c in combinations(sorted(_pag_neighbors(marks, b)), 2):
+            if (a, c) in marks:  # shielded triple
+                continue
+            if b not in sepset.get(frozenset((a, c)), ()):
+                marks[(a, b)] = _ARROW
+                marks[(c, b)] = _ARROW
+
+
+def _possible_d_sep(a: str, marks: Mapping[tuple[str, str], str]) -> set[str]:
+    """Possible-D-SEP(``a``): every ``V`` reachable from ``a`` by a path on which each consecutive
+    triple ``<X, Y, Z>`` has ``Y`` a collider *or* forms a triangle (Spirtes et al.)."""
+    pds: set[str] = set(_pag_neighbors(marks, a))
+    stack: list[tuple[str, str]] = [(a, b) for b in _pag_neighbors(marks, a)]
+    visited: set[tuple[str, str]] = set()
+    while stack:
+        prev, cur = stack.pop()
+        if (prev, cur) in visited:
+            continue
+        visited.add((prev, cur))
+        for nxt in _pag_neighbors(marks, cur):
+            if nxt == prev:
+                continue
+            collider = marks.get((prev, cur)) == _ARROW and marks.get((nxt, cur)) == _ARROW
+            triangle = (prev, nxt) in marks
+            if collider or triangle:
+                if nxt != a:
+                    pds.add(nxt)
+                stack.append((cur, nxt))
+    pds.discard(a)
+    return pds
+
+
+def _refine_skeleton_pds(
+    data: Mapping[str, np.ndarray],
+    marks: dict[tuple[str, str], str],
+    sepset: dict[frozenset[str], tuple[str, ...]],
+    nodes: Sequence[str],
+    *,
+    threshold: float,
+    max_conditioning_size: int,
+) -> None:
+    """FCI Phase II: drop ``a - b`` when a subset of Possible-D-SEP renders them independent."""
+    for a in list(nodes):
+        for b in sorted(_pag_neighbors(marks, a)):
+            if (a, b) not in marks:
+                continue
+            pds = sorted(_possible_d_sep(a, marks) - {a, b})
+            removed = False
+            for size in range(min(max_conditioning_size, len(pds)) + 1):
+                for cond in combinations(pds, size):
+                    if _independent(data, a, b, cond, threshold=threshold):
+                        marks.pop((a, b), None)
+                        marks.pop((b, a), None)
+                        sepset[frozenset((a, b))] = cond
+                        removed = True
+                        break
+                if removed:
+                    break
+
+
+def _rule1(marks: dict[tuple[str, str], str]) -> bool:
+    """R1: ``a *-> b o-* c`` with ``a, c`` non-adjacent forces ``b -> c``."""
+    changed = False
+    for a, b in list(marks):
+        if marks.get((a, b)) != _ARROW:
+            continue
+        for c in _pag_neighbors(marks, b):
+            if c == a or (a, c) in marks or marks.get((c, b)) != _CIRCLE:
+                continue
+            marks[(c, b)] = _TAIL
+            marks[(b, c)] = _ARROW
+            changed = True
+    return changed
+
+
+def _rule2(marks: dict[tuple[str, str], str]) -> bool:
+    """R2: ``a -> b *-> c`` or ``a *-> b -> c`` with ``a *-o c`` forces an arrowhead at ``c``."""
+    changed = False
+    for (a, c), mark in list(marks.items()):
+        if mark != _CIRCLE:
+            continue
+        for b in _pag_neighbors(marks, a):
+            if b == c or (b, c) not in marks:
+                continue
+            into_c = marks.get((b, c)) == _ARROW
+            chain1 = marks.get((a, b)) == _ARROW and marks.get((b, a)) == _TAIL and into_c
+            chain2 = marks.get((a, b)) == _ARROW and into_c and marks.get((c, b)) == _TAIL
+            if chain1 or chain2:
+                marks[(a, c)] = _ARROW
+                changed = True
+                break
+    return changed
+
+
+def _rule3(marks: dict[tuple[str, str], str]) -> bool:
+    """R3: ``a *-> b <-* c`` with ``a *-o d o-* c`` (``a,c`` non-adjacent) and ``d *-o b`` forces
+    ``d *-> b``."""
+    changed = False
+    for b in {b for _, b in marks}:
+        into_b = [x for x in _pag_neighbors(marks, b) if marks.get((x, b)) == _ARROW]
+        for d in _pag_neighbors(marks, b):
+            if marks.get((d, b)) != _CIRCLE:
+                continue
+            for a, c in combinations(sorted(into_b), 2):
+                if (a, c) in marks or a == d or c == d:
+                    continue
+                if marks.get((a, d)) == _CIRCLE and marks.get((c, d)) == _CIRCLE:
+                    marks[(d, b)] = _ARROW
+                    changed = True
+                    break
+    return changed
+
+
+def _apply_fci_rules(marks: dict[tuple[str, str], str]) -> None:
+    """Apply the sound FCI orientation rules R1-R3 to a fixpoint (R4-R10 add completeness)."""
+    while _rule1(marks) | _rule2(marks) | _rule3(marks):
+        pass
+
+
+def discover_latent(
+    data: Mapping[str, np.ndarray],
+    variables: Sequence[str],
+    *,
+    threshold: float = 0.01,
+    max_conditioning_size: int = 3,
+) -> PAG:
+    """Discover a PAG over ``variables`` from ``data`` via the FCI algorithm (allows latents).
+
+    Unlike :func:`discover`, FCI does not assume causal sufficiency: it learns the PC skeleton, then
+    refines it with the Possible-D-SEP step (sound under latent confounders), re-orients unshielded
+    colliders, and applies the FCI orientation rules. The result is a :class:`PAG`: ``a <-> b``
+    witnesses a latent confounder; a circle endpoint is undetermined by the equivalence class.
+
+    Currently applies the sound rules R1-R3 (the complete set R4-R10 is added next); already sound.
+    ``threshold`` and ``max_conditioning_size`` mirror :func:`discover`.
+    """
+    nodes = list(variables)
+    adj, sepset = _pc_skeleton(
+        data, nodes, threshold=threshold, max_conditioning_size=max_conditioning_size
+    )
+    marks: dict[tuple[str, str], str] = {}
+    for a in nodes:
+        for b in adj[a]:
+            marks[(a, b)] = _CIRCLE
+    _orient_colliders(marks, nodes, sepset)
+    _refine_skeleton_pds(
+        data, marks, sepset, nodes, threshold=threshold, max_conditioning_size=max_conditioning_size
+    )
+    for key in marks:
+        marks[key] = _CIRCLE
+    _orient_colliders(marks, nodes, sepset)
+    _apply_fci_rules(marks)
+    return PAG(tuple(nodes), marks)
