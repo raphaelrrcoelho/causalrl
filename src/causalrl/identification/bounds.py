@@ -1,3 +1,11 @@
+"""Partial-identification bounds for confounded causal effects (Manski; sensitivity models)."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+
+import numpy as np
+
 from causalrl.data.dataset import ConfoundedTrajectoryDataset
 from causalrl.exceptions import NotIdentifiableError
 
@@ -28,3 +36,79 @@ def causal_q_bounds(
             witness=(state, action),
         )
     return lower, upper
+
+
+def manski_bounds(
+    data: Mapping[str, Sequence[float]],
+    *,
+    treatment: str,
+    outcome: str,
+    action: int,
+    outcome_range: tuple[float, float] = (0.0, 1.0),
+) -> tuple[float, float]:
+    """Sharp no-assumptions bounds on ``E[outcome | do(treatment = action)]`` (Manski 1990).
+
+    From observational ``data`` (integer ``treatment`` column, numeric ``outcome`` in
+    ``outcome_range``): the units that took ``action`` contribute their observed mean, while
+    the rest are bounded only by the outcome range. With ``p = P(treatment = action)`` and
+    ``m = E[outcome | treatment = action]`` the bounds are
+    ``[m*p + y_min*(1-p), m*p + y_max*(1-p)]`` — sharp, collapsing to a point when every unit took
+    ``action``. The observational counterpart of :func:`causal_q_bounds`.
+    """
+    x = np.asarray(data[treatment])
+    y = np.asarray(data[outcome], dtype=float)
+    y_min, y_max = outcome_range
+    mask = x == action
+    p = float(mask.mean())
+    observed = float(y[mask].mean()) if bool(mask.any()) else 0.0
+    return observed * p + y_min * (1.0 - p), observed * p + y_max * (1.0 - p)
+
+
+def _fractional_extreme(y: np.ndarray, lo: np.ndarray, hi: np.ndarray, *, maximize: bool) -> float:
+    """Extreme value of ``(Σ a_i y_i)/(Σ a_i)`` with ``a_i ∈ [lo_i, hi_i]``.
+
+    The optimum is a threshold rule on ``y`` (the upper weight goes to the extreme-``y`` end); scan
+    the sorted threshold with prefix sums in linear time.
+    """
+    order = np.argsort(-y if maximize else y)
+    y, lo, hi = y[order], lo[order], hi[order]
+    zero = np.zeros(1)
+    cum_hi_y = np.concatenate([zero, np.cumsum(hi * y)])
+    cum_hi = np.concatenate([zero, np.cumsum(hi)])
+    cum_lo_y = np.concatenate([zero, np.cumsum(lo * y)])
+    cum_lo = np.concatenate([zero, np.cumsum(lo)])
+    tot_lo_y, tot_lo = cum_lo_y[-1], cum_lo[-1]
+    numer = cum_hi_y + (tot_lo_y - cum_lo_y)  # top-k get hi, the rest get lo
+    denom = cum_hi + (tot_lo - cum_lo)
+    ratios = numer[denom > 0] / denom[denom > 0]
+    return float(ratios.max() if maximize else ratios.min())
+
+
+def ipw_sensitivity_bounds(
+    outcomes: Sequence[float], propensities: Sequence[float], *, gamma: float
+) -> tuple[float, float]:
+    """Marginal-sensitivity-model bounds on the treated counterfactual mean ``E[Y(1)]``.
+
+    ``outcomes`` and ``propensities`` are the treated units' outcomes ``Y_i`` and *nominal*
+    propensities ``e(Z_i) = P(treated | Z_i)`` (what an unconfounded model fits). Under Tan's
+    marginal sensitivity model the true inverse-propensity weight lies within an odds-ratio factor
+    ``gamma >= 1`` of the nominal, giving ``a_i in [1 + (1/g)(1/e_i - 1), 1 + g(1/e_i - 1)]``; the
+    bounds are the extreme stabilized (Hájek) weighted means over that range. At ``gamma = 1`` the
+    interval collapses to the IPW point estimate; it widens monotonically with ``gamma`` and
+    contains ``E[Y(1)]`` whenever the true confounding odds ratio is at most ``gamma``.
+
+    Faithful to Z. Tan, *A Distributional Approach for Causal Inference Using Propensity Scores*
+    (JASA 2006) and Q. Zhao, D. Small, B. Bhattacharya, *Sensitivity Analysis for Inverse
+    Probability Weighting Estimators via the Percentile Bootstrap* (JRSS-B 2019). No code is ported.
+    """
+    if gamma < 1.0:
+        raise ValueError("gamma must be >= 1")
+    y = np.asarray(outcomes, dtype=float)
+    e = np.asarray(propensities, dtype=float)
+    odds = (1.0 - e) / e
+    lo_w = 1.0 + odds / gamma
+    hi_w = 1.0 + odds * gamma
+    return (
+        _fractional_extreme(y, lo_w, hi_w, maximize=False),
+        _fractional_extreme(y, lo_w, hi_w, maximize=True),
+    )

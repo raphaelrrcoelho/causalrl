@@ -145,3 +145,11 @@
 ::: causalrl.games.best_response
 
 ::: causalrl.games.is_nash_equilibrium
+
+## Partial-Identification And OPE Bounds
+
+::: causalrl.identification.bounds.manski_bounds
+
+::: causalrl.identification.bounds.ipw_sensitivity_bounds
+
+::: causalrl.identification.bounds.causal_q_bounds

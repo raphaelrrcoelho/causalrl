@@ -135,6 +135,11 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
   arithmetic), and for three or more agents by support enumeration with a numerical Newton solve of
   the multilinear indifference system — every returned profile is verified to be an ε-Nash
   equilibrium (no agent gains more than `1e-6` by deviating to a pure action).
+- **Partial-identification / OPE bounds.** `causal_q_bounds` (confounded RL logs) and `manski_bounds`
+  (observational data) give the sharp no-assumptions Manski interval on a counterfactual mean;
+  `ipw_sensitivity_bounds` gives the marginal-sensitivity-model (Tan's Γ) interval, collapsing to the
+  IPW point at Γ=1 and containing the truth once Γ exceeds the true confounding odds ratio. Outcomes
+  are assumed bounded; validated against a confounded SCM with a known effect.
 
 ## Not Yet Claimed
 
@@ -144,7 +149,8 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
   (`identify_effect`), gID (`identify_effect_with_experiments`), and the multi-domain mz/meta
   transportability (`identify_transport_general`) above are implemented and validated.
 - Score-based causal discovery (GES) and interventional FCI.
-- Published confounding-sensitivity or doubly robust OPE bounds.
+- Doubly-robust OPE *point* estimators (the bounds above are partial-identification intervals, not
+  point estimates).
 - Production-ready deep or offline-RL training integrations.
 - General statistical guarantees from the maintained toy benchmark environments.
 

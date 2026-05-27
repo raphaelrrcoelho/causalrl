@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-05-27
+
+### Added
+- **Validated partial-identification / OPE bounds** (closing the sensitivity-bounds gap):
+  - `manski_bounds` — sharp no-assumptions (Manski 1990) bounds on `E[outcome | do(treatment)]` from
+    observational data (the observational counterpart of `causal_q_bounds`).
+  - `ipw_sensitivity_bounds` — the marginal sensitivity model (Tan 2006; Zhao–Small–Bhattacharya
+    2019): an odds-ratio-Γ interval on the treated counterfactual mean that collapses to the IPW
+    point at Γ=1, widens monotonically with Γ, and contains the truth once Γ exceeds the true
+    confounding odds ratio. Validated against a confounded SCM with a known effect.
+
 ## [0.18.0] - 2026-05-27
 
 ### Added
