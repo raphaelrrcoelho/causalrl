@@ -37,12 +37,18 @@ class _ArmSubsetThompsonSampling(Agent):
 
 
 class POMISThompsonSampling(_ArmSubsetThompsonSampling):
-    """Thompson sampling over only the arms whose intervened-variable set is a POMIS."""
+    """Thompson sampling over only the arms whose intervened-variable set is a POMIS.
+
+    The manipulable set is inferred from the arms (the variables any arm intervenes on), so
+    non-manipulable variables are handled by the POMIS engine via latent projection (r40).
+    When every non-reward variable is manipulable this matches the unconstrained POMIS.
+    """
 
     def __init__(
         self, graph: CausalGraph, reward: str, arms: list[dict[str, int]], seed: int | None = None
     ) -> None:
-        pomis_sets = set(pomis(graph, reward))
+        manipulable = {v for arm in arms for v in arm}
+        pomis_sets = set(pomis(graph, reward, manipulable=manipulable))
         allowed = [i for i, arm in enumerate(arms) if frozenset(arm.keys()) in pomis_sets]
         super().__init__(allowed, seed)
 
@@ -62,4 +68,18 @@ class FixedSetThompsonSampling(_ArmSubsetThompsonSampling):
     ) -> None:
         target = frozenset(intervention_set)
         allowed = [i for i, arm in enumerate(arms) if frozenset(arm.keys()) == target]
+        super().__init__(allowed, seed)
+
+
+class NaivePOMISThompsonSampling(_ArmSubsetThompsonSampling):
+    """Naive baseline that ignores manipulability: it computes the UNCONSTRAINED POMIS and
+    keeps only the arms that happen to exist. When the optimal lever lies outside the
+    unconstrained POMIS — as when a non-manipulable variable dominates — it cannot reach the
+    optimum (r40 Prop. 1: filtering the unconstrained POMIS is insufficient)."""
+
+    def __init__(
+        self, graph: CausalGraph, reward: str, arms: list[dict[str, int]], seed: int | None = None
+    ) -> None:
+        pomis_sets = set(pomis(graph, reward))  # unconstrained — ignores manipulability
+        allowed = [i for i, arm in enumerate(arms) if frozenset(arm.keys()) in pomis_sets]
         super().__init__(allowed, seed)
