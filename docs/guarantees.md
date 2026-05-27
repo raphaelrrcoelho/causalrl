@@ -3,9 +3,9 @@
 This page separates implemented guarantees from research demonstrations and unsupported
 extensions.
 
-As of **v1.0.0** the public API — the names exported from the top-level `causalrl` package — is
-stable under [semantic versioning](https://semver.org): breaking changes require a major version
-bump.
+The public API — the names exported from the top-level `causalrl` package — is considered stable
+under [semantic versioning](https://semver.org). It is released as **v0.99.0**, a humble step short
+of a 1.0 tag while the API settles in real use.
 
 ## Stable Contracts
 
@@ -74,7 +74,7 @@ agent = POMISThompsonSampling(
 )
 ```
 
-The `manipulable` set is required: inferring it from arm enumeration was removed in v1.0.0.
+The `manipulable` set is required: inferring it from arm enumeration was removed in v0.99.0.
 
 ## Causal-RL Taxonomy Methods
 

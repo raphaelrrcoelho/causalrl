@@ -42,10 +42,10 @@ Research use should cite the metadata in [CITATION.cff](CITATION.cff).
 
 ## Stability
 
-As of **v1.0.0** the public API — the names exported from the top-level `causalrl` package — is
-stable and follows [semantic versioning](https://semver.org): breaking changes require a major
-version bump. See [Guarantees And Scope](docs/guarantees.md) for what each method does and does not
-promise.
+The public API — the names exported from the top-level `causalrl` package — is considered stable and
+follows [semantic versioning](https://semver.org). The project is released as **v0.99.0**: a
+deliberate, humble step short of a 1.0 tag while the API settles in real use. See
+[Guarantees And Scope](docs/guarantees.md) for what each method does and does not promise.
 
 ## Quickstart: MABUC
 

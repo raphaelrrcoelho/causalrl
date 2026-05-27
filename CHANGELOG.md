@@ -7,11 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-05-27
+## [0.99.0] - 2026-05-27
 
 ### Stable
-- **First stable release.** The public API (the names exported from `causalrl`) is now stable under
-  semantic versioning. The full Bareinboim 9-task causal-RL taxonomy is implemented, with the depth
+- **API stabilized, humbly labelled v0.99** — a deliberate step short of a 1.0 tag while it settles
+  in real use. The public API (the names exported from `causalrl`) follows semantic
+  versioning. The full Bareinboim 9-task causal-RL taxonomy is implemented, with the depth
   extensions of v0.13–v0.20: the complete Shpitser–Pearl ID algorithm, gID, sID / mz / meta
   transportability, FCI (latent-confounder discovery), mixed Nash for any number of players,
   validated Manski and marginal-sensitivity-model OPE bounds, and a "reproducing the literature"
@@ -23,9 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `causalrl.identification.bounds.ipw_sensitivity_bounds`).
 - The partial hand-maintained `causalrl/__init__.pyi` stub — `py.typed` plus complete inline
   annotations (checked by pyright in strict mode) are now the authoritative types.
-
-### Changed
-- `Development Status` classifier promoted to `5 - Production/Stable`.
 
 ## [0.20.0] - 2026-05-27
 
