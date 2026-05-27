@@ -39,6 +39,7 @@ def test_key_symbols_are_exported():
         "causal_q_bounds",
         "NotIdentifiableError",
         "UnverifiedAssumptionError",
+        "report_to_dict",
     ):
         assert name in causalrl.__all__
 

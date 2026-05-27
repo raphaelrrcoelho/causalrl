@@ -26,3 +26,16 @@ jobs:
         run: uv run pyright src
       - name: Test
         run: uv run pytest -v
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.11"
+      - name: Sync documentation dependencies
+        run: uv sync --extra docs
+      - name: Build documentation
+        run: uv run --extra docs mkdocs build --strict

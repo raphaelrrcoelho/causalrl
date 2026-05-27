@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Public environments now satisfy Gymnasium's checker, rollout helpers handle truncation, SCM
+  sampling isolates Torch RNG state, executable SCM definitions validate their graph contract,
+  and structural-bandit Thompson sampling supports bounded fractional rewards correctly.
+- Multi-stage `DOVI` exposes whether transition-value propagation is causally certified, and
+  `POMISThompsonSampling` accepts an explicit validated `manipulable` contract.
+- Deterministic multi-seed benchmark reporting, API documentation, citation/contribution
+  metadata, documentation CI, and release-only trusted PyPI publishing scaffolding were added.
+
 ## [0.5.0] - 2026-05-26
 
 ### Added

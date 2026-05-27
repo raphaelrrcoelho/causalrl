@@ -1,0 +1,31 @@
+site_name: causalrl
+site_description: Causal intervention-selection and causal-RL research tools
+site_url: https://raphaelrrcoelho.github.io/causalrl/
+repo_url: https://github.com/raphaelrrcoelho/causalrl
+repo_name: raphaelrrcoelho/causalrl
+exclude_docs: |
+  superpowers/
+
+theme:
+  name: readthedocs
+
+nav:
+  - Overview: index.md
+  - Guarantees And Scope: guarantees.md
+  - Reproducible Benchmarks: benchmarks.md
+  - API Reference: api.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            members_order: source
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true

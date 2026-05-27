@@ -40,6 +40,7 @@ from causalrl.envs.suite.scbandit import StructuralCausalBanditEnv as Structural
 from causalrl.envs.suite.seq_dtr import SequentialDTREnv as SequentialDTREnv
 from causalrl.envs.suite.seq_mabuc import SequentialMABUCEnv as SequentialMABUCEnv
 from causalrl.eval.benchmark import BenchmarkEstimate as BenchmarkEstimate
+from causalrl.eval.benchmark import report_to_dict as report_to_dict
 from causalrl.eval.benchmark import (
     run_confounded_chain_benchmark as run_confounded_chain_benchmark,
 )

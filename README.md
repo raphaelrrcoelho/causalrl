@@ -18,7 +18,12 @@ and explicit-latent structural causal models with `see` (L1), `do` (L2), and
 uv pip install -e .             # graph, POMIS, tabular agents/environments
 uv pip install -e ".[torch]"    # SCM sampling, neural mechanisms, Torch-backed demos
 uv sync --extra dev             # contributors: tests, lint, typing, notebooks
+uv sync --extra docs            # local documentation site and API reference
 ```
+
+Documentation covers [guarantees and scope](docs/guarantees.md), the
+[reproducible benchmark protocol](docs/benchmarks.md), and the [API reference](docs/api.md).
+Research use should cite the metadata in [CITATION.cff](CITATION.cff).
 
 ## Supported scope
 
@@ -31,6 +36,8 @@ uv sync --extra dev             # contributors: tests, lint, typing, notebooks
 - `UCDTR`, `DOVI`, and `DeepDeconfoundedQ` are benchmark/demo agents, not production
   offline-RL integrations. The qualitative sensitivity-interval helper is experimental at
   `causalrl.experimental.ope`, not a validated OPE estimator.
+- Multi-stage `DOVI` requires `transition_assumption="unconfounded"` for a certified
+  transition-value backup; `allow_heuristic=True` permits explicitly un-certified exploration.
 
 ## Quickstart: MABUC
 
@@ -149,4 +156,16 @@ print(pomis(env.graph, "Y", manipulable={"X"}))   # [frozenset(), frozenset({'X'
 uv run pytest          # tests
 uv run ruff check .    # lint
 uv run pyright src     # types
+uv run --extra docs mkdocs build --strict  # documentation
 ```
+
+## Reproducible Benchmarks
+
+```bash
+uv run --extra dev python benchmarks/scbandit_report.py confounded-chain \
+  --seeds 0,1,2,3,4 --steps 8000 --tail-window 2000 --n-mc 2000
+```
+
+The JSON report includes each seed's result plus summary uncertainty. These maintained
+demonstrations validate package behavior on the stated environments; they are not general
+performance guarantees.

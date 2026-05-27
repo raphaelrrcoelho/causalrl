@@ -10,9 +10,27 @@ dependencies = [
     "gymnasium>=1.0",
     "numpy>=2.0",
 ]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Documentation = "https://raphaelrrcoelho.github.io/causalrl/"
+Source = "https://github.com/raphaelrrcoelho/causalrl"
+Issues = "https://github.com/raphaelrrcoelho/causalrl/issues"
 
 [project.optional-dependencies]
 torch = [
+    "torch>=2.5",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocstrings[python]>=0.27",
     "torch>=2.5",
 ]
 dev = [
