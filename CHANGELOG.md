@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-05-27
+
+### Added
+- **"Reproducing the literature" gallery** (`tests/test_literature_classics.py` + a
+  [docs gallery](docs/classics.md)): classic causal cases reproduced end-to-end with the library —
+  Simpson's paradox (kidney stones), the front-door criterion (smoking → tar → cancer), Pearl's
+  napkin, the instrumental variable (non-identified but Manski-bounded), the bow arc, and
+  cross-domain transport (LA → NYC).
+- **Difficult RL problems where causal beats associational RL**: MABUC (a confounding-aware bandit
+  beats the naive one), the counterfactual "Greedy Casino" (acting on the counterfactual ≈ 0.80
+  doubles the best fixed interventional arm ≈ 0.37), and curriculum-driven hard exploration (a causal
+  prerequisite curriculum reaches a sparse goal flat Q-learning misses on the same budget).
+
 ## [0.19.0] - 2026-05-27
 
 ### Added
