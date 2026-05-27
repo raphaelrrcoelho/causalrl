@@ -135,9 +135,7 @@ def build_frontdoor() -> tuple[
     def y_mech(pa: dict[str, torch.Tensor], u: torch.Tensor) -> torch.Tensor:
         return ((u * pa["U_XY"]) != pa["Z"]).float()  # (u_Y AND U_XY) XOR Z
 
-    scm_graph = CausalGraph(
-        directed_edges=[("U_XY", "X"), ("U_XY", "Y"), ("X", "Z"), ("Z", "Y")]
-    )
+    scm_graph = CausalGraph(directed_edges=[("U_XY", "X"), ("U_XY", "Y"), ("X", "Z"), ("Z", "Y")])
     mechanisms: dict[str, Mechanism] = {
         "U_XY": FunctionalMechanism([], lambda pa, u: u),
         "X": FunctionalMechanism(["U_XY"], lambda pa, u: (u != pa["U_XY"]).float()),
@@ -156,9 +154,7 @@ def build_frontdoor() -> tuple[
     return scm, admg, "Y", ["X"], {"X": [0, 1]}
 
 
-def make_frontdoor_env(
-    seed: int | None = None, *, n_mc: int = 20000
-) -> StructuralCausalBanditEnv:
+def make_frontdoor_env(seed: int | None = None, *, n_mc: int = 20000) -> StructuralCausalBanditEnv:
     """The front-door demo env (R-40): X->Z->Y, X<->Y, with Z non-manipulable (only X is a
     lever). A higher default `n_mc` sharpens the ground-truth means around the ~0.06 gap."""
     scm, admg, reward, manipulable, domains = build_frontdoor()
