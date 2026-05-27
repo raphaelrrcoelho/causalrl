@@ -67,11 +67,41 @@ A note on scope: Manski *natural* bounds cannot strictly prune, so the headline 
 lightweight net for the toy demo; `d3rlpy` is the designated backbone at real scale. See
 `examples/offline_to_online.ipynb` for the three-way comparison.
 
+## v0.4: Where to intervene (Task 2)
+
+Given the causal graph, **POMIS** (Possibly-Optimal Minimal Intervention Sets) prunes the
+exponential space of interventions to the few that could be optimal. On a confounded chain
+`X1→X2→X3→Y` (with `X1↔Y`), the only POMISs are `∅` and `{X3}`, so a POMIS agent plays 3
+arms instead of brute force's 27 — and discovers that *observing* (`∅`) beats every fixed
+intervention, the MABUC effect carried onto a chain.
+
+```python
+from causalrl import POMISThompsonSampling, pomis
+from causalrl.envs.suite.scbandit import make_confounded_chain_env
+
+env = make_confounded_chain_env(seed=1)
+print(pomis(env.graph, "Y"))            # [frozenset(), frozenset({'X3'})]
+
+agent = POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0)
+env.reset(seed=1)
+for _ in range(8000):
+    a = agent.act({})
+    _, r, _, _, _ = env.step(a)
+    agent.update({}, a, r)
+# POMIS agent converges to ~1.0 (the observational arm); a brute-force agent over all 27
+# arms converges far slower, and a naive do(X3)-only agent is stuck near 0.5.
+```
+
+The POMIS engine is adapted from the MIT-licensed reference implementation of
+Lee & Bareinboim, *Structural Causal Bandits: Where to Intervene?* (NeurIPS 2018),
+[`sanghack81/SCMMAB-NIPS2018`](https://github.com/sanghack81/SCMMAB-NIPS2018). See
+`examples/where_to_intervene.ipynb`.
+
 ## Layout
 
 - `causalrl.scm` — `CausalGraph`, mechanisms, and `StructuralCausalModel` (`see`/`do`/`counterfactual`)
-- `causalrl.identification` — back-door sets, identifiability criteria, and Manski `causal_q_bounds`
-- `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `SequentialDTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`)
+- `causalrl.identification` — back-door sets, identifiability criteria, Manski `causal_q_bounds`, and POMIS (`pomis`, `minimal_intervention_sets`)
+- `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `SequentialDTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`, `StructuralCausalBanditEnv`)
 - `causalrl.data` — `ConfoundedTrajectoryDataset` and offline-log generation
 - `causalrl.agents` — bandit agents plus causal offline-to-online learners (`UCDTR`, `DOVI`, `DeepDeconfoundedQ`) and baselines
 - `causalrl.eval` — regret metrics, the offline-to-online harness, and OPE under confounding

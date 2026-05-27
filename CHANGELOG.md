@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-05-26
+
+### Added
+- **POMIS engine** (taxonomy Task 2, "where to intervene"): `pomis` and
+  `minimal_intervention_sets` compute the possibly-optimal / minimal intervention sets of a
+  single-reward ADMG via MUCT (minimal unobserved-confounder territory) and the
+  interventional border. Adapted from the MIT-licensed reference implementation of
+  Lee & Bareinboim, *Structural Causal Bandits: Where to Intervene?* (NeurIPS 2018),
+  github.com/sanghack81/SCMMAB-NIPS2018 (Copyright (c) 2018 Sanghack Lee).
+- `StructuralCausalBanditEnv` — an SCM-backed bandit whose arms are interventions, plus the
+  `make_confounded_chain_env` demo where observing beats every fixed intervention.
+- `POMISThompsonSampling`, `BruteForceInterventionTS`, and `FixedSetThompsonSampling` agents;
+  the POMIS agent converges to the optimal arm far faster than brute force and beats a naive
+  fixed-set agent.
+- `CausalGraph` gains `ancestors`, `descendants`, `induced_subgraph`, and `do_mutilate`.
+
 ## [0.3.0] - 2026-05-26
 
 ### Added
