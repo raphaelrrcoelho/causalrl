@@ -24,6 +24,7 @@ Algorithms:
 
 from collections.abc import Iterable
 
+from causalrl.identification.id_algorithm import is_identifiable_effect
 from causalrl.scm.graph import CausalGraph
 
 
@@ -136,3 +137,16 @@ def minimal_intervention_sets(
         return result
     allowed = set(manipulable)
     return [s for s in result if s <= allowed]
+
+
+def requires_experiment(graph: CausalGraph, treatment: Iterable[str], outcome: str) -> bool:
+    """Whether learning ``P(outcome | do(treatment))`` *requires* experimentation (Task 2, "when").
+
+    Returns ``True`` exactly when the effect is **not** identifiable from observational (L1) data,
+    so an online experiment (an L2 intervention) is necessary, and ``False`` when offline data
+    already suffices. This is the "when to intervene" companion to POMIS's "where": :func:`pomis`
+    narrows *which* intervention sets could be optimal, while this decides *whether* you must
+    intervene at all. Delegates to the complete ID algorithm
+    (:func:`causalrl.identification.id_algorithm.is_identifiable_effect`).
+    """
+    return not is_identifiable_effect(graph, treatment, {outcome})
