@@ -13,10 +13,18 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+import numpy as np
+
 from causalrl.exceptions import CausalGraphError
 from causalrl.scm.graph import CausalGraph
+from causalrl.shaping import TabularMDP
 
-__all__ = ["PrerequisiteLearner", "causal_curriculum", "is_valid_curriculum"]
+__all__ = [
+    "PrerequisiteLearner",
+    "causal_curriculum",
+    "curriculum_q_learning",
+    "is_valid_curriculum",
+]
 
 
 def causal_curriculum(graph: CausalGraph, goal: str | None = None) -> list[str]:
@@ -65,3 +73,45 @@ class PrerequisiteLearner:
     def masters(self, skill: str) -> bool:
         """Whether ``skill`` was mastered by the most recent :meth:`train`."""
         return skill in self._mastered
+
+
+def curriculum_q_learning(
+    tasks: Sequence[TabularMDP],
+    *,
+    episodes_per_task: int,
+    alpha: float = 0.5,
+    epsilon: float = 0.1,
+    seed: int | None = None,
+) -> dict[int, int]:
+    """Learn the target policy by Q-learning through a curriculum of subtasks, easiest first.
+
+    ``tasks`` is ordered from the simplest subtask to the target (the last element); all tasks share
+    the same state and action spaces. The Q-table is carried forward between stages (warm-start
+    transfer), so value learned on the easy subtasks bootstraps the harder ones. This is the causal
+    curriculum applied to RL: order subgoals by prerequisite structure (see
+    :func:`causal_curriculum`), then train in that order to reach a target policy that flat learning
+    on the sparse target alone struggles to find. Returns the greedy policy on the target task.
+
+    Faithful to Y. Bengio, J. Louradour, R. Collobert, J. Weston, *Curriculum Learning*, ICML 2009;
+    the Q-learning update matches :func:`causalrl.shaping.q_learning`. No external code is ported.
+    """
+    if not tasks:
+        raise CausalGraphError("curriculum must contain at least one task")
+    target = tasks[-1]
+    rng = np.random.default_rng(seed)
+    q = np.zeros((target.n_states, target.n_actions))
+    for task in tasks:
+        for _ in range(episodes_per_task):
+            s = 0
+            for _ in range(4 * task.n_states):
+                if s in task.terminals:
+                    break
+                if rng.random() < epsilon:
+                    a = int(rng.integers(0, task.n_actions))
+                else:
+                    a = int(np.argmax(q[s]))
+                s_next = task.transitions[(s, a)]
+                bootstrap = 0.0 if s_next in task.terminals else float(np.max(q[s_next]))
+                q[s, a] += alpha * (task.rewards[(s, a)] + task.gamma * bootstrap - q[s, a])
+                s = s_next
+    return {s: int(np.argmax(q[s])) for s in range(target.n_states) if s not in target.terminals}
