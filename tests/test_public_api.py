@@ -39,4 +39,4 @@ def test_key_symbols_are_exported():
 
 
 def test_version_is_stamped():
-    assert causalrl.__version__ == "0.3.0"
+    assert causalrl.__version__ == "0.4.0"

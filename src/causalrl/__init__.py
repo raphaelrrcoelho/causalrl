@@ -19,11 +19,17 @@ from causalrl.agents.baselines import NaiveOffline, OnlineOnlyUCB
 from causalrl.agents.deep_deconfounded import DeepDeconfoundedQ
 from causalrl.agents.dovi import DOVI
 from causalrl.agents.offline_online import UCDTR
+from causalrl.agents.scbandit import (
+    BruteForceInterventionTS,
+    FixedSetThompsonSampling,
+    POMISThompsonSampling,
+)
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition, generate_logs
 from causalrl.envs.base import CausalEnv, ConfoundedMDP
 from causalrl.envs.suite.dtr import DTREnv
 from causalrl.envs.suite.gridworld import ConfoundedGridworld
 from causalrl.envs.suite.mabuc import MABUCEnv
+from causalrl.envs.suite.scbandit import StructuralCausalBanditEnv
 from causalrl.envs.suite.seq_dtr import SequentialDTREnv
 from causalrl.envs.suite.seq_mabuc import SequentialMABUCEnv
 from causalrl.eval.harness import run_episodes
@@ -37,6 +43,7 @@ from causalrl.exceptions import (
 )
 from causalrl.identification.bounds import causal_q_bounds
 from causalrl.identification.criteria import backdoor_adjustment_set, is_identifiable
+from causalrl.identification.intervention_sets import minimal_intervention_sets, pomis
 from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import (
     FunctionalMechanism,
@@ -52,6 +59,7 @@ __all__ = [
     "DOVI",
     "UCDTR",
     "Agent",
+    "BruteForceInterventionTS",
     "CausalEnv",
     "CausalGraph",
     "CausalGraphError",
@@ -62,6 +70,7 @@ __all__ = [
     "ConfoundedTrajectoryDataset",
     "DTREnv",
     "DeepDeconfoundedQ",
+    "FixedSetThompsonSampling",
     "FunctionalMechanism",
     "LinearGaussianMechanism",
     "MABUCEnv",
@@ -71,9 +80,11 @@ __all__ = [
     "NeuralMechanism",
     "NotIdentifiableError",
     "OnlineOnlyUCB",
+    "POMISThompsonSampling",
     "RealizabilityError",
     "SequentialDTREnv",
     "SequentialMABUCEnv",
+    "StructuralCausalBanditEnv",
     "StructuralCausalModel",
     "Transition",
     "__version__",
@@ -85,5 +96,7 @@ __all__ = [
     "generate_logs",
     "ipw_value",
     "is_identifiable",
+    "minimal_intervention_sets",
+    "pomis",
     "run_episodes",
 ]
