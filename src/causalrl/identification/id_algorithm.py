@@ -36,16 +36,20 @@ from causalrl.exceptions import CausalGraphError, NotIdentifiableError
 from causalrl.scm.graph import CausalGraph
 
 __all__ = [
+    "Domain",
     "Estimand",
     "estimate_effect",
     "estimate_effect_with_experiments",
+    "estimate_transport_general",
     "estimate_transported_effect",
     "identify_effect",
     "identify_effect_with_experiments",
     "identify_transport",
+    "identify_transport_general",
     "is_gid_identifiable",
     "is_identifiable_effect",
     "is_transportable_effect",
+    "is_transportable_general",
 ]
 
 
@@ -192,12 +196,27 @@ class _DomainJoint(Estimand):
 
 
 @dataclass(frozen=True)
+class _DomainExperiment(Estimand):
+    """An experimental c-factor ``P_domain(variables | do(intervened))`` from a named domain."""
+
+    domain: str
+    intervened: frozenset[str]
+    variables: frozenset[str]
+
+    def render(self) -> str:
+        do = ",".join(sorted(self.intervened)) or "."
+        return f"P_{self.domain}({','.join(sorted(self.variables))} | do({do}))"
+
+
+@dataclass(frozen=True)
 class _EvalContext:
-    """The data an estimand evaluates against: observational, experimental, and domain joints."""
+    """The data an estimand evaluates against: observational, experimental, and per-domain joints
+    and experiments."""
 
     joint: _Factor
     experiments: Mapping[frozenset[str], _Factor]
     domains: Mapping[str, _Factor]
+    domain_experiments: Mapping[tuple[str, frozenset[str]], _Factor]
 
 
 def _evaluate(estimand: Estimand, ctx: _EvalContext) -> _Factor:
@@ -217,6 +236,16 @@ def _evaluate(estimand: Estimand, ctx: _EvalContext) -> _Factor:
         # Q[V\z] = P(V\z | do(z)) = P(V\z | z) under randomization: condition on the intervened set.
         conditional = full.divide(full.marginalize(set(full.variables) - intervened))
         return conditional.marginalize(set(full.variables) - (set(estimand.variables) | intervened))
+    if isinstance(estimand, _DomainExperiment):
+        key = (estimand.domain, estimand.intervened)
+        if key not in ctx.domain_experiments:
+            raise CausalGraphError(
+                f"missing {estimand.domain!r} experiment do({sorted(estimand.intervened)})"
+            )
+        full = ctx.domain_experiments[key]
+        intervened = set(estimand.intervened)
+        conditional = full.divide(full.marginalize(set(full.variables) - intervened))
+        return conditional.marginalize(set(full.variables) - (set(estimand.variables) | intervened))
     if isinstance(estimand, _Marginal):
         return _evaluate(estimand.child, ctx).marginalize(estimand.over)
     if isinstance(estimand, _Product):
@@ -230,7 +259,7 @@ def _evaluate(estimand: Estimand, ctx: _EvalContext) -> _Factor:
 
 
 def _eval_observational(estimand: Estimand, joint: _Factor) -> _Factor:
-    return _evaluate(estimand, _EvalContext(joint, {}, {}))
+    return _evaluate(estimand, _EvalContext(joint, {}, {}, {}))
 
 
 def _marginal(over: Iterable[str], child: Estimand) -> Estimand:
@@ -522,42 +551,106 @@ def estimate_effect_with_experiments(
     experiments = {
         target: _empirical_joint(rows, graph.nodes) for target, rows in experiments_data.items()
     }
-    factor = _evaluate(estimand, _EvalContext(obs, experiments, {})).condition(do)
+    factor = _evaluate(estimand, _EvalContext(obs, experiments, {}, {})).condition(do)
     targets = sorted(outcome)
     factor = factor.marginalize(set(factor.variables) - set(targets)).reorder(targets)
     return dict(factor.table)
 
 
 # --------------------------------------------------------------------------------------------------
-# Transportability (sID): identify a target effect from source + target data across a selection
-# diagram. Each target c-factor is routed by s-invariance to whichever domain can supply it.
+# Transportability (sID / mz / meta): identify a target effect P*(y | do(x)) across one or more
+# source domains, each a selection diagram optionally carrying surrogate experiments. Each target
+# c-factor is resolved by searching the domains that can supply it; if none can, the c-factor forms
+# a transport-hedge and the effect is not transportable.
 # --------------------------------------------------------------------------------------------------
-def _transport(
-    y: frozenset[str], x: frozenset[str], graph: CausalGraph, selection: frozenset[str]
+@dataclass(frozen=True)
+class Domain:
+    """A source domain relative to the target: which mechanisms differ, and what data it offers.
+
+    ``selection`` lists the variables whose mechanism differs from the target (each carries an
+    implicit selection node ``S -> v``); a c-factor transfers from this domain only if it touches no
+    selection-marked variable. ``experiments`` lists intervention targets available here (each a set
+    of variables that can be randomized). The target domain is always implicitly available
+    observationally as a fallback, so it need not be listed.
+    """
+
+    name: str
+    selection: frozenset[str] = frozenset()
+    experiments: frozenset[frozenset[str]] = frozenset()
+
+
+def _transfers(c: frozenset[str], selection: frozenset[str]) -> bool:
+    """Whether the c-factor ``Q[c]`` is invariant from a domain with the given ``selection``.
+
+    ``Q[c]`` is a function of the structural mechanisms of ``c``'s members only, so it equals the
+    target's iff none of those members is selection-marked — exactly ``c.isdisjoint(selection)``
+    (the empty selection of the implicit target always transfers). At c-factor granularity this set
+    test coincides with the graphical S-admissibility criterion.
+    """
+    return c.isdisjoint(selection)
+
+
+def _resolve_c_factor(c: frozenset[str], graph: CausalGraph, domains: Sequence[Domain]) -> Estimand:
+    """Obtain ``Q[c]`` from the first domain/experiment that can supply it.
+
+    Searches the source ``domains`` (fewest shifts first) then the implicit target as a fallback. In
+    each domain that transfers ``c``, tries observational data then each surrogate experiment
+    (smallest target first), reusing Tian's :func:`_c_factor_from`. Raises
+    :class:`NotIdentifiableError` (a transport-hedge) if no domain/experiment supplies ``Q[c]``.
+    """
+    v = frozenset(graph.nodes)
+    ordered = [*sorted(domains, key=lambda d: len(d.selection)), Domain("target")]
+    for d in ordered:
+        if not _transfers(c, d.selection):
+            continue
+        for z in [frozenset[str](), *sorted(d.experiments, key=len)]:
+            t = v - z
+            if not (c <= t):
+                continue
+            leaf: Estimand = _DomainJoint(d.name, t) if not z else _DomainExperiment(d.name, z, t)
+            try:
+                return _c_factor_from(c, t, graph, leaf)
+            except NotIdentifiableError:
+                continue
+    raise NotIdentifiableError(
+        f"c-factor Q[{sorted(c)}] is not transportable from any domain (transport-hedge)",
+        witness=(sorted(c), sorted(v)),
+    )
+
+
+def _general_transport(
+    y: frozenset[str], x: frozenset[str], graph: CausalGraph, domains: Sequence[Domain]
 ) -> Estimand:
+    """The transportability recursion: the ID-style reductions, then each target c-factor resolved
+    over all domains by :func:`_resolve_c_factor`. With a single observational source it coincides
+    with the sound c-factor routing; experiments and extra domains add mz / meta power."""
     v = frozenset(graph.nodes)
     if not x:
         return _marginal(v - y, _DomainJoint("target", v))
 
     an_y = frozenset(graph.ancestors(y))
     if v != an_y:
-        return _transport(y, x & an_y, graph.induced_subgraph(an_y), selection)
+        sub = [Domain(d.name, d.selection & an_y, d.experiments) for d in domains]
+        return _general_transport(y, x & an_y, graph.induced_subgraph(an_y), sub)
 
     g_cut = graph
     for node in x:
         g_cut = g_cut.remove_incoming_edges(node)
     w = (v - x) - frozenset(g_cut.ancestors(y))
     if w:
-        return _transport(y, x | w, graph, selection)
+        return _general_transport(y, x | w, graph, domains)
 
-    # Decompose the target effect into target c-factors and route each one by s-invariance: a factor
-    # whose variables all keep their mechanism (no selection mark) transfers from the source;
-    # otherwise it must be identified from the target's own observational distribution.
-    terms: list[Estimand] = []
-    for c in (frozenset(comp) for comp in graph.induced_subgraph(v - x).c_components()):
-        domain = "target" if c & selection else "source"
-        terms.append(_c_factor_from(c, v, graph, _DomainJoint(domain, v)))
+    terms = [
+        _resolve_c_factor(frozenset(c), graph, domains)
+        for c in graph.induced_subgraph(v - x).c_components()
+    ]
     return _marginal(v - (y | x), _product(terms))
+
+
+def _transport(
+    y: frozenset[str], x: frozenset[str], graph: CausalGraph, selection: frozenset[str]
+) -> Estimand:
+    return _general_transport(y, x, graph, [Domain("source", selection=selection)])
 
 
 def identify_transport(
@@ -609,6 +702,91 @@ def is_transportable_effect(
     return True
 
 
+def identify_transport_general(
+    target_graph: CausalGraph,
+    treatment: Iterable[str],
+    outcome: Iterable[str],
+    domains: Iterable[Domain],
+) -> Estimand:
+    """Return an :class:`Estimand` for the target effect ``P*(outcome | do(treatment))`` combining
+    one or more source ``domains`` with the target's own data, or raise
+    :class:`NotIdentifiableError`.
+
+    Generalizes :func:`identify_transport` to multiple domains (meta-transportability) and to
+    surrogate experiments (mz-transportability): each target c-factor is taken from any domain whose
+    mechanism for it is invariant and that can identify it from its observational or experimental
+    data, with the target as the fallback. With a single observational source it coincides with
+    :func:`identify_transport`; with no selection and no experiments it reduces to the ID algorithm.
+
+    Faithful to E. Bareinboim & J. Pearl, *A General Algorithm for Deciding Transportability of
+    Experimental Results* (Journal of Causal Inference 2013) and *Meta-Transportability of Causal
+    Effects: A Formal Approach* (AISTATS 2013), unified via the surrogate-experiment view of S. Lee,
+    J. Correa & E. Bareinboim (UAI 2019). No external code is ported.
+    """
+    x, y = frozenset(treatment), frozenset(outcome)
+    doms = list(domains)
+    referenced = set(x) | set(y)
+    for d in doms:
+        referenced |= d.selection
+        for exp in d.experiments:
+            referenced |= exp
+    unknown = referenced - set(target_graph.nodes)
+    if unknown:
+        raise CausalGraphError(f"unknown nodes: {sorted(unknown)}")
+    if not y:
+        raise CausalGraphError("outcome must be non-empty")
+    if x & y:
+        raise CausalGraphError(f"treatment and outcome overlap: {sorted(x & y)}")
+    return _general_transport(y, x, target_graph, doms)
+
+
+def is_transportable_general(
+    target_graph: CausalGraph,
+    treatment: Iterable[str],
+    outcome: Iterable[str],
+    domains: Iterable[Domain],
+) -> bool:
+    """Whether ``P*(outcome | do(treatment))`` is transportable from ``domains`` (see
+    :func:`identify_transport_general`)."""
+    try:
+        identify_transport_general(target_graph, treatment, outcome, domains)
+    except NotIdentifiableError:
+        return False
+    return True
+
+
+def estimate_transport_general(
+    target_graph: CausalGraph,
+    treatment: Iterable[str],
+    outcome: Iterable[str],
+    domains: Iterable[Domain],
+    *,
+    domain_data: Mapping[str, Mapping[str, np.ndarray]],
+    experiment_data: Mapping[tuple[str, frozenset[str]], Mapping[str, np.ndarray]] | None = None,
+    do: Mapping[str, int],
+) -> dict[tuple[int, ...], float]:
+    """Estimate the target effect ``P*(outcome | do(treatment = do))`` across ``domains``.
+
+    ``domain_data`` maps each domain name (including ``"target"``) to an observational dataset over
+    ``target_graph.nodes``; ``experiment_data`` maps ``(domain, frozenset(target))`` to a randomized
+    experimental dataset. Identifies the estimand via :func:`identify_transport_general`, evaluates
+    it against the supplied data, and returns the outcome distribution keyed in ``sorted(outcome)``
+    order.
+    """
+    doms = list(domains)
+    estimand = identify_transport_general(target_graph, treatment, outcome, doms)
+    if "target" not in domain_data:
+        raise CausalGraphError("domain_data must include 'target'")
+    nodes = target_graph.nodes
+    domains_f = {name: _empirical_joint(rows, nodes) for name, rows in domain_data.items()}
+    exps_f = {key: _empirical_joint(rows, nodes) for key, rows in (experiment_data or {}).items()}
+    ctx = _EvalContext(domains_f["target"], {}, domains_f, exps_f)
+    factor = _evaluate(estimand, ctx).condition(do)
+    targets = sorted(outcome)
+    factor = factor.marginalize(set(factor.variables) - set(targets)).reorder(targets)
+    return dict(factor.table)
+
+
 def estimate_transported_effect(
     graph: CausalGraph,
     treatment: Iterable[str],
@@ -631,7 +809,7 @@ def estimate_transported_effect(
         "source": _empirical_joint(source_data, graph.nodes),
         "target": _empirical_joint(target_data, graph.nodes),
     }
-    context = _EvalContext(domains["target"], {}, domains)
+    context = _EvalContext(domains["target"], {}, domains, {})
     factor = _evaluate(estimand, context).condition(do)
     targets = sorted(outcome)
     factor = factor.marginalize(set(factor.variables) - set(targets)).reorder(targets)
