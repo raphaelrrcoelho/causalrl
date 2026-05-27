@@ -20,14 +20,12 @@ No external code is ported; implemented on our own :class:`~causalrl.scm.graph.C
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass
 from itertools import combinations, product
 from typing import TYPE_CHECKING, Literal
 
-import networkx as nx
-
 from causalrl.exceptions import CausalGraphError
+from causalrl.identification._separation import LAT, SEL, d_separated, selection_nodes
 from causalrl.identification.counterfactual import counterfactual_expectation
 from causalrl.identification.id_algorithm import Estimand, identify_transport
 from causalrl.scm.graph import CausalGraph
@@ -47,9 +45,6 @@ __all__ = [
     "transported_effect",
 ]
 
-_SEL = "__S__::"  # canonical-DAG prefix for selection nodes
-_LAT = "__L__::"  # canonical-DAG prefix for latent (bidirected) nodes
-
 
 @dataclass(frozen=True)
 class SelectionDiagram:
@@ -66,8 +61,8 @@ class SelectionDiagram:
         unknown = set(self.selection_variables) - set(self.graph.nodes)
         if unknown:
             raise CausalGraphError(f"selection variables not in graph: {sorted(unknown)}")
-        if any(n.startswith(_SEL) or n.startswith(_LAT) for n in self.graph.nodes):
-            raise CausalGraphError(f"node names must not start with {_SEL!r} or {_LAT!r}")
+        if any(n.startswith(SEL) or n.startswith(LAT) for n in self.graph.nodes):
+            raise CausalGraphError(f"node names must not start with {SEL!r} or {LAT!r}")
 
 
 @dataclass(frozen=True)
@@ -77,38 +72,6 @@ class TransportFormula:
     kind: Literal["direct", "adjustment"]
     adjustment_set: frozenset[str]
     expression: str
-
-
-def _canonical_dag(graph: CausalGraph, selection: Iterable[str]) -> nx.DiGraph[str]:
-    """The latent-projection canonical DAG: bidirected ``A<->B`` becomes ``A<-L->B`` and each
-    selection variable ``v`` gains a node ``S->v``, so ADMG m-separation reduces to DAG
-    d-separation over the observed (and selection) nodes."""
-    dag: nx.DiGraph[str] = nx.DiGraph()
-    dag.add_nodes_from(graph.nodes)
-    dag.add_edges_from(graph.directed_edges)
-    for i, (a, b) in enumerate(graph.bidirected_edges):
-        latent = f"{_LAT}{i}"
-        dag.add_edge(latent, a)
-        dag.add_edge(latent, b)
-    for v in selection:
-        dag.add_edge(f"{_SEL}{v}", v)
-    return dag
-
-
-def _selection_nodes(selection: Iterable[str]) -> set[str]:
-    return {f"{_SEL}{v}" for v in selection}
-
-
-def _d_separated(
-    graph: CausalGraph,
-    x: set[str],
-    y: set[str],
-    z: set[str],
-    selection: Iterable[str] = (),
-) -> bool:
-    """m-separation in `graph` (ADMG): is `x` independent of `y` given `z`?"""
-    dag = _canonical_dag(graph, selection)
-    return bool(nx.is_d_separator(dag, x, y, z))  # type: ignore[reportUnknownMemberType]
 
 
 def is_backdoor_admissible(graph: CausalGraph, treatment: str, outcome: str, z: set[str]) -> bool:
@@ -121,7 +84,7 @@ def is_backdoor_admissible(graph: CausalGraph, treatment: str, outcome: str, z: 
         graph.bidirected_edges,
         nodes=graph.nodes,
     )
-    return _d_separated(underline, {treatment}, {outcome}, z)
+    return d_separated(underline, {treatment}, {outcome}, z)
 
 
 def transport_formula(
@@ -139,10 +102,10 @@ def transport_formula(
             raise CausalGraphError(f"unknown node: {name!r}")
     selection = diagram.selection_variables
     g_bar_x = graph.do_mutilate(treatment)  # the interventional graph G_{\bar X}
-    s_nodes = _selection_nodes(selection)
+    s_nodes = selection_nodes(selection)
 
     # Case 1: direct transportability — the interventional law is invariant (S ⊥ Y | X).
-    if not selection or _d_separated(g_bar_x, s_nodes, {outcome}, {treatment}, selection):
+    if not selection or d_separated(g_bar_x, s_nodes, {outcome}, {treatment}, selection):
         return TransportFormula(
             "direct",
             frozenset(),
@@ -159,7 +122,7 @@ def transport_formula(
             z = set(combo)
             if not is_backdoor_admissible(graph, treatment, outcome, z):
                 continue
-            if not _d_separated(g_bar_x, s_nodes, {outcome}, z | {treatment}, selection):
+            if not d_separated(g_bar_x, s_nodes, {outcome}, z | {treatment}, selection):
                 continue
             expr = f"P*({outcome}|do {treatment}) = sum_z P({outcome}|{treatment},z) P*(z)"
             return TransportFormula("adjustment", frozenset(z), expr)
