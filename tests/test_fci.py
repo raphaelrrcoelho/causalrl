@@ -15,7 +15,22 @@ import pytest
 from torch import Tensor
 from torch.distributions import Bernoulli, Distribution, Uniform
 
-from causalrl.discovery import PAG, discover, discover_latent
+from causalrl.discovery import (
+    PAG,
+    _discriminating_path,
+    _rule1,
+    _rule2,
+    _rule3,
+    _rule4,
+    _rule5,
+    _rule6,
+    _rule7,
+    _rule8,
+    _rule9,
+    _rule10,
+    discover,
+    discover_latent,
+)
 from causalrl.exceptions import CausalGraphError
 from causalrl.identification._separation import d_separated
 from causalrl.scm.graph import CausalGraph
@@ -184,3 +199,107 @@ def test_fci_reduces_to_pc_skeleton_without_latents() -> None:
     }
     assert pag_adj == cpdag_adj
     assert not any(pag.is_bidirected(*sorted(e)) for e in pag_adj)  # no spurious confounders
+
+
+def _mbias_scm() -> tuple[StructuralCausalModel, CausalGraph]:
+    # Classic M-bias: L1 -> X, L1 -> Z <- L2, L2 -> Y (L1, L2 latent), no X-Y edge. Z is a collider;
+    # FCI must mark arrowheads at Z (the "do not condition on Z" structure).
+    dag = CausalGraph(directed_edges=[("L1", "X"), ("L1", "Z"), ("L2", "Z"), ("L2", "Y")])
+    mechanisms: dict[str, Mechanism] = {
+        "L1": FunctionalMechanism([], lambda pa, u: u),
+        "L2": FunctionalMechanism([], lambda pa, u: u),
+        "X": FunctionalMechanism(["L1"], lambda pa, u: (pa["L1"] + _flip(u, 0.15)) % 2),
+        "Y": FunctionalMechanism(["L2"], lambda pa, u: (pa["L2"] + _flip(u, 0.15)) % 2),
+        "Z": FunctionalMechanism(
+            ["L1", "L2"], lambda pa, u: (((pa["L1"] + pa["L2"]) >= 1).float() + _flip(u, 0.05)) % 2
+        ),
+    }
+    exo: dict[str, Distribution] = {
+        "L1": Bernoulli(0.5),
+        "L2": Bernoulli(0.5),
+        "X": Uniform(0.0, 1.0),
+        "Y": Uniform(0.0, 1.0),
+        "Z": Uniform(0.0, 1.0),
+    }
+    return StructuralCausalModel(dag, mechanisms, exo), dag
+
+
+def test_fci_mbias_orients_collider_at_z() -> None:
+    scm, dag = _mbias_scm()
+    pag = discover_latent(_data(scm, ["X", "Y", "Z"], seed=0), ["X", "Y", "Z"])
+    _assert_sound(pag, _true_mag(dag, ["X", "Y", "Z"]))
+    assert pag.marks[("X", "Z")] == ">" and pag.marks[("Y", "Z")] == ">"  # collider at Z
+    assert not pag.adjacent("X", "Y")  # m-separated by the empty set
+
+
+# --- Per-rule unit fixtures for the orientation rules R1-R10 (minimal mark configs) -------------
+def test_rule1_orients_away_from_collider() -> None:
+    marks = {("A", "B"): ">", ("B", "A"): "o", ("B", "C"): "o", ("C", "B"): "o"}
+    assert _rule1(marks)
+    assert marks[("C", "B")] == "-" and marks[("B", "C")] == ">"  # B -> C
+
+
+def test_rule2_orients_arrowhead() -> None:
+    marks = {("A", "B"): ">", ("B", "A"): "-", ("B", "C"): ">", ("C", "B"): "o",
+             ("A", "C"): "o", ("C", "A"): "o"}
+    assert _rule2(marks)
+    assert marks[("A", "C")] == ">"
+
+
+def test_rule3_orients_arrowhead_at_b() -> None:
+    marks = {("A", "B"): ">", ("B", "A"): "o", ("C", "B"): ">", ("B", "C"): "o",
+             ("A", "D"): "o", ("D", "A"): "o", ("C", "D"): "o", ("D", "C"): "o",
+             ("D", "B"): "o", ("B", "D"): "o"}
+    assert _rule3(marks)
+    assert marks[("D", "B")] == ">"
+
+
+def test_rule4_discriminating_path_bidirects() -> None:
+    marks = {("T", "A"): ">", ("A", "T"): "o", ("A", "C"): ">", ("C", "A"): "-",
+             ("B", "A"): ">", ("A", "B"): "o", ("C", "B"): "o", ("B", "C"): "o"}
+    assert _discriminating_path(marks, "B", "C") == ["T", "A", "B", "C"]
+    assert _rule4(marks, {})  # B not in sepset(T, C): orient A <-> B <-> C
+    assert marks[("A", "B")] == ">" and marks[("B", "A")] == ">"
+    assert marks[("B", "C")] == ">" and marks[("C", "B")] == ">"
+
+
+def test_rule5_undirects_circle_path() -> None:
+    marks = {("A", "B"): "o", ("B", "A"): "o", ("A", "G"): "o", ("G", "A"): "o",
+             ("G", "H"): "o", ("H", "G"): "o", ("H", "B"): "o", ("B", "H"): "o"}
+    assert _rule5(marks)
+    assert marks[("A", "B")] == "-" and marks[("B", "A")] == "-"
+    assert marks[("A", "G")] == "-" and marks[("H", "B")] == "-"
+
+
+def test_rule6_propagates_tail() -> None:
+    marks = {("A", "B"): "-", ("B", "A"): "-", ("C", "B"): "o", ("B", "C"): "o"}
+    assert _rule6(marks)
+    assert marks[("C", "B")] == "-"
+
+
+def test_rule7_propagates_tail_unshielded() -> None:
+    marks = {("B", "A"): "-", ("A", "B"): "o", ("C", "B"): "o", ("B", "C"): "o"}
+    assert _rule7(marks)
+    assert marks[("C", "B")] == "-"
+
+
+def test_rule8_orients_tail() -> None:
+    marks = {("A", "B"): ">", ("B", "A"): "-", ("B", "C"): ">", ("C", "B"): "-",
+             ("A", "C"): ">", ("C", "A"): "o"}
+    assert _rule8(marks)
+    assert marks[("C", "A")] == "-"  # A -> C
+
+
+def test_rule9_orients_tail_via_pd_path() -> None:
+    marks = {("A", "C"): ">", ("C", "A"): "o", ("A", "B"): "o", ("B", "A"): "o",
+             ("B", "D"): "o", ("D", "B"): "o", ("D", "C"): "o", ("C", "D"): "o"}
+    assert _rule9(marks)
+    assert marks[("C", "A")] == "-"
+
+
+def test_rule10_orients_tail_via_two_pd_paths() -> None:
+    marks = {("A", "C"): ">", ("C", "A"): "o", ("B", "C"): ">", ("C", "B"): "-",
+             ("D", "C"): ">", ("C", "D"): "-", ("A", "B"): "o", ("B", "A"): "o",
+             ("A", "D"): "o", ("D", "A"): "o"}
+    assert _rule10(marks)
+    assert marks[("C", "A")] == "-"

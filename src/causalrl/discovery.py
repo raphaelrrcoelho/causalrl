@@ -30,7 +30,7 @@ import math
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from itertools import combinations
+from itertools import combinations, pairwise
 
 import numpy as np
 
@@ -459,10 +459,220 @@ def _rule3(marks: dict[tuple[str, str], str]) -> bool:
     return changed
 
 
-def _apply_fci_rules(marks: dict[tuple[str, str], str]) -> None:
-    """Apply the sound FCI orientation rules R1-R3 to a fixpoint (R4-R10 add completeness)."""
-    while _rule1(marks) | _rule2(marks) | _rule3(marks):
-        pass
+def _discriminating_path(
+    marks: dict[tuple[str, str], str], b: str, c: str
+) -> list[str] | None:
+    """A discriminating path ``<theta, ..., a, b, c>`` for ``b``, or ``None``.
+
+    Vertices strictly between ``theta`` and ``b`` are colliders on the path and parents of ``c``;
+    ``theta`` is not adjacent to ``c``.
+    """
+    for a in _pag_neighbors(marks, b):
+        if a == c or marks.get((b, a)) != _ARROW:  # need b *-> a
+            continue
+        if not (marks.get((a, c)) == _ARROW and marks.get((c, a)) == _TAIL):  # need a -> c
+            continue
+        stack: list[list[str]] = [[a, b, c]]
+        while stack:
+            path = stack.pop()
+            head = path[0]
+            for theta in _pag_neighbors(marks, head):
+                if theta in path or marks.get((theta, head)) != _ARROW:  # need theta *-> head
+                    continue
+                if (theta, c) not in marks:
+                    return [theta, *path]  # theta non-adjacent to c: discriminating
+                if marks.get((theta, c)) == _ARROW and marks.get((c, theta)) == _TAIL:
+                    stack.append([theta, *path])  # theta -> c: keep extending
+    return None
+
+
+def _uncovered_paths(
+    marks: dict[tuple[str, str], str], start: str, end: str, *, circle: bool
+) -> list[list[str]]:
+    """Uncovered paths ``start … end`` that are circle paths (every edge ``o-o``) when ``circle``,
+    else potentially-directed (no arrowhead at the tail-side node of each step)."""
+    results: list[list[str]] = []
+
+    def step_ok(u: str, w: str) -> bool:
+        if circle:
+            return marks.get((u, w)) == _CIRCLE and marks.get((w, u)) == _CIRCLE
+        return marks.get((w, u)) != _ARROW  # no arrowhead at u: orientable u -> w
+
+    def dfs(path: list[str]) -> None:
+        u = path[-1]
+        for w in _pag_neighbors(marks, u):
+            if w in path or not step_ok(u, w):
+                continue
+            if len(path) >= 2 and (path[-2], w) in marks:  # uncovered triple
+                continue
+            extended = [*path, w]
+            if w == end:
+                results.append(extended)
+            else:
+                dfs(extended)
+
+    dfs([start])
+    return results
+
+
+def _rule4(
+    marks: dict[tuple[str, str], str], sepset: Mapping[frozenset[str], tuple[str, ...]]
+) -> bool:
+    """R4: a discriminating path for ``b`` ending ``a, b, c`` with ``b o-* c`` orients ``b -> c`` if
+    ``b`` is in the separating set, else ``a <-> b <-> c``."""
+    changed = False
+    for (c, b), mark in list(marks.items()):
+        if mark != _CIRCLE:
+            continue
+        path = _discriminating_path(marks, b, c)
+        if path is None:
+            continue
+        theta, a = path[0], path[-3]
+        if b in sepset.get(frozenset((theta, c)), ()):
+            marks[(c, b)], marks[(b, c)] = _TAIL, _ARROW
+        else:
+            marks[(a, b)] = marks[(b, a)] = marks[(b, c)] = marks[(c, b)] = _ARROW
+        changed = True
+    return changed
+
+
+def _rule5(marks: dict[tuple[str, str], str]) -> bool:
+    """R5: ``a o-o b`` with an uncovered circle path between them (suitable endpoints non-adjacent)
+    makes ``a - b`` and every edge on the path undirected (selection bias)."""
+    changed = False
+    for (a, b), mark in list(marks.items()):
+        if a >= b or not (mark == _CIRCLE and marks.get((b, a)) == _CIRCLE):
+            continue
+        for path in _uncovered_paths(marks, a, b, circle=True):
+            if len(path) < 4:
+                continue
+            gamma, theta = path[1], path[-2]
+            if (a, theta) in marks or (b, gamma) in marks:
+                continue
+            marks[(a, b)] = marks[(b, a)] = _TAIL
+            for u, v in pairwise(path):
+                marks[(u, v)] = marks[(v, u)] = _TAIL
+            changed = True
+            break
+    return changed
+
+
+def _rule6(marks: dict[tuple[str, str], str]) -> bool:
+    """R6: ``a - b o-* c`` (``a - b`` undirected) forces a tail at ``b`` on ``b - c``."""
+    changed = False
+    for (c, b), mark in list(marks.items()):
+        if mark != _CIRCLE:
+            continue
+        for a in _pag_neighbors(marks, b):
+            if a != c and marks.get((a, b)) == _TAIL and marks.get((b, a)) == _TAIL:
+                marks[(c, b)] = _TAIL
+                changed = True
+                break
+    return changed
+
+
+def _rule7(marks: dict[tuple[str, str], str]) -> bool:
+    """R7: ``a -o b o-* c`` with ``a, c`` non-adjacent forces a tail at ``b`` on ``b - c``."""
+    changed = False
+    for (g, b), mark in list(marks.items()):
+        if mark != _CIRCLE:
+            continue
+        for a in _pag_neighbors(marks, b):
+            if a == g or (a, g) in marks:
+                continue
+            if marks.get((b, a)) == _TAIL and marks.get((a, b)) == _CIRCLE:  # a -o b
+                marks[(g, b)] = _TAIL
+                changed = True
+                break
+    return changed
+
+
+def _rule8(marks: dict[tuple[str, str], str]) -> bool:
+    """R8: ``a -> b -> c`` or ``a -o b -> c`` with ``a o-> c`` forces a tail at ``a``."""
+    changed = False
+    for (a, c), mark in list(marks.items()):
+        if not (mark == _ARROW and marks.get((c, a)) == _CIRCLE):  # a o-> c
+            continue
+        for b in _pag_neighbors(marks, a):
+            if b == c or (b, c) not in marks:
+                continue
+            a_to_b = marks.get((a, b)) == _ARROW and marks.get((b, a)) == _TAIL
+            a_circ_b = marks.get((b, a)) == _TAIL and marks.get((a, b)) == _CIRCLE
+            b_to_c = marks.get((b, c)) == _ARROW and marks.get((c, b)) == _TAIL
+            if (a_to_b or a_circ_b) and b_to_c:
+                marks[(c, a)] = _TAIL
+                changed = True
+                break
+    return changed
+
+
+def _rule9(marks: dict[tuple[str, str], str]) -> bool:
+    """R9: ``a o-> c`` with an uncovered potentially-directed path ``a, b, ..., c`` where ``b`` is
+    non-adjacent to ``c`` forces a tail at ``a``."""
+    changed = False
+    for (a, c), mark in list(marks.items()):
+        if not (mark == _ARROW and marks.get((c, a)) == _CIRCLE):
+            continue
+        for path in _uncovered_paths(marks, a, c, circle=False):
+            if len(path) >= 3 and (path[1], c) not in marks:
+                marks[(c, a)] = _TAIL
+                changed = True
+                break
+    return changed
+
+
+def _rule10(marks: dict[tuple[str, str], str]) -> bool:
+    """R10: ``a o-> c`` with parents ``b -> c <- d`` and uncovered p.d. paths ``a..b``, ``a..d``
+    whose first steps are distinct and non-adjacent forces a tail at ``a`` (``a -> c``)."""
+    changed = False
+    for (a, c), mark in list(marks.items()):
+        if not (mark == _ARROW and marks.get((c, a)) == _CIRCLE):
+            continue
+        parents = [
+            p
+            for p in _pag_neighbors(marks, c)
+            if marks.get((p, c)) == _ARROW and marks.get((c, p)) == _TAIL
+        ]
+        oriented = False
+        for beta, delta in combinations(parents, 2):
+            paths_b = [p for p in _uncovered_paths(marks, a, beta, circle=False) if len(p) >= 2]
+            paths_d = [p for p in _uncovered_paths(marks, a, delta, circle=False) if len(p) >= 2]
+            for p1 in paths_b:
+                for p2 in paths_d:
+                    if p1[1] != p2[1] and (p1[1], p2[1]) not in marks:
+                        marks[(c, a)] = _TAIL
+                        oriented = True
+                        break
+                if oriented:
+                    break
+            if oriented:
+                break
+        changed = changed or oriented
+    return changed
+
+
+def _apply_fci_rules(
+    marks: dict[tuple[str, str], str], sepset: Mapping[frozenset[str], tuple[str, ...]]
+) -> None:
+    """Apply the complete FCI orientation rules R1-R10 (Zhang 2008) to a fixpoint."""
+    rules = (
+        lambda: _rule1(marks),
+        lambda: _rule2(marks),
+        lambda: _rule3(marks),
+        lambda: _rule4(marks, sepset),
+        lambda: _rule5(marks),
+        lambda: _rule6(marks),
+        lambda: _rule7(marks),
+        lambda: _rule8(marks),
+        lambda: _rule9(marks),
+        lambda: _rule10(marks),
+    )
+    changed = True
+    while changed:
+        changed = False
+        for rule in rules:
+            if rule():
+                changed = True
 
 
 def discover_latent(
@@ -476,10 +686,10 @@ def discover_latent(
 
     Unlike :func:`discover`, FCI does not assume causal sufficiency: it learns the PC skeleton, then
     refines it with the Possible-D-SEP step (sound under latent confounders), re-orients unshielded
-    colliders, and applies the FCI orientation rules. The result is a :class:`PAG`: ``a <-> b``
+    colliders, and applies the complete orientation rules R1-R10 (Zhang 2008 — sound and complete
+    for latent confounders and selection bias). The result is a :class:`PAG`: ``a <-> b``
     witnesses a latent confounder; a circle endpoint is undetermined by the equivalence class.
 
-    Currently applies the sound rules R1-R3 (the complete set R4-R10 is added next); already sound.
     ``threshold`` and ``max_conditioning_size`` mirror :func:`discover`.
     """
     nodes = list(variables)
@@ -497,5 +707,5 @@ def discover_latent(
     for key in marks:
         marks[key] = _CIRCLE
     _orient_colliders(marks, nodes, sepset)
-    _apply_fci_rules(marks)
+    _apply_fci_rules(marks, sepset)
     return PAG(tuple(nodes), marks)

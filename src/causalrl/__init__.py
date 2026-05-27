@@ -19,6 +19,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "BehavioralCloning": ("causalrl.imitation", "BehavioralCloning"),
     "BenchmarkEstimate": ("causalrl.eval.benchmark", "BenchmarkEstimate"),
     "CPDAG": ("causalrl.discovery", "CPDAG"),
+    "PAG": ("causalrl.discovery", "PAG"),
     "CausalEnv": ("causalrl.envs.base", "CausalEnv"),
     "CausalGame": ("causalrl.games", "CausalGame"),
     "CausalGraph": ("causalrl.scm.graph", "CausalGraph"),
@@ -79,6 +80,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "curriculum_q_learning": ("causalrl.curriculum", "curriculum_q_learning"),
     "discover": ("causalrl.discovery", "discover"),
     "discover_interventional": ("causalrl.discovery", "discover_interventional"),
+    "discover_latent": ("causalrl.discovery", "discover_latent"),
     "effect_of_treatment_on_treated": (
         "causalrl.identification.counterfactual",
         "effect_of_treatment_on_treated",
@@ -148,6 +150,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
 __all__ = [
     "CPDAG",
     "DOVI",
+    "PAG",
     "UCDTR",
     "Agent",
     "BehavioralCloning",
@@ -205,6 +208,7 @@ __all__ = [
     "curriculum_q_learning",
     "discover",
     "discover_interventional",
+    "discover_latent",
     "effect_of_treatment_on_treated",
     "estimate_effect",
     "estimate_effect_with_experiments",
