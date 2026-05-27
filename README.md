@@ -244,12 +244,35 @@ imitator.fit(demos, action="A")
 When the confounder is latent (no observed admissible set) `is_imitable` returns `False` rather than
 a biased policy. Faithful to Zhang, Kumor & Bareinboim (NeurIPS 2020).
 
+## v0.10: Causal curriculum learning (Task 7)
+
+Learn skills in causal order. `causal_curriculum` topologically sorts the prerequisite graph so every
+cause is mastered before its effects; a learner that follows it reaches the goal, while one fed a
+prerequisite-violating order strands the blocked skills.
+
+```python
+from causalrl.curriculum import PrerequisiteLearner, causal_curriculum
+from causalrl.envs.suite.curriculum import make_skill_diamond
+
+graph, goal = make_skill_diamond()                  # S0 -> {S1, S2} -> S3
+order = causal_curriculum(graph, goal)              # a valid topological order ending at S3
+learner = PrerequisiteLearner(graph)
+learner.train(order)
+print(learner.masters(goal))                        # True
+learner.train(list(reversed(order)))
+print(learner.masters(goal))                        # False — prerequisites violated
+```
+
+Faithful to Bengio, Louradour, Collobert & Weston, *Curriculum Learning* (ICML 2009); the causal
+contribution is the topological ordering rule.
+
 ## Layout
 
 - `causalrl.scm` — ADMG graph operations plus explicit-latent DAG `StructuralCausalModel` (`see`/`do`/`counterfactual`)
 - `causalrl.identification` — scoped conservative criteria, Manski `causal_q_bounds`, POMIS (`pomis`, `minimal_intervention_sets`), counterfactual ETT (`counterfactual_expectation`, `effect_of_treatment_on_treated`), and transportability (`transport_formula`, `transported_effect`, `is_backdoor_admissible`)
 - `causalrl.discovery` — constraint-based causal structure learning (`discover`, `conditional_mutual_information`, `CPDAG`)
 - `causalrl.imitation` — causal imitation learning (`is_imitable`, `imitation_backdoor_set`, `CausalImitator`, `BehavioralCloning`)
+- `causalrl.curriculum` — causal curriculum learning (`causal_curriculum`, `is_valid_curriculum`, `PrerequisiteLearner`)
 - `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `SequentialDTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`, `StructuralCausalBanditEnv`)
 - `causalrl.data` — `ConfoundedTrajectoryDataset` and offline-log generation
 - `causalrl.agents` — bandit agents plus causal offline-to-online learners (`UCDTR`, `DOVI`, `DeepDeconfoundedQ`) and baselines

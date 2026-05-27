@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-05-27
+
+### Added
+- **Causal curriculum learning** (taxonomy Task 7). `causal_curriculum` orders skills by a
+  topological sort of the causal/prerequisite graph (learn causes before effects),
+  `is_valid_curriculum` checks an order respects prerequisites, and `PrerequisiteLearner` models
+  causally-gated mastery (a skill is learned only once its parents are). On a skill chain/diamond the
+  causal curriculum masters the goal while a prerequisite-violating order does not. Faithful to
+  Bengio, Louradour, Collobert & Weston, *Curriculum Learning* (ICML 2009).
+- `make_skill_chain` / `make_skill_diamond` prerequisite-graph demos.
+
 ## [0.9.0] - 2026-05-27
 
 ### Added
