@@ -35,8 +35,7 @@ def test_pomis_agent_unchanged_when_all_manipulable():
     }
 
 
-def test_pomis_agent_infers_nonmanipulable_contract_only_as_deprecated_fallback():
+def test_pomis_agent_requires_explicit_manipulable():
     env = make_frontdoor_env(seed=0)
-    with pytest.warns(DeprecationWarning, match="manipulable"):
-        agent = POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0)
-    assert len(agent.allowed) == 3
+    with pytest.raises(ValueError, match="manipulable"):
+        POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0)

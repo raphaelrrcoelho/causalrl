@@ -1,9 +1,6 @@
 import importlib
 
-import pytest
-
 import causalrl
-from causalrl.eval.ope import confounding_sensitivity_bounds as legacy_sensitivity_bounds
 from causalrl.eval.ope import ipw_value
 
 
@@ -28,8 +25,3 @@ def test_sensitivity_bounds_widen_with_gamma():
 def test_sensitivity_bounds_are_not_stable_top_level_api():
     assert "confounding_sensitivity_bounds" not in causalrl.__all__
     assert not hasattr(causalrl, "confounding_sensitivity_bounds")
-
-
-def test_old_sensitivity_import_warns_before_using_experimental_helper():
-    with pytest.warns(DeprecationWarning, match="causalrl.experimental.ope"):
-        assert legacy_sensitivity_bounds(point=0.5, gamma=1.0) == (0.5, 0.5)

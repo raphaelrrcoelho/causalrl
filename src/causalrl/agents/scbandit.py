@@ -1,4 +1,3 @@
-import warnings
 from collections.abc import Iterable
 from typing import Any
 
@@ -40,9 +39,9 @@ class _ArmSubsetThompsonSampling(Agent):
 class POMISThompsonSampling(_ArmSubsetThompsonSampling):
     """Thompson sampling over only the arms whose intervened-variable set is a POMIS.
 
-    The manipulable set is inferred from the arms (the variables any arm intervenes on), so
-    non-manipulable variables are handled by the POMIS engine via latent projection (r40).
-    When every non-reward variable is manipulable this matches the unconstrained POMIS.
+    ``manipulable`` (the variables you may intervene on) must be given explicitly; non-manipulable
+    variables are handled by the POMIS engine via latent projection (r40). When every non-reward
+    variable is manipulable this matches the unconstrained POMIS.
     """
 
     def __init__(
@@ -56,20 +55,14 @@ class POMISThompsonSampling(_ArmSubsetThompsonSampling):
     ) -> None:
         arm_variables = {v for arm in arms for v in arm}
         if manipulable is None:
-            warnings.warn(
-                "inferring manipulable variables from arms is deprecated; "
-                "pass manipulable= explicitly",
-                DeprecationWarning,
-                stacklevel=2,
+            raise ValueError(
+                "POMISThompsonSampling requires manipulable=<intervenable variables>; "
+                "inferring it from the arms is no longer supported"
             )
-            permitted = arm_variables
-        else:
-            permitted = set(manipulable)
-            unexpected = arm_variables - permitted
-            if unexpected:
-                raise ValueError(
-                    f"arms intervene on non-manipulable variables: {sorted(unexpected)}"
-                )
+        permitted = set(manipulable)
+        unexpected = arm_variables - permitted
+        if unexpected:
+            raise ValueError(f"arms intervene on non-manipulable variables: {sorted(unexpected)}")
         pomis_sets = set(pomis(graph, reward, manipulable=permitted))
         allowed = [i for i, arm in enumerate(arms) if frozenset(arm.keys()) in pomis_sets]
         super().__init__(allowed, seed)

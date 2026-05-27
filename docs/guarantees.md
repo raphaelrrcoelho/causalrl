@@ -3,6 +3,10 @@
 This page separates implemented guarantees from research demonstrations and unsupported
 extensions.
 
+As of **v1.0.0** the public API — the names exported from the top-level `causalrl` package — is
+stable under [semantic versioning](https://semver.org): breaking changes require a major version
+bump.
+
 ## Stable Contracts
 
 ### Graph And Intervention Sets
@@ -70,8 +74,7 @@ agent = POMISThompsonSampling(
 )
 ```
 
-Inference of manipulability from arm enumeration remains available only as a deprecated
-compatibility fallback.
+The `manipulable` set is required: inferring it from arm enumeration was removed in v1.0.0.
 
 ## Causal-RL Taxonomy Methods
 

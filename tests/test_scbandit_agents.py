@@ -59,9 +59,9 @@ def test_reward_outside_unit_interval_is_rejected(reward: float):
         agent.update({}, 0, reward)
 
 
-def test_pomis_agent_inferred_manipulability_is_deprecated_for_compatibility():
+def test_pomis_agent_requires_explicit_manipulable():
     env = make_confounded_chain_env(seed=0)
-    with pytest.warns(DeprecationWarning, match="manipulable"):
+    with pytest.raises(ValueError, match="manipulable"):
         POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0)
 
 

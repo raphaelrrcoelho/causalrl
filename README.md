@@ -31,13 +31,21 @@ Research use should cite the metadata in [CITATION.cff](CITATION.cff).
   including non-manipulable variables through latent projection.
 - `StructuralCausalModel` executes explicit-latent DAGs. Use bidirected-edge ADMGs for
   analytical graph algorithms; represent a shared latent cause as an explicit SCM node.
-- `backdoor_adjustment_set` and `is_identifiable` are conservative scoped helpers, not a full
-  ID/sID/gID engine. Unsupported confounded ADMG cases are refused or reported as unknown.
-- `UCDTR`, `DOVI`, and `DeepDeconfoundedQ` are benchmark/demo agents, not production
-  offline-RL integrations. The qualitative sensitivity-interval helper is experimental at
-  `causalrl.experimental.ope`, not a validated OPE estimator.
+- `identify_effect` runs the complete Shpitser–Pearl ID algorithm, with general identification from
+  surrogate experiments (gID), transportability across domains (sID / mz / meta), and FCI for
+  latent-confounder discovery; a non-identifiable effect raises with a witnessing hedge.
+- `manski_bounds` and `ipw_sensitivity_bounds` give validated partial-identification and
+  marginal-sensitivity-model bounds. `UCDTR`, `DOVI`, and `DeepDeconfoundedQ` are benchmark/demo
+  agents, not production offline-RL integrations.
 - Multi-stage `DOVI` requires `transition_assumption="unconfounded"` for a certified
   transition-value backup; `allow_heuristic=True` permits explicitly un-certified exploration.
+
+## Stability
+
+As of **v1.0.0** the public API — the names exported from the top-level `causalrl` package — is
+stable and follows [semantic versioning](https://semver.org): breaking changes require a major
+version bump. See [Guarantees And Scope](docs/guarantees.md) for what each method does and does not
+promise.
 
 ## Quickstart: MABUC
 
