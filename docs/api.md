@@ -60,6 +60,14 @@
 
 ::: causalrl.identification.id_algorithm.Estimand
 
+### From Surrogate Experiments (gID)
+
+::: causalrl.identification.id_algorithm.identify_effect_with_experiments
+
+::: causalrl.identification.id_algorithm.is_gid_identifiable
+
+::: causalrl.identification.id_algorithm.estimate_effect_with_experiments
+
 ## Causal Discovery
 
 ::: causalrl.discovery.discover

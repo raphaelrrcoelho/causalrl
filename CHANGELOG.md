@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-05-27
+
+### Added
+- **General identification from surrogate experiments (gID)** (taxonomy Task 4):
+  `identify_effect_with_experiments` extends the ID recursion so that a c-factor observation cannot
+  identify (a hedge) is instead obtained from an available experiment (Tian's `Identify`
+  subroutine). `is_gid_identifiable` gives the decision and `estimate_effect_with_experiments`
+  evaluates the estimand on observational plus randomized-experimental data. With no experiments it
+  coincides exactly with the ID algorithm. Validated by simulation: the bow-arc and a
+  confounded-mediator graph (neither observationally identifiable) are recovered from a surrogate
+  experiment, matching the true `do()` distribution.
+
+### Notes
+- Full cross-domain transportability (the complete sID algorithm) remains out of scope: it reduces
+  to a conditional-gID over an augmented selection diagram and is documented as the next frontier.
+  Transportability stays at the direct / S-admissible-adjustment slice for now.
+
 ## [0.13.0] - 2026-05-27
 
 Depth pass closing the taxonomy gaps surfaced by re-checking the library against the Bareinboim

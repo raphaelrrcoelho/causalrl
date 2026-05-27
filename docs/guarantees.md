@@ -90,6 +90,12 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
   instrumental-variable graphs (correctly non-identifiable). `requires_experiment` answers Task 2's
   "when to intervene": an experiment is needed exactly when the effect is not observationally
   identifiable. Scope: a single observational distribution over discrete variables.
+- **General identification from surrogate experiments (gID).** `identify_effect_with_experiments` /
+  `is_gid_identifiable` extend the ID recursion: where observation hits a hedge, the needed c-factor
+  is obtained from an available experiment (Tian's `Identify` subroutine), and
+  `estimate_effect_with_experiments` evaluates the result on observational plus (randomized)
+  experimental data. With no experiments it coincides exactly with ID; validated by simulation on a
+  graph that is not observationally identifiable but is identified by a surrogate experiment.
 - **Transportability.** `transport_formula` / `is_transportable` decide direct and S-admissible
   adjustment transportability over selection diagrams (via m-separation); `transported_effect`
   computes the reweighted estimate. This is the adjustment-based slice, not the full hedge-based
@@ -116,9 +122,11 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
 
 ## Not Yet Claimed
 
-- Full cross-domain transportability (the complete sID algorithm) or general identification from
-  arbitrary surrogate experiments (gID). General single-domain observational ID *is* implemented
-  (`identify_effect`); transportability remains the direct / S-admissible-adjustment slice.
+- Full cross-domain transportability (the complete sID algorithm). Single-domain observational ID
+  (`identify_effect`) and general identification from surrogate experiments (gID,
+  `identify_effect_with_experiments`) *are* implemented; transportability across domains remains the
+  direct / S-admissible-adjustment slice (the complete sID, which reduces to a conditional-gID over
+  an augmented selection diagram, is the next frontier).
 - Causal discovery with latent confounders (FCI) or score-based search (GES); mixed-strategy
   equilibria for more than two players.
 - Published confounding-sensitivity or doubly robust OPE bounds.
