@@ -11,8 +11,17 @@ Faithful to:
 - C. Meek, *Causal Inference and Causal Explanation with Background Knowledge*, UAI 1995 — the
   orientation rules R1-R3.
 
-Assumes causal sufficiency (no latent confounders) and faithfulness; returns the Markov-equivalence
-class (CPDAG), which may leave some edges unoriented. No external code is ported.
+When interventional data is also available, :func:`discover_interventional` combines the
+observational (L1) skeleton with experiments (L2) and orients further toward the *interventional*
+essential graph, faithful to:
+
+- A. Hauser, P. Buehlmann, *Characterization and Greedy Learning of Interventional Markov
+  Equivalence Classes of DAGs*, JMLR 2012 (interventional Markov equivalence / I-essential graphs).
+- J. Peters, P. Buehlmann, N. Meinshausen, *Causal Inference using Invariant Prediction*, JRSS-B
+  2016 (the invariance principle that orients edges incident to an intervention target).
+
+Assumes causal sufficiency (no latent confounders) and faithfulness; returns the (interventional)
+Markov-equivalence class (CPDAG), which may leave some edges unoriented. No external code is ported.
 """
 
 from __future__ import annotations
@@ -28,7 +37,7 @@ import numpy as np
 from causalrl.exceptions import CausalGraphError
 from causalrl.scm.graph import CausalGraph
 
-__all__ = ["CPDAG", "conditional_mutual_information", "discover"]
+__all__ = ["CPDAG", "conditional_mutual_information", "discover", "discover_interventional"]
 
 
 def conditional_mutual_information(
@@ -190,6 +199,66 @@ def discover(
             if c not in sepset.get(frozenset((a, b)), ()):
                 _orient(a, c, directed, undirected)
                 _orient(b, c, directed, undirected)
+
+    _apply_meek_rules(nodes, directed, undirected)
+    return CPDAG(tuple(nodes), frozenset(directed), frozenset(undirected))
+
+
+def _empirical_pmf(column: np.ndarray) -> dict[int, float]:
+    counts: dict[int, int] = defaultdict(int)
+    for value in column:
+        counts[int(value)] += 1
+    n = len(column)
+    return {k: c / n for k, c in counts.items()}
+
+
+def _total_variation(a: np.ndarray, b: np.ndarray) -> float:
+    """Total-variation distance between the empirical marginals of two integer samples."""
+    pa, pb = _empirical_pmf(a), _empirical_pmf(b)
+    return 0.5 * sum(abs(pa.get(v, 0.0) - pb.get(v, 0.0)) for v in set(pa) | set(pb))
+
+
+def discover_interventional(
+    observational: Mapping[str, np.ndarray],
+    interventions: Mapping[str, Mapping[str, np.ndarray]],
+    variables: Sequence[str],
+    *,
+    threshold: float = 0.01,
+    shift_threshold: float = 0.05,
+    max_conditioning_size: int = 3,
+) -> CPDAG:
+    """Discover the interventional essential graph from observational and experimental data.
+
+    Runs the observational PC algorithm (:func:`discover`), then orients the edges incident to each
+    intervention target by the invariance principle: under a perfect intervention ``do(T)`` a
+    *child* of ``T`` shifts its marginal, while a *parent* (a non-descendant) stays invariant. Each
+    incident edge ``T - B`` is oriented ``T -> B`` if ``B`` shifts and ``B -> T`` if not; Meek's
+    rules R1-R3 then propagate the new orientations, so the result refines the observational CPDAG
+    toward the true DAG as more targets are experimented on.
+
+    ``interventions`` maps each intervened target ``T`` to a dataset drawn from ``do(T)`` (a perfect
+    intervention covering every variable in ``variables``). ``shift_threshold`` is the
+    total-variation cutoff above which an endpoint's marginal is judged to have shifted.
+    """
+    nodes = list(variables)
+    cpdag = discover(
+        observational, nodes, threshold=threshold, max_conditioning_size=max_conditioning_size
+    )
+    directed = set(cpdag.directed_edges)
+    undirected = set(cpdag.undirected_edges)
+
+    for target, idata in interventions.items():
+        if target not in nodes:
+            raise CausalGraphError(f"intervention target not in variables: {target!r}")
+        for edge in list(undirected):
+            if target not in edge:
+                continue
+            other = next(iter(edge - {target}))
+            if other not in observational or other not in idata:
+                raise CausalGraphError(f"variable not in data: {other!r}")
+            shifted = _total_variation(observational[other], idata[other]) >= shift_threshold
+            undirected.discard(edge)
+            directed.add((target, other) if shifted else (other, target))
 
     _apply_meek_rules(nodes, directed, undirected)
     return CPDAG(tuple(nodes), frozenset(directed), frozenset(undirected))

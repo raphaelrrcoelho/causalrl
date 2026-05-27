@@ -75,6 +75,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     ),
     "cumulative_regret": ("causalrl.eval.metrics", "cumulative_regret"),
     "discover": ("causalrl.discovery", "discover"),
+    "discover_interventional": ("causalrl.discovery", "discover_interventional"),
     "effect_of_treatment_on_treated": (
         "causalrl.identification.counterfactual",
         "effect_of_treatment_on_treated",
@@ -161,6 +162,7 @@ __all__ = [
     "counterfactual_expectation",
     "cumulative_regret",
     "discover",
+    "discover_interventional",
     "effect_of_treatment_on_treated",
     "finite_horizon_regret",
     "generate_logs",
