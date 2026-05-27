@@ -1,6 +1,8 @@
+import pytest
 import torch
 from torch.distributions import Bernoulli, Normal
 
+from causalrl.exceptions import CausalGraphError
 from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import FunctionalMechanism
 from causalrl.scm.scm import StructuralCausalModel
@@ -41,3 +43,14 @@ def test_see_is_reproducible_with_seed():
     a = scm.see(32, seed=7)
     b = scm.see(32, seed=7)
     assert torch.allclose(a["D"], b["D"])
+
+
+def test_executable_scm_rejects_bidirected_admg_graphs():
+    graph = CausalGraph(directed_edges=[], bidirected_edges=[("X", "Y")])
+    mechanisms = {
+        "X": FunctionalMechanism([], lambda pa, u: u),
+        "Y": FunctionalMechanism([], lambda pa, u: u),
+    }
+    exogenous = {"X": Bernoulli(0.5), "Y": Bernoulli(0.5)}
+    with pytest.raises(CausalGraphError, match="explicit latent"):
+        StructuralCausalModel(graph, mechanisms, exogenous)

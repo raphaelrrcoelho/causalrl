@@ -1,6 +1,8 @@
 """The curated public API (`causalrl.__all__`) stays consistent and importable."""
 
 import inspect
+import subprocess
+import sys
 
 import causalrl
 
@@ -15,7 +17,9 @@ def test_all_has_no_duplicates():
 
 
 def test_no_undeclared_public_symbols():
-    # Every non-underscore, non-module attribute must be declared in __all__ (no accidental leaks).
+    # Force the intentionally lazy stable exports to materialize before checking for leaks.
+    for name in causalrl.__all__:
+        assert hasattr(causalrl, name)
     public = {
         name
         for name in vars(causalrl)
@@ -40,3 +44,28 @@ def test_key_symbols_are_exported():
 
 def test_version_is_stamped():
     assert causalrl.__version__ == "0.5.0"
+
+
+def test_graph_and_tabular_exports_import_without_torch():
+    source = """
+import builtins
+
+original_import = builtins.__import__
+
+def import_without_torch(name, globals=None, locals=None, fromlist=(), level=0):
+    if name == "torch" or name.startswith("torch."):
+        raise ModuleNotFoundError("No module named 'torch'", name="torch")
+    return original_import(name, globals, locals, fromlist, level)
+
+builtins.__import__ = import_without_torch
+from causalrl import CausalGraph, DOVI, DTREnv, pomis
+
+graph = CausalGraph(directed_edges=[("X", "Y")])
+assert pomis(graph, "Y") == [frozenset({"X"})]
+assert DOVI is not None
+assert DTREnv is not None
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", source], check=False, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr

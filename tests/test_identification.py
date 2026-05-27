@@ -1,3 +1,6 @@
+import pytest
+
+from causalrl.exceptions import NotIdentifiableError
 from causalrl.identification.criteria import backdoor_adjustment_set, is_identifiable
 from causalrl.scm.graph import CausalGraph
 
@@ -25,10 +28,10 @@ def test_no_backdoor_path_empty_set():
     assert backdoor_adjustment_set(g, "X", "Y") == set()
 
 
-def test_frontdoor_is_a_known_v0_1_limitation():
-    # X -> M -> Y with X <-> Y: identifiable via the FRONT-door formula, but v0.1's scoped
-    # helpers don't handle it. This test documents (locks in) the known limitation so the
-    # behavior is explicit rather than silently wrong. See criteria.py docstrings.
+def test_frontdoor_is_reported_as_unsupported_instead_of_optimistically_identified():
+    # X -> M -> Y with X <-> Y is front-door identifiable, but this scoped helper does not
+    # implement front-door or the general ID algorithm.
     g = CausalGraph(directed_edges=[("X", "M"), ("M", "Y")], bidirected_edges=[("X", "Y")])
-    assert backdoor_adjustment_set(g, "X", "Y") == set()  # NOT a valid estimand here
-    assert is_identifiable(g, "X", "Y") is True  # optimistic: no direct bow arc detected
+    with pytest.raises(NotIdentifiableError, match="latent confounding"):
+        backdoor_adjustment_set(g, "X", "Y")
+    assert is_identifiable(g, "X", "Y") is None

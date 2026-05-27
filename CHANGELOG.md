@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `POMISThompsonSampling` infers its manipulable set from the environment's arms, so it
   respects non-manipulable variables automatically (identical behavior when all variables are
   manipulable).
+- Stable causal-method contracts are now conservative: `StructuralCausalModel` executes
+  explicit-latent DAGs only, `backdoor_adjustment_set` refuses latent-confounded treatments,
+  and `is_identifiable` returns unknown for unsupported ADMG cases rather than an optimistic
+  positive result.
+- The qualitative `confounding_sensitivity_bounds` helper moved to
+  `causalrl.experimental.ope`; its previous module path remains as a deprecated bridge and it
+  is no longer part of the stable top-level exports.
+- Stable public exports are loaded lazily. Core graph, POMIS, tabular-agent, and tabular-env
+  use no longer requires PyTorch; install the `torch` extra for SCM/neural/Torch-backed
+  components. Supported Python now begins at 3.11 and CI covers 3.11 and 3.14.
 
 ## [0.4.0] - 2026-05-26
 

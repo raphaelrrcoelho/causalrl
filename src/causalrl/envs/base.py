@@ -1,8 +1,12 @@
+from __future__ import annotations
+
 from abc import abstractmethod
+from typing import TYPE_CHECKING
 
 import gymnasium as gym
 
-from causalrl.scm.scm import StructuralCausalModel
+if TYPE_CHECKING:
+    from causalrl.scm.scm import StructuralCausalModel
 
 
 class CausalEnv(gym.Env):  # type: ignore[type-arg]

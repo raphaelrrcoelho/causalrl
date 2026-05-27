@@ -1,28 +1,33 @@
+from causalrl.exceptions import NotIdentifiableError
 from causalrl.scm.graph import CausalGraph
 
 
 def backdoor_adjustment_set(graph: CausalGraph, treatment: str, outcome: str) -> set[str]:
     """Return the observed-parent back-door adjustment set for `treatment`.
 
-    SCOPE / PRECONDITION (v0.1): this returns ``parents(treatment)``, which is a *valid*
-    back-door set ONLY when the treatment's parents are all observed and there is no
-    latent confounding of the treatment. It does NOT search for minimal sets, does NOT
-    verify that the returned set blocks every back-door path, and does NOT handle
-    front-door identification. For example, on the front-door graph ``X->M->Y, X<->Y`` it
-    returns ``set()`` (the correct estimand there is the front-door formula, not back-door
-    adjustment). Do not feed the result into adjustment without confirming the
-    precondition holds. Full ID/sID/gID is deferred to a later version.
+    SCOPE / PRECONDITION: this returns ``parents(treatment)``, which is a valid parent
+    adjustment set when the treatment is not incident to latent confounding. It does not
+    implement front-door identification or the general ID/sID/gID algorithms. Graphs outside
+    that supported contract raise rather than returning an invalid adjustment set.
     """
-    return set(graph.parents(treatment))
+    parents = set(graph.parents(treatment))
+    if graph.has_incident_bidirected_edges(treatment):
+        raise NotIdentifiableError(
+            "parent adjustment is unsupported when treatment has latent confounding; "
+            "a front-door or general ID algorithm may be required"
+        )
+    return parents
 
 
-def is_identifiable(graph: CausalGraph, treatment: str, outcome: str) -> bool:
-    """Whether P(outcome | do(treatment)) is identifiable.
+def is_identifiable(graph: CausalGraph, treatment: str, outcome: str) -> bool | None:
+    """Conservative status for whether ``P(outcome | do(treatment))`` is identifiable.
 
-    SCOPE (v0.1): this detects only the canonical *bow arc* non-identifiable structure
-    (treatment and outcome joined by both a direct edge and a bidirected edge) and returns
-    ``False`` for it. It returns ``True`` for everything else, which means it can be
-    OPTIMISTIC: graphs that are non-identifiable for reasons other than a direct bow arc
-    (e.g. a hedge over a longer path) are not yet detected. Full ID/sID/gID is deferred.
+    Returns ``True`` for DAGs, ``False`` for the canonical direct bow-arc failure, and
+    ``None`` for other ADMG cases whose identification status requires algorithms not yet
+    implemented in this package. ``None`` deliberately avoids false positive claims.
     """
-    return not (graph.is_confounded(treatment, outcome) and outcome in graph.children(treatment))
+    if graph.is_confounded(treatment, outcome) and outcome in graph.children(treatment):
+        return False
+    if graph.has_bidirected_edges():
+        return None
+    return True

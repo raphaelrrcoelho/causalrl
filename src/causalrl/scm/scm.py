@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torch
 from torch.distributions import Distribution
 
@@ -9,7 +11,12 @@ Tensor = torch.Tensor
 
 
 class StructuralCausalModel:
-    """M = <V, U, F, P(U)>. Supports L1 (see), L2 (do), L3 (counterfactual) queries."""
+    """Executable explicit-latent DAG SCM supporting L1/L2/L3 queries.
+
+    Bidirected-edge ADMGs are accepted by :class:`CausalGraph` for analytical graph
+    algorithms, but they are not executable SCMs: shared latent causes must be represented
+    as explicit parent nodes with their own mechanism and exogenous distribution.
+    """
 
     def __init__(
         self,
@@ -17,6 +24,12 @@ class StructuralCausalModel:
         mechanisms: dict[str, Mechanism],
         exogenous: dict[str, Distribution],
     ) -> None:
+        if graph.has_bidirected_edges():
+            raise CausalGraphError(
+                "StructuralCausalModel requires an explicit latent-variable DAG; "
+                "bidirected ADMG edges are analytical only. Represent shared latent causes "
+                "as explicit latent nodes."
+            )
         self.graph = graph
         self.mechanisms = mechanisms
         self.exogenous = exogenous

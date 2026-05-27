@@ -1,3 +1,8 @@
+import warnings
+
+from causalrl.experimental.ope import confounding_sensitivity_bounds as _sensitivity_bounds
+
+
 def ipw_value(
     actions: list[int],
     rewards: list[float],
@@ -18,19 +23,15 @@ def ipw_value(
 
 
 def confounding_sensitivity_bounds(point: float, gamma: float) -> tuple[float, float]:
-    """A monotone confounding-sensitivity interval around `point`, parameterised by gamma.
+    """Deprecated bridge to :func:`causalrl.experimental.ope.confounding_sensitivity_bounds`.
 
-    gamma = 1 returns the point estimate (no unobserved confounding); larger gamma widens
-    the interval (by ``(gamma-1)/(gamma+1)``), clipped to [0, 1] for bounded (e.g.
-    Bernoulli) rewards.
-
-    SCOPE (v0.1): this is a monotone STAND-IN with the right qualitative shape, NOT the
-    published marginal-sensitivity-model bound (Kallus-Zhou / Tan's Gamma). Do not report
-    these as MSM bounds; a faithful estimator is deferred to a later version.
+    The helper is qualitative rather than a validated published estimator and therefore no
+    longer belongs to the stable evaluation API.
     """
-    if gamma < 1.0:
-        raise ValueError("gamma must be >= 1")
-    half_width = (gamma - 1.0) / (gamma + 1.0)
-    lo = max(0.0, point - half_width)
-    hi = min(1.0, point + half_width)
-    return lo, hi
+    warnings.warn(
+        "confounding_sensitivity_bounds moved to causalrl.experimental.ope; "
+        "it is a qualitative helper, not a validated estimator",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _sensitivity_bounds(point, gamma)

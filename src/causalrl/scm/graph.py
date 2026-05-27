@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Iterable
 
 import networkx as nx
@@ -54,6 +56,15 @@ class CausalGraph:
         self._check(a)
         self._check(b)
         return self._bi.has_edge(a, b)
+
+    def has_bidirected_edges(self) -> bool:
+        """Whether this graph contains latent-confounding (bidirected) edges."""
+        return self._bi.number_of_edges() > 0
+
+    def has_incident_bidirected_edges(self, node: str) -> bool:
+        """Whether `node` is incident to any latent-confounding edge."""
+        self._check(node)
+        return self._bi.degree(node) > 0
 
     def c_components(self) -> list[set[str]]:
         """Connected components of the bidirected graph (isolated nodes are singletons)."""

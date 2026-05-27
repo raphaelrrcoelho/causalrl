@@ -2,20 +2,35 @@
 
 [![CI](https://github.com/raphaelrrcoelho/causalrl/actions/workflows/ci.yml/badge.svg)](https://github.com/raphaelrrcoelho/causalrl/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-Causal reinforcement learning: structural causal models meet RL.
+Causal intervention-selection and causal-RL research tools.
 
-`causalrl` provides a Pearl-Causal-Hierarchy-aware substrate — structural causal models
-with `see` (L1), `do` (L2), and `counterfactual` (L3) queries — and causal RL algorithms
-built on top, organized around the [9-task taxonomy of causal RL](https://crl.causalai.net/).
+`causalrl` provides graph algorithms for causal bandits, demonstration environments and agents,
+and explicit-latent structural causal models with `see` (L1), `do` (L2), and
+`counterfactual` (L3) queries. The implemented slices are organized around the
+[9-task taxonomy of causal RL](https://crl.causalai.net/).
 
 ## Install
 
 ```bash
-uv sync --extra dev
+uv pip install -e .             # graph, POMIS, tabular agents/environments
+uv pip install -e ".[torch]"    # SCM sampling, neural mechanisms, Torch-backed demos
+uv sync --extra dev             # contributors: tests, lint, typing, notebooks
 ```
+
+## Supported scope
+
+- `pomis` and `minimal_intervention_sets` implement the causal-bandit intervention-set slice,
+  including non-manipulable variables through latent projection.
+- `StructuralCausalModel` executes explicit-latent DAGs. Use bidirected-edge ADMGs for
+  analytical graph algorithms; represent a shared latent cause as an explicit SCM node.
+- `backdoor_adjustment_set` and `is_identifiable` are conservative scoped helpers, not a full
+  ID/sID/gID engine. Unsupported confounded ADMG cases are refused or reported as unknown.
+- `UCDTR`, `DOVI`, and `DeepDeconfoundedQ` are benchmark/demo agents, not production
+  offline-RL integrations. The qualitative sensitivity-interval helper is experimental at
+  `causalrl.experimental.ope`, not a validated OPE estimator.
 
 ## Quickstart: MABUC
 
@@ -119,12 +134,12 @@ print(pomis(env.graph, "Y", manipulable={"X"}))   # [frozenset(), frozenset({'X'
 
 ## Layout
 
-- `causalrl.scm` — `CausalGraph`, mechanisms, and `StructuralCausalModel` (`see`/`do`/`counterfactual`)
-- `causalrl.identification` — back-door sets, identifiability criteria, Manski `causal_q_bounds`, and POMIS (`pomis`, `minimal_intervention_sets`)
+- `causalrl.scm` — ADMG graph operations plus explicit-latent DAG `StructuralCausalModel` (`see`/`do`/`counterfactual`)
+- `causalrl.identification` — scoped conservative criteria, Manski `causal_q_bounds`, and POMIS (`pomis`, `minimal_intervention_sets`)
 - `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `SequentialDTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`, `StructuralCausalBanditEnv`)
 - `causalrl.data` — `ConfoundedTrajectoryDataset` and offline-log generation
 - `causalrl.agents` — bandit agents plus causal offline-to-online learners (`UCDTR`, `DOVI`, `DeepDeconfoundedQ`) and baselines
-- `causalrl.eval` — regret metrics, the offline-to-online harness, and OPE under confounding
+- `causalrl.eval` — regret metrics, the offline-to-online harness, and IPW evaluation; exploratory sensitivity utilities live in `causalrl.experimental`
 
 ## Development
 
