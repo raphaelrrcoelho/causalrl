@@ -105,3 +105,44 @@ class CausalGraph:
         directed = [(u, v) for u, v in self._dag.edges if v not in x]
         bidirected = [(u, v) for u, v in self._bi.edges if u not in x and v not in x]
         return CausalGraph(directed, bidirected, nodes=self.nodes)
+
+    def _kept_reach(self, children: Iterable[str], keep: set[str]) -> set[str]:
+        """Kept nodes reachable from `children` via directed edges whose interior nodes are
+        all outside `keep` (a kept node is a boundary: it is reached but not expanded)."""
+        reached: set[str] = set()
+        seen: set[str] = set()
+        frontier = list(children)
+        while frontier:
+            w = frontier.pop()
+            if w in keep:
+                reached.add(w)
+            elif w not in seen:
+                seen.add(w)
+                frontier.extend(list(self._dag.successors(w)))
+        return reached
+
+    def latent_projection(self, keep: str | Iterable[str]) -> CausalGraph:
+        """Latent projection onto `keep`: marginalize out every node not in `keep`, adding a
+        directed edge for each directed path through removed nodes and a bidirected edge for
+        each confounding path through removed nodes (the Tian-Pearl / Verma projection).
+
+        Directed ``Vi -> Vj`` when a directed path from ``Vi`` to ``Vj`` has all interior
+        nodes removed; bidirected ``Vi <-> Vj`` when a removed common cause (a marginalized
+        node, or the latent behind a bidirected edge) reaches both through removed interiors.
+        Removing a collider induces no confounding (its parents are never in its reached set)."""
+        keep_set = self._as_node_set(keep)
+        directed: list[tuple[str, str]] = []
+        for vi in keep_set:
+            for w in self._kept_reach(list(self._dag.successors(vi)), keep_set):
+                directed.append((vi, w))
+
+        bidirected: set[tuple[str, str]] = set()
+        sources = [list(self._dag.successors(w)) for w in self._dag.nodes if w not in keep_set]
+        sources += [[a, b] for a, b in self._bi.edges]
+        for children in sources:
+            reached = sorted(self._kept_reach(children, keep_set))
+            for i in range(len(reached)):
+                for j in range(i + 1, len(reached)):
+                    bidirected.add((reached[i], reached[j]))
+
+        return CausalGraph(directed, list(bidirected), nodes=list(keep_set))
