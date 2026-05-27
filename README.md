@@ -97,6 +97,26 @@ Lee & Bareinboim, *Structural Causal Bandits: Where to Intervene?* (NeurIPS 2018
 [`sanghack81/SCMMAB-NIPS2018`](https://github.com/sanghack81/SCMMAB-NIPS2018). See
 `examples/where_to_intervene.ipynb`.
 
+## v0.5: Non-manipulable variables
+
+Real systems have variables you can *observe* but not *intervene on* (cholesterol, say). Given
+a manipulable subset, **`pomis` gains a `manipulable=` argument**: by latent-projecting out the
+non-manipulable variables it still finds the right lever even when the true cause is untouchable
+(Lee & Bareinboim, *Structural Causal Bandits with Non-Manipulable Variables*, AAAI 2019). On
+the front-door graph `X→Z→Y` (with `X↔Y`, `Z` non-manipulable) the POMIS is `{∅, {X}}` — an
+agent steers `Y` through `X`, while a naive agent that just filters the unconstrained POMIS is
+left observing.
+
+```python
+from causalrl import pomis
+from causalrl.envs.suite.scbandit import make_frontdoor_env
+
+env = make_frontdoor_env(seed=1)                  # X->Z->Y, X<->Y, with Z non-manipulable
+print(pomis(env.graph, "Y", manipulable={"X"}))   # [frozenset(), frozenset({'X'})]
+# A manipulability-aware POMISThompsonSampling reaches do(X=1) ~0.56; the naive baseline that
+# ignores the constraint collapses to observation ~0.50.
+```
+
 ## Layout
 
 - `causalrl.scm` — `CausalGraph`, mechanisms, and `StructuralCausalModel` (`see`/`do`/`counterfactual`)

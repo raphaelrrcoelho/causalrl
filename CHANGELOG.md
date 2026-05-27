@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-05-26
+
+### Added
+- **Non-manipulable variables** (extends taxonomy Task 2): `pomis` and
+  `minimal_intervention_sets` accept an optional `manipulable` subset. With non-manipulable set
+  `N`, POMIS equals the unconstrained POMIS of the latent projection onto `V\N` (Lee &
+  Bareinboim, *Structural Causal Bandits with Non-Manipulable Variables*, AAAI 2019, R-40,
+  Theorem 4); MIS simply filters to sets disjoint from `N`.
+- `CausalGraph.latent_projection(keep)` — the Tian-Pearl / Verma latent projection.
+- `make_frontdoor_env` (the R-40 front-door / cholesterol demo, with `Z` non-manipulable) and
+  `NaivePOMISThompsonSampling`; the manipulability-aware `POMISThompsonSampling` reaches the
+  `do(X)` optimum (~0.56) that the naive filter baseline (stuck at ~0.50 observation) cannot see.
+
+### Changed
+- `POMISThompsonSampling` infers its manipulable set from the environment's arms, so it
+  respects non-manipulable variables automatically (identical behavior when all variables are
+  manipulable).
+
 ## [0.4.0] - 2026-05-26
 
 ### Added
