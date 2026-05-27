@@ -5,16 +5,24 @@ Given a semi-Markovian ADMG and a single reward variable, these answer Bareinboi
 graph. A structural causal bandit may restrict its arms to the POMISs without losing
 optimality, pruning the exponential space of interventions.
 
-SCOPE: a single reward variable; ALL non-reward nodes are treated as manipulable; the input
-must be an ADMG whose nodes are observed variables and whose unobserved confounders are
-bidirected edges (not explicit nodes).
+SCOPE: a single reward variable; the input must be an ADMG whose nodes are observed variables
+and whose unobserved confounders are bidirected edges (not explicit nodes). By default ALL
+non-reward nodes are manipulable; pass ``manipulable`` to restrict interventions to a subset
+(non-manipulable variables are then handled by latent projection — see below).
 
-Algorithm: Lee & Bareinboim, "Structural Causal Bandits: Where to Intervene?", NeurIPS 2018
-(MUCT — minimal unobserved-confounder territory; IB — interventional border; and the
-recursive enumeration). This module is ADAPTED, in causalrl's CausalGraph idiom, from the
-reference implementation at https://github.com/sanghack81/SCMMAB-NIPS2018
-(``npsem/where_do.py``), MIT License, Copyright (c) 2018 Sanghack Lee.
+Algorithms:
+- Unconstrained POMIS/MIS: Lee & Bareinboim, "Structural Causal Bandits: Where to Intervene?",
+  NeurIPS 2018 (MUCT — minimal unobserved-confounder territory; IB — interventional border;
+  recursive enumeration). ADAPTED, in causalrl's CausalGraph idiom, from the reference
+  implementation at https://github.com/sanghack81/SCMMAB-NIPS2018 (``npsem/where_do.py``),
+  MIT License, Copyright (c) 2018 Sanghack Lee.
+- Non-manipulable variables: Lee & Bareinboim, "Structural Causal Bandits with Non-Manipulable
+  Variables", AAAI 2019 (R-40). POMIS with non-manipulable set N equals the unconstrained
+  POMIS of the latent projection of the graph onto V\\N (their Theorem 4); MIS simply filters
+  to sets disjoint from N.
 """
+
+from collections.abc import Iterable
 
 from causalrl.scm.graph import CausalGraph
 
@@ -82,11 +90,17 @@ def _sub_pomis(
     return out
 
 
-def pomis(graph: CausalGraph, reward: str) -> list[frozenset[str]]:
+def pomis(
+    graph: CausalGraph, reward: str, manipulable: Iterable[str] | None = None
+) -> list[frozenset[str]]:
     """All POMISs for `reward`: a deduplicated, canonically sorted list of frozensets.
 
-    ``frozenset()`` (the observational regime) appears when it is possibly optimal.
+    ``frozenset()`` (the observational regime) appears when it is possibly optimal. When
+    ``manipulable`` is given, only those variables may be intervened on: by r40's Theorem 4
+    this is the unconstrained POMIS of the latent projection onto ``manipulable | {reward}``.
     """
+    if manipulable is not None:
+        graph = graph.latent_projection(set(manipulable) | {reward})
     graph = graph.induced_subgraph(graph.ancestors(reward))
     territory, border = _muct_ib(graph, reward)
     sub = graph.do_mutilate(border).induced_subgraph(territory | border)
@@ -107,8 +121,18 @@ def _sub_miss(
     return out
 
 
-def minimal_intervention_sets(graph: CausalGraph, reward: str) -> list[frozenset[str]]:
-    """All MISs for `reward`: a deduplicated, canonically sorted list of frozensets."""
+def minimal_intervention_sets(
+    graph: CausalGraph, reward: str, manipulable: Iterable[str] | None = None
+) -> list[frozenset[str]]:
+    """All MISs for `reward`: a deduplicated, canonically sorted list of frozensets.
+
+    When ``manipulable`` is given, the result is filtered to sets that avoid the
+    non-manipulable variables (r40: a constrained MIS is just the filtered unconstrained MIS).
+    """
     graph = graph.induced_subgraph(graph.ancestors(reward))
     ws = [w for w in _backward_order(graph) if w != reward]
-    return _canonical(_sub_miss(graph, reward, frozenset(), ws))
+    result = _canonical(_sub_miss(graph, reward, frozenset(), ws))
+    if manipulable is None:
+        return result
+    allowed = set(manipulable)
+    return [s for s in result if s <= allowed]
