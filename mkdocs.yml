@@ -13,6 +13,7 @@ nav:
   - Overview: index.md
   - Guarantees And Scope: guarantees.md
   - Transportability: transportability.md
+  - Causal Discovery: discovery.md
   - Reproducible Benchmarks: benchmarks.md
   - API Reference: api.md
 

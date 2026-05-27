@@ -459,9 +459,7 @@ def _rule3(marks: dict[tuple[str, str], str]) -> bool:
     return changed
 
 
-def _discriminating_path(
-    marks: dict[tuple[str, str], str], b: str, c: str
-) -> list[str] | None:
+def _discriminating_path(marks: dict[tuple[str, str], str], b: str, c: str) -> list[str] | None:
     """A discriminating path ``<theta, ..., a, b, c>`` for ``b``, or ``None``.
 
     Vertices strictly between ``theta`` and ``b`` are colliders on the path and parents of ``c``;

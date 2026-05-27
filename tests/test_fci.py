@@ -194,9 +194,7 @@ def test_fci_reduces_to_pc_skeleton_without_latents() -> None:
     pag = discover_latent(data, ["X", "Y", "Z"])
     cpdag = discover(data, ["X", "Y", "Z"])
     pag_adj = {frozenset(e) for e in pag.marks}
-    cpdag_adj = {e for e in cpdag.undirected_edges} | {
-        frozenset(e) for e in cpdag.directed_edges
-    }
+    cpdag_adj = {e for e in cpdag.undirected_edges} | {frozenset(e) for e in cpdag.directed_edges}
     assert pag_adj == cpdag_adj
     assert not any(pag.is_bidirected(*sorted(e)) for e in pag_adj)  # no spurious confounders
 
@@ -240,23 +238,46 @@ def test_rule1_orients_away_from_collider() -> None:
 
 
 def test_rule2_orients_arrowhead() -> None:
-    marks = {("A", "B"): ">", ("B", "A"): "-", ("B", "C"): ">", ("C", "B"): "o",
-             ("A", "C"): "o", ("C", "A"): "o"}
+    marks = {
+        ("A", "B"): ">",
+        ("B", "A"): "-",
+        ("B", "C"): ">",
+        ("C", "B"): "o",
+        ("A", "C"): "o",
+        ("C", "A"): "o",
+    }
     assert _rule2(marks)
     assert marks[("A", "C")] == ">"
 
 
 def test_rule3_orients_arrowhead_at_b() -> None:
-    marks = {("A", "B"): ">", ("B", "A"): "o", ("C", "B"): ">", ("B", "C"): "o",
-             ("A", "D"): "o", ("D", "A"): "o", ("C", "D"): "o", ("D", "C"): "o",
-             ("D", "B"): "o", ("B", "D"): "o"}
+    marks = {
+        ("A", "B"): ">",
+        ("B", "A"): "o",
+        ("C", "B"): ">",
+        ("B", "C"): "o",
+        ("A", "D"): "o",
+        ("D", "A"): "o",
+        ("C", "D"): "o",
+        ("D", "C"): "o",
+        ("D", "B"): "o",
+        ("B", "D"): "o",
+    }
     assert _rule3(marks)
     assert marks[("D", "B")] == ">"
 
 
 def test_rule4_discriminating_path_bidirects() -> None:
-    marks = {("T", "A"): ">", ("A", "T"): "o", ("A", "C"): ">", ("C", "A"): "-",
-             ("B", "A"): ">", ("A", "B"): "o", ("C", "B"): "o", ("B", "C"): "o"}
+    marks = {
+        ("T", "A"): ">",
+        ("A", "T"): "o",
+        ("A", "C"): ">",
+        ("C", "A"): "-",
+        ("B", "A"): ">",
+        ("A", "B"): "o",
+        ("C", "B"): "o",
+        ("B", "C"): "o",
+    }
     assert _discriminating_path(marks, "B", "C") == ["T", "A", "B", "C"]
     assert _rule4(marks, {})  # B not in sepset(T, C): orient A <-> B <-> C
     assert marks[("A", "B")] == ">" and marks[("B", "A")] == ">"
@@ -264,8 +285,16 @@ def test_rule4_discriminating_path_bidirects() -> None:
 
 
 def test_rule5_undirects_circle_path() -> None:
-    marks = {("A", "B"): "o", ("B", "A"): "o", ("A", "G"): "o", ("G", "A"): "o",
-             ("G", "H"): "o", ("H", "G"): "o", ("H", "B"): "o", ("B", "H"): "o"}
+    marks = {
+        ("A", "B"): "o",
+        ("B", "A"): "o",
+        ("A", "G"): "o",
+        ("G", "A"): "o",
+        ("G", "H"): "o",
+        ("H", "G"): "o",
+        ("H", "B"): "o",
+        ("B", "H"): "o",
+    }
     assert _rule5(marks)
     assert marks[("A", "B")] == "-" and marks[("B", "A")] == "-"
     assert marks[("A", "G")] == "-" and marks[("H", "B")] == "-"
@@ -284,22 +313,45 @@ def test_rule7_propagates_tail_unshielded() -> None:
 
 
 def test_rule8_orients_tail() -> None:
-    marks = {("A", "B"): ">", ("B", "A"): "-", ("B", "C"): ">", ("C", "B"): "-",
-             ("A", "C"): ">", ("C", "A"): "o"}
+    marks = {
+        ("A", "B"): ">",
+        ("B", "A"): "-",
+        ("B", "C"): ">",
+        ("C", "B"): "-",
+        ("A", "C"): ">",
+        ("C", "A"): "o",
+    }
     assert _rule8(marks)
     assert marks[("C", "A")] == "-"  # A -> C
 
 
 def test_rule9_orients_tail_via_pd_path() -> None:
-    marks = {("A", "C"): ">", ("C", "A"): "o", ("A", "B"): "o", ("B", "A"): "o",
-             ("B", "D"): "o", ("D", "B"): "o", ("D", "C"): "o", ("C", "D"): "o"}
+    marks = {
+        ("A", "C"): ">",
+        ("C", "A"): "o",
+        ("A", "B"): "o",
+        ("B", "A"): "o",
+        ("B", "D"): "o",
+        ("D", "B"): "o",
+        ("D", "C"): "o",
+        ("C", "D"): "o",
+    }
     assert _rule9(marks)
     assert marks[("C", "A")] == "-"
 
 
 def test_rule10_orients_tail_via_two_pd_paths() -> None:
-    marks = {("A", "C"): ">", ("C", "A"): "o", ("B", "C"): ">", ("C", "B"): "-",
-             ("D", "C"): ">", ("C", "D"): "-", ("A", "B"): "o", ("B", "A"): "o",
-             ("A", "D"): "o", ("D", "A"): "o"}
+    marks = {
+        ("A", "C"): ">",
+        ("C", "A"): "o",
+        ("B", "C"): ">",
+        ("C", "B"): "-",
+        ("D", "C"): ">",
+        ("C", "D"): "-",
+        ("A", "B"): "o",
+        ("B", "A"): "o",
+        ("A", "D"): "o",
+        ("D", "A"): "o",
+    }
     assert _rule10(marks)
     assert marks[("C", "A")] == "-"

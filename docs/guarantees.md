@@ -114,9 +114,13 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
 - **Causal discovery.** `discover` runs the PC algorithm (conditional independence by conditional
   mutual information, then collider and Meek orientation) and returns a `CPDAG`;
   `discover_interventional` additionally orients edges from interventional (L2) data by the
-  invariance principle, yielding the interventional essential graph. Assumes causal sufficiency and
-  faithfulness; the CMI test is thresholded, not a calibrated hypothesis test; and
-  `CPDAG.to_causal_graph` refuses to orient an equivalence class.
+  invariance principle, yielding the interventional essential graph. These assume causal sufficiency
+  and faithfulness; the CMI test is thresholded, not a calibrated hypothesis test; and
+  `CPDAG.to_causal_graph` refuses to orient an equivalence class. `discover_latent` runs the **FCI**
+  algorithm — dropping causal sufficiency — and returns a `PAG` with the complete orientation rules
+  R1-R10 (Zhang 2008, sound and complete for latent confounders and selection bias): `a <-> b` marks
+  a latent confounder and a circle endpoint is undetermined by the equivalence class. Validated
+  against the true MAG of the data-generating DAG-with-latents (the M-bias collider among them).
 - **Causal imitation.** `is_imitable` / `imitation_backdoor_set` decide imitability via the
   π-backdoor criterion (an observed back-door-admissible set); `CausalImitator` clones `P(A | Z)`.
 - **Causal curriculum.** `causal_curriculum` orders skills by the causal topological order;
@@ -138,8 +142,8 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
   gID case) is reported non-transportable rather than guessed. Single-domain observational ID
   (`identify_effect`), gID (`identify_effect_with_experiments`), and the multi-domain mz/meta
   transportability (`identify_transport_general`) above are implemented and validated.
-- Causal discovery with latent confounders (FCI) or score-based search (GES); mixed-strategy
-  equilibria for more than two players.
+- Score-based causal discovery (GES) and interventional FCI; mixed-strategy equilibria for more than
+  two players.
 - Published confounding-sensitivity or doubly robust OPE bounds.
 - Production-ready deep or offline-RL training integrations.
 - General statistical guarantees from the maintained toy benchmark environments.

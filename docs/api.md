@@ -94,7 +94,11 @@
 
 ::: causalrl.discovery.discover_interventional
 
+::: causalrl.discovery.discover_latent
+
 ::: causalrl.discovery.CPDAG
+
+::: causalrl.discovery.PAG
 
 ::: causalrl.discovery.conditional_mutual_information
 

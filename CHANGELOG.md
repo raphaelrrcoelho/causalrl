@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-05-27
+
+### Added
+- **FCI: causal discovery with latent confounders** (taxonomy Task 5): `discover_latent` learns a
+  `PAG` (partial ancestral graph) without assuming causal sufficiency — PC skeleton + Possible-D-SEP
+  refinement + the complete orientation rules R1-R10 (Zhang 2008, sound and complete for latent
+  confounders and selection bias). `a <-> b` marks a latent confounder; a circle endpoint is
+  undetermined by the equivalence class. Validated against the true MAG of the data-generating
+  DAG-with-latents (latent-confounder detection and the M-bias collider), with per-rule unit
+  fixtures for R1-R10.
+- `PAG` (endpoint marks `o` / `>` / `-`, with `is_directed` / `is_bidirected` / `render`) and a
+  Causal Discovery guide (`docs/discovery.md`).
+
+### Changed
+- Internal: the PC skeleton phase is factored into `_pc_skeleton`, shared by `discover` and
+  `discover_latent` (no behaviour change to `discover`).
+
 ## [0.16.0] - 2026-05-27
 
 ### Added
