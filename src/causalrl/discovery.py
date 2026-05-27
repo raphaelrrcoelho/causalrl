@@ -37,7 +37,7 @@ import numpy as np
 from causalrl.exceptions import CausalGraphError
 from causalrl.scm.graph import CausalGraph
 
-__all__ = ["CPDAG", "conditional_mutual_information", "discover", "discover_interventional"]
+__all__ = ["CPDAG", "PAG", "conditional_mutual_information", "discover", "discover_interventional"]
 
 
 def conditional_mutual_information(
@@ -87,6 +87,59 @@ class CPDAG:
                 f"CPDAG is not fully oriented; undirected edges remain: {remaining}"
             )
         return CausalGraph(directed_edges=sorted(self.directed_edges), nodes=list(self.variables))
+
+
+_CIRCLE, _ARROW, _TAIL = "o", ">", "-"
+
+
+@dataclass(frozen=True)
+class PAG:
+    """A partial ancestral graph: the complete Markov-equivalence class of MAGs (the FCI output).
+
+    ``marks[(a, b)]`` is the mark on the ``b`` end of edge ``a—b`` — a circle ``o`` (undetermined by
+    the equivalence class), an arrowhead ``>``, or a tail ``-``. An edge exists iff both ``(a, b)``
+    and ``(b, a)`` are present. ``a -> b`` is tail-at-``a`` / arrow-at-``b``; ``a <-> b``
+    (arrowheads at both ends) witnesses a latent confounder; ``a o-o b`` is fully unoriented.
+    """
+
+    variables: tuple[str, ...]
+    marks: Mapping[tuple[str, str], str]
+
+    def __post_init__(self) -> None:
+        for (a, b), mark in self.marks.items():
+            if mark not in (_CIRCLE, _ARROW, _TAIL):
+                raise CausalGraphError(f"invalid PAG mark {mark!r} on edge {a}-{b}")
+            if (b, a) not in self.marks:
+                raise CausalGraphError(f"PAG edge {a}-{b} is missing endpoint ({b!r}, {a!r})")
+
+    def adjacent(self, a: str, b: str) -> bool:
+        return (a, b) in self.marks
+
+    def is_directed(self, a: str, b: str) -> bool:
+        """Whether ``a -> b`` (tail at ``a``, arrowhead at ``b``)."""
+        return self.marks.get((a, b)) == _ARROW and self.marks.get((b, a)) == _TAIL
+
+    def is_bidirected(self, a: str, b: str) -> bool:
+        """Whether ``a <-> b`` (arrowheads at both ends — a latent confounder)."""
+        return self.marks.get((a, b)) == _ARROW and self.marks.get((b, a)) == _ARROW
+
+    def edges(self) -> list[tuple[str, str, str, str]]:
+        """``(a, b, mark_at_a, mark_at_b)`` for each edge, with ``a < b``."""
+        out: list[tuple[str, str, str, str]] = []
+        seen: set[frozenset[str]] = set()
+        for a, b in self.marks:
+            key = frozenset((a, b))
+            if key in seen:
+                continue
+            seen.add(key)
+            x, y = sorted((a, b))
+            out.append((x, y, self.marks[(y, x)], self.marks[(x, y)]))
+        return sorted(out)
+
+    def render(self) -> str:
+        left = {_CIRCLE: "o", _ARROW: "<", _TAIL: "-"}
+        right = {_CIRCLE: "o", _ARROW: ">", _TAIL: "-"}
+        return ", ".join(f"{x} {left[ma]}-{right[mb]} {y}" for x, y, ma, mb in self.edges())
 
 
 def _adjacent(
@@ -151,27 +204,23 @@ def _apply_meek_rules(
                     break
 
 
-def discover(
+def _pc_skeleton(
     data: Mapping[str, np.ndarray],
-    variables: Sequence[str],
+    nodes: Sequence[str],
     *,
-    threshold: float = 0.01,
-    max_conditioning_size: int = 3,
-) -> CPDAG:
-    """Discover the CPDAG over `variables` from `data` via the PC algorithm.
+    threshold: float,
+    max_conditioning_size: int,
+) -> tuple[dict[str, set[str]], dict[frozenset[str], tuple[str, ...]]]:
+    """The PC skeleton: drop ``a - b`` when some neighbour subset renders them independent.
 
-    ``threshold`` is the conditional-mutual-information cutoff below which two variables are judged
-    independent; ``max_conditioning_size`` caps the separating-set search.
+    Returns the adjacency sets and the separating set recorded for each removed pair. Shared by
+    :func:`discover` (PC) and :func:`discover_latent` (FCI).
     """
-    nodes = list(variables)
     for v in nodes:
         if v not in data:
             raise CausalGraphError(f"variable not in data: {v!r}")
-
     adj: dict[str, set[str]] = {v: set(nodes) - {v} for v in nodes}
     sepset: dict[frozenset[str], tuple[str, ...]] = {}
-
-    # Skeleton phase: drop a - b when some neighbor subset renders them independent.
     for size in range(max_conditioning_size + 1):
         testable = False
         for a in nodes:
@@ -188,6 +237,25 @@ def discover(
                         break
         if not testable:
             break
+    return adj, sepset
+
+
+def discover(
+    data: Mapping[str, np.ndarray],
+    variables: Sequence[str],
+    *,
+    threshold: float = 0.01,
+    max_conditioning_size: int = 3,
+) -> CPDAG:
+    """Discover the CPDAG over `variables` from `data` via the PC algorithm.
+
+    ``threshold`` is the conditional-mutual-information cutoff below which two variables are judged
+    independent; ``max_conditioning_size`` caps the separating-set search.
+    """
+    nodes = list(variables)
+    adj, sepset = _pc_skeleton(
+        data, nodes, threshold=threshold, max_conditioning_size=max_conditioning_size
+    )
 
     # Orient unshielded colliders a -> c <- b (a, b non-adjacent and c not in their separating set).
     directed: set[tuple[str, str]] = set()
