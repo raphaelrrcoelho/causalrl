@@ -138,3 +138,81 @@ def test_mz_estimate_matches_simulation() -> None:
         )[(1,)]
         truth = float(scm.do({"X": float(value)}).see(_N, seed=7)["Y"].float().mean())
         assert est == pytest.approx(truth, abs=0.03)
+
+
+# --- M3: meta-transportability (multiple source domains) ----------------------------------------
+def _two_cov_scm(p_z1: float, p_z2: float) -> StructuralCausalModel:
+    """``Z1,Z2`` are independent common causes of ``X`` and ``Y``; only the marked prior changes."""
+    graph = CausalGraph(
+        directed_edges=[("Z1", "X"), ("Z2", "X"), ("Z1", "Y"), ("Z2", "Y"), ("X", "Y")]
+    )
+    mechanisms: dict[str, Mechanism] = {
+        "Z1": FunctionalMechanism([], lambda pa, u: u),
+        "Z2": FunctionalMechanism([], lambda pa, u: u),
+        "X": FunctionalMechanism(
+            ["Z1", "Z2"], lambda pa, u: (u < (0.2 + 0.3 * pa["Z1"] + 0.3 * pa["Z2"])).float()
+        ),
+        "Y": FunctionalMechanism(
+            ["X", "Z1", "Z2"],
+            lambda pa, u: ((((pa["X"] + pa["Z1"] + pa["Z2"]) >= 2).float()) + _flip(u, 0.05)) % 2,
+        ),
+    }
+    exogenous: dict[str, Distribution] = {
+        "Z1": Bernoulli(p_z1),
+        "Z2": Bernoulli(p_z2),
+        "X": Uniform(0.0, 1.0),
+        "Y": Uniform(0.0, 1.0),
+    }
+    return StructuralCausalModel(graph, mechanisms, exogenous)
+
+
+def test_meta_combines_invariant_factors_from_multiple_sources() -> None:
+    # Source a differs in Z1, source b differs in Z2. Each invariant covariate factor is drawn from
+    # the source where it is invariant, so the estimand combines BOTH source domains.
+    g = CausalGraph(directed_edges=[("Z1", "X"), ("Z2", "X"), ("Z1", "Y"), ("Z2", "Y"), ("X", "Y")])
+    doms = [Domain("a", frozenset({"Z1"})), Domain("b", frozenset({"Z2"}))]
+    assert is_transportable_general(g, {"X"}, {"Y"}, doms) is True
+    formula = identify_transport_general(g, {"X"}, {"Y"}, doms).render()
+    assert "do(" not in formula
+    assert "P_a(" in formula and "P_b(" in formula
+
+
+def test_meta_estimate_matches_target_simulation() -> None:
+    target, src_a, src_b = _two_cov_scm(0.5, 0.5), _two_cov_scm(0.85, 0.5), _two_cov_scm(0.5, 0.2)
+    g = CausalGraph(directed_edges=[("Z1", "X"), ("Z2", "X"), ("Z1", "Y"), ("Z2", "Y"), ("X", "Y")])
+    doms = [Domain("a", frozenset({"Z1"})), Domain("b", frozenset({"Z2"}))]
+    cols = ["Z1", "Z2", "X", "Y"]
+    domain_data = {
+        "target": _cols(target.see(_N, seed=0), cols),
+        "a": _cols(src_a.see(_N, seed=1), cols),
+        "b": _cols(src_b.see(_N, seed=2), cols),
+    }
+    for value in (0, 1):
+        est = estimate_transport_general(
+            g, {"X"}, {"Y"}, doms, domain_data=domain_data, do={"X": value}
+        )[(1,)]
+        truth = float(target.do({"X": float(value)}).see(_N, seed=7)["Y"].float().mean())
+        assert est == pytest.approx(truth, abs=0.03)
+
+
+def test_meta_experiment_available_in_one_domain() -> None:
+    # Bow arc: source a (mechanism shifts, no experiment) cannot supply Q[Y]; source b can run
+    # do(X). The engine finds the experiment across domains.
+    g = CausalGraph(directed_edges=[("X", "Y")], bidirected_edges=[("X", "Y")])
+    a = Domain("a", selection=frozenset({"X"}))
+    b = Domain("b", experiments=frozenset({frozenset({"X"})}))
+    assert is_transportable_general(g, {"X"}, {"Y"}, [a]) is False
+    assert is_transportable_general(g, {"X"}, {"Y"}, [b]) is True
+    assert is_transportable_general(g, {"X"}, {"Y"}, [a, b]) is True
+
+
+def test_general_transport_symbols_exported() -> None:
+    import causalrl
+
+    for name in (
+        "Domain",
+        "estimate_transport_general",
+        "identify_transport_general",
+        "is_transportable_general",
+    ):
+        assert hasattr(causalrl, name)
