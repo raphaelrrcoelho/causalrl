@@ -11,9 +11,7 @@ from causalrl.scm.mechanisms import FunctionalMechanism, Mechanism
 from causalrl.scm.scm import StructuralCausalModel
 
 
-def enumerate_arms(
-    manipulable: list[str], domains: dict[str, list[int]]
-) -> list[dict[str, int]]:
+def enumerate_arms(manipulable: list[str], domains: dict[str, list[int]]) -> list[dict[str, int]]:
     """All interventions over `manipulable`: the empty (observational) arm, then every
     (subset, assignment) over the variables' domains. Returns dicts var -> value."""
     arms: list[dict[str, int]] = [{}]
@@ -24,9 +22,9 @@ def enumerate_arms(
     return arms
 
 
-def build_confounded_chain() -> (
-    tuple[StructuralCausalModel, CausalGraph, str, list[str], dict[str, list[int]]]
-):
+def build_confounded_chain() -> tuple[
+    StructuralCausalModel, CausalGraph, str, list[str], dict[str, list[int]]
+]:
     """Demo problem: chain X1->X2->X3->Y with X1 and Y sharing a hidden confounder U.
 
     Naturally X1=X2=X3=U and Y=[X3==U]=1, so observing (the empty arm) scores ~1.0; any
@@ -122,6 +120,4 @@ def make_confounded_chain_env(
 ) -> StructuralCausalBanditEnv:
     """The demo `StructuralCausalBanditEnv` over X1->X2->X3->Y with X1<->Y."""
     scm, admg, reward, manipulable, domains = build_confounded_chain()
-    return StructuralCausalBanditEnv(
-        scm, admg, reward, manipulable, domains, n_mc=n_mc, seed=seed
-    )
+    return StructuralCausalBanditEnv(scm, admg, reward, manipulable, domains, n_mc=n_mc, seed=seed)

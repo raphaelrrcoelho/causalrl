@@ -32,9 +32,7 @@ def test_pomis_agent_beats_brute_force_and_naive():
         POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0), env, n_steps, seed=1
     )
     brute_rewards = _run(BruteForceInterventionTS(env.arms, seed=0), env, n_steps, seed=2)
-    naive_rewards = _run(
-        FixedSetThompsonSampling(env.arms, {"X3"}, seed=0), env, n_steps, seed=3
-    )
+    naive_rewards = _run(FixedSetThompsonSampling(env.arms, {"X3"}, seed=0), env, n_steps, seed=3)
 
     opt = env.optimal_value  # ~1.0 (the observational arm)
     window = 2000
