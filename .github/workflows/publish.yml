@@ -22,5 +22,7 @@ jobs:
           python-version: "3.11"
       - name: Build distributions
         run: uv build
+      - name: Check distributions
+        run: uvx twine check dist/*
       - name: Publish through trusted publishing
         run: uv publish

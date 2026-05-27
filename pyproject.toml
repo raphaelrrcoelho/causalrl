@@ -5,6 +5,16 @@ description = "Causal reinforcement learning: structural causal models meet RL."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
+authors = [{ name = "Raphael Coelho", email = "raphaelrrcoelho@gmail.com" }]
+keywords = [
+    "causal-inference",
+    "reinforcement-learning",
+    "structural-causal-models",
+    "causal-bandits",
+    "transportability",
+    "causal-discovery",
+    "imitation-learning",
+]
 dependencies = [
     "networkx>=3.4",
     "gymnasium>=1.0",
@@ -16,13 +26,19 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
 ]
 
 [project.urls]
 Documentation = "https://raphaelrrcoelho.github.io/causalrl/"
 Source = "https://github.com/raphaelrrcoelho/causalrl"
 Issues = "https://github.com/raphaelrrcoelho/causalrl/issues"
+Changelog = "https://github.com/raphaelrrcoelho/causalrl/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 torch = [
@@ -43,6 +59,7 @@ dev = [
     "pre-commit>=4.0",
     "jupyter>=1.1",
     "nbconvert>=7.16",
+    "nbmake>=1.5",
 ]
 
 [build-system]

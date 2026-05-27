@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Documentation: the API reference and `guarantees.md` now cover the full taxonomy (tasks 3-9).
+- Packaging: added `authors`, `keywords`, per-version classifiers, `Typing :: Typed`, and a
+  Changelog URL to the project metadata.
+- CI: the test matrix now spans Linux/macOS/Windows; added a 90% coverage gate, example-notebook
+  execution (`nbmake`), and a `twine check` before publishing.
+- Repository hygiene: added `SECURITY.md` and issue/PR templates; stopped tracking a reference PDF
+  (`papers/*.pdf` is gitignored).
+
+### Fixed
+- `examples/offline_to_online.ipynb`: multi-stage `DOVI` now passes
+  `transition_assumption="unconfounded"` (made mandatory by the correctness-hardening pass); the
+  notebook previously raised `UnverifiedAssumptionError`.
+
 ## [0.12.0] - 2026-05-27
 
 ### Added
