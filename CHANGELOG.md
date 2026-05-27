@@ -5,7 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-05-27
+
+### Added
+- **Counterfactual decision-making** (taxonomy Task 3, Layer 3). `counterfactual_expectation`
+  returns `E[Y_{do(x)} | evidence]` and `effect_of_treatment_on_treated` returns the ETT
+  `E[Y_{treated} − Y_{control} | X = treated]`, both computed on an executable
+  `StructuralCausalModel` via abduction-action-prediction (`causalrl.identification.counterfactual`).
+  Faithful to Bareinboim, Forney & Pearl, *Bandits with Unobserved Confounders: A Causal Approach*
+  (NeurIPS 2015) and Pearl, *Causality* (2nd ed.) §8.2.1.
+- `CounterfactualOptimalPolicy` — a model-based Regret Decision Criterion policy that decides by
+  `argmax_a E[Y_{do(a)} | intent]` — and `CounterfactualBanditEnv` /
+  `make_counterfactual_bandit_env`, a 3-arm confounded bandit. The counterfactual-optimal policy and
+  a trained `CausalThompsonSampling` reach the per-intent optimum (~0.8); a confounding-naive agent
+  is stuck at the best fixed intervention (the `do`-optimum, ~0.367).
 
 ### Changed
 - Public environments now satisfy Gymnasium's checker, rollout helpers handle truncation, SCM

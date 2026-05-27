@@ -141,10 +141,39 @@ print(pomis(env.graph, "Y", manipulable={"X"}))   # [frozenset(), frozenset({'X'
 # ignores the constraint collapses to observation ~0.50.
 ```
 
+## v0.6: Counterfactual decision-making (Task 3)
+
+Your own *intent* — the action you are naturally inclined to take — carries information about a
+hidden confounder. **Counterfactual decision-making** asks "given that I'm inclined toward `i`, what
+is the best action?", i.e. `E[Y_{do(a)} | intent = i]`, and acts on it. On a 3-arm confounded bandit
+where every fixed intervention `do(a)` averages only ~0.367, conditioning on intent recovers the
+~0.8 optimum — the MABUC lesson carried to `K > 2` arms.
+
+```python
+from causalrl import CounterfactualOptimalPolicy
+from causalrl.envs.suite.counterfactual_bandit import (
+    build_counterfactual_scm,
+    make_counterfactual_bandit_env,
+)
+
+scm = build_counterfactual_scm()                      # U->I, U->Y, I->X, X->Y
+agent = CounterfactualOptimalPolicy(
+    scm, outcome="Y", action_node="X", intent_node="I", arms=[0, 1, 2], intents=[0, 1, 2],
+)
+env = make_counterfactual_bandit_env(seed=1)
+obs, _ = env.reset(seed=1)
+action = agent.act(obs)                               # plays arm == intuition
+# The counterfactual-optimal policy reaches ~0.8; the best fixed do(a) arm only ~0.367.
+```
+
+The ETT estimand (`effect_of_treatment_on_treated`) and the counterfactual estimator are faithful to
+Bareinboim, Forney & Pearl, *Bandits with Unobserved Confounders* (NeurIPS 2015) and Pearl,
+*Causality* §8.2.1.
+
 ## Layout
 
 - `causalrl.scm` — ADMG graph operations plus explicit-latent DAG `StructuralCausalModel` (`see`/`do`/`counterfactual`)
-- `causalrl.identification` — scoped conservative criteria, Manski `causal_q_bounds`, and POMIS (`pomis`, `minimal_intervention_sets`)
+- `causalrl.identification` — scoped conservative criteria, Manski `causal_q_bounds`, POMIS (`pomis`, `minimal_intervention_sets`), and counterfactual ETT (`counterfactual_expectation`, `effect_of_treatment_on_treated`)
 - `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `SequentialDTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`, `StructuralCausalBanditEnv`)
 - `causalrl.data` — `ConfoundedTrajectoryDataset` and offline-log generation
 - `causalrl.agents` — bandit agents plus causal offline-to-online learners (`UCDTR`, `DOVI`, `DeepDeconfoundedQ`) and baselines
