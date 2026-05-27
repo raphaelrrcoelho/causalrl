@@ -1,4 +1,5 @@
 from causalrl.exceptions import NotIdentifiableError
+from causalrl.identification.id_algorithm import is_identifiable_effect
 from causalrl.scm.graph import CausalGraph
 
 
@@ -19,15 +20,14 @@ def backdoor_adjustment_set(graph: CausalGraph, treatment: str, outcome: str) ->
     return parents
 
 
-def is_identifiable(graph: CausalGraph, treatment: str, outcome: str) -> bool | None:
-    """Conservative status for whether ``P(outcome | do(treatment))`` is identifiable.
+def is_identifiable(graph: CausalGraph, treatment: str, outcome: str) -> bool:
+    """Whether ``P(outcome | do(treatment))`` is identifiable from observational data.
 
-    Returns ``True`` for DAGs, ``False`` for the canonical direct bow-arc failure, and
-    ``None`` for other ADMG cases whose identification status requires algorithms not yet
-    implemented in this package. ``None`` deliberately avoids false positive claims.
+    Delegates to the sound and complete ID algorithm
+    (:func:`causalrl.identification.id_algorithm.is_identifiable_effect`), so it returns a definite
+    boolean for any ADMG — including front-door-style cases the earlier scoped heuristic could only
+    report as unknown. For the estimand itself, see
+    :func:`~causalrl.identification.id_algorithm.identify_effect` and
+    :func:`~causalrl.identification.id_algorithm.estimate_effect`.
     """
-    if graph.is_confounded(treatment, outcome) and outcome in graph.children(treatment):
-        return False
-    if graph.has_bidirected_edges():
-        return None
-    return True
+    return is_identifiable_effect(graph, {treatment}, {outcome})

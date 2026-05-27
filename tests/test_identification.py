@@ -28,10 +28,10 @@ def test_no_backdoor_path_empty_set():
     assert backdoor_adjustment_set(g, "X", "Y") == set()
 
 
-def test_frontdoor_is_reported_as_unsupported_instead_of_optimistically_identified():
-    # X -> M -> Y with X <-> Y is front-door identifiable, but this scoped helper does not
-    # implement front-door or the general ID algorithm.
+def test_frontdoor_has_no_backdoor_set_but_is_identifiable_by_general_id():
+    # X -> M -> Y with X <-> Y has no back-door adjustment set, yet the effect IS identifiable
+    # (front-door). is_identifiable now delegates to the complete ID algorithm and says so.
     g = CausalGraph(directed_edges=[("X", "M"), ("M", "Y")], bidirected_edges=[("X", "Y")])
     with pytest.raises(NotIdentifiableError, match="latent confounding"):
         backdoor_adjustment_set(g, "X", "Y")
-    assert is_identifiable(g, "X", "Y") is None
+    assert is_identifiable(g, "X", "Y") is True
