@@ -286,6 +286,23 @@ print(shaped == optimal, unshaped == optimal)       # True False — shaping rea
 The optimal policy is provably unchanged by any potential (Ng, Harada & Russell, ICML 1999); the
 causal contribution is using `V*` from the model as the potential.
 
+## v0.12: Causal game theory (Task 9)
+
+Represent a multi-agent game as a **causal influence diagram** (a decision and a utility node per
+agent) and solve for equilibria. `pure_nash_equilibria` enumerates the pure-strategy Nash equilibria;
+on the canonical games it recovers the textbook answers.
+
+```python
+from causalrl.games import pure_nash_equilibria
+from causalrl.envs.suite.games import matching_pennies, prisoners_dilemma
+
+print(pure_nash_equilibria(prisoners_dilemma()))   # [{'row': 1, 'col': 1}] — mutual defection
+print(pure_nash_equilibria(matching_pennies()))    # [] — only a mixed equilibrium exists
+```
+
+Faithful to Koller & Milch (multi-agent influence diagrams, 2003) and Hammond et al., *Reasoning
+about Causality in Games* (2023). **This completes the 9-task causal-RL taxonomy.**
+
 ## Layout
 
 - `causalrl.scm` — ADMG graph operations plus explicit-latent DAG `StructuralCausalModel` (`see`/`do`/`counterfactual`)
@@ -294,6 +311,7 @@ causal contribution is using `V*` from the model as the potential.
 - `causalrl.imitation` — causal imitation learning (`is_imitable`, `imitation_backdoor_set`, `CausalImitator`, `BehavioralCloning`)
 - `causalrl.curriculum` — causal curriculum learning (`causal_curriculum`, `is_valid_curriculum`, `PrerequisiteLearner`)
 - `causalrl.shaping` — causal / potential-based reward shaping (`apply_potential_shaping`, `causal_potential`, `value_iteration`, `q_learning`, `TabularMDP`)
+- `causalrl.games` — multi-agent causal influence diagrams & equilibria (`CausalGame`, `pure_nash_equilibria`, `best_response`, `is_nash_equilibrium`)
 - `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `SequentialDTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`, `StructuralCausalBanditEnv`)
 - `causalrl.data` — `ConfoundedTrajectoryDataset` and offline-log generation
 - `causalrl.agents` — bandit agents plus causal offline-to-online learners (`UCDTR`, `DOVI`, `DeepDeconfoundedQ`) and baselines

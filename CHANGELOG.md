@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-05-27
+
+### Added
+- **Causal game theory** (taxonomy Task 9, completing the 9-task taxonomy). `CausalGame` represents a
+  finite game as a multi-agent causal influence diagram (a decision and a utility node per agent);
+  `best_response`, `is_nash_equilibrium`, and `pure_nash_equilibria` reason about equilibria by
+  enumeration. The canonical games recover their textbook pure equilibria: Prisoner's Dilemma (mutual
+  defection), a coordination game (two equilibria), matching pennies (none). Faithful to Koller &
+  Milch (MAIDs, 2003) and Hammond et al., *Reasoning about Causality in Games* (2023).
+- `prisoners_dilemma`, `coordination_game`, `matching_pennies` demo games.
+
 ## [0.11.0] - 2026-05-27
 
 ### Added
