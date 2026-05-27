@@ -196,10 +196,32 @@ Conservative by design — like the rest of `causalrl.identification`, it return
 supported class (direct / S-admissible adjustment) rather than guessing. Faithful to Bareinboim &
 Pearl, *Transportability of Causal Effects* (AAAI 2012; J. Causal Inference 2013).
 
+## v0.8: Learning causal models (Task 5)
+
+When the graph is unknown, **learn it**. `discover` runs the PC algorithm over discrete data
+(conditional independence via conditional mutual information, then collider + Meek orientation) and
+returns a CPDAG; a fully oriented result bridges into the rest of the library for planning.
+
+```python
+from causalrl import pomis
+from causalrl.discovery import discover
+from causalrl.envs.suite.discovery import sample_discovery_data
+
+data = sample_discovery_data(n=10_000, seed=0)        # collider X->Z<-Y, plus Z->W
+graph = discover(data, ["X", "Y", "Z", "W"]).to_causal_graph()
+print(sorted(graph.directed_edges))                   # [('X', 'Z'), ('Y', 'Z'), ('Z', 'W')]
+print(pomis(graph, "W"))                              # [frozenset({'Z'})] — plan on the learned model
+```
+
+PC assumes causal sufficiency (no latent confounders) and faithfulness; the CPDAG may stay partially
+oriented, and `to_causal_graph` raises rather than guess. Faithful to Spirtes, Glymour & Scheines
+and Meek (UAI 1995).
+
 ## Layout
 
 - `causalrl.scm` — ADMG graph operations plus explicit-latent DAG `StructuralCausalModel` (`see`/`do`/`counterfactual`)
 - `causalrl.identification` — scoped conservative criteria, Manski `causal_q_bounds`, POMIS (`pomis`, `minimal_intervention_sets`), counterfactual ETT (`counterfactual_expectation`, `effect_of_treatment_on_treated`), and transportability (`transport_formula`, `transported_effect`)
+- `causalrl.discovery` — constraint-based causal structure learning (`discover`, `conditional_mutual_information`, `CPDAG`)
 - `causalrl.envs` — Gymnasium-compatible causal environments (`MABUCEnv`, `DTREnv`, `SequentialDTREnv`, `ConfoundedGridworld`, `SequentialMABUCEnv`, `StructuralCausalBanditEnv`)
 - `causalrl.data` — `ConfoundedTrajectoryDataset` and offline-log generation
 - `causalrl.agents` — bandit agents plus causal offline-to-online learners (`UCDTR`, `DOVI`, `DeepDeconfoundedQ`) and baselines

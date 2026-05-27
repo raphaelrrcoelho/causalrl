@@ -17,6 +17,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "Agent": ("causalrl.agents.base", "Agent"),
     "BruteForceInterventionTS": ("causalrl.agents.scbandit", "BruteForceInterventionTS"),
     "BenchmarkEstimate": ("causalrl.eval.benchmark", "BenchmarkEstimate"),
+    "CPDAG": ("causalrl.discovery", "CPDAG"),
     "CausalEnv": ("causalrl.envs.base", "CausalEnv"),
     "CausalGraph": ("causalrl.scm.graph", "CausalGraph"),
     "CausalGraphError": ("causalrl.exceptions", "CausalGraphError"),
@@ -58,11 +59,13 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "TransportFormula": ("causalrl.identification.transport", "TransportFormula"),
     "backdoor_adjustment_set": ("causalrl.identification.criteria", "backdoor_adjustment_set"),
     "causal_q_bounds": ("causalrl.identification.bounds", "causal_q_bounds"),
+    "conditional_mutual_information": ("causalrl.discovery", "conditional_mutual_information"),
     "counterfactual_expectation": (
         "causalrl.identification.counterfactual",
         "counterfactual_expectation",
     ),
     "cumulative_regret": ("causalrl.eval.metrics", "cumulative_regret"),
+    "discover": ("causalrl.discovery", "discover"),
     "effect_of_treatment_on_treated": (
         "causalrl.identification.counterfactual",
         "effect_of_treatment_on_treated",
@@ -86,6 +89,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
 }
 
 __all__ = [
+    "CPDAG",
     "DOVI",
     "UCDTR",
     "Agent",
@@ -127,8 +131,10 @@ __all__ = [
     "__version__",
     "backdoor_adjustment_set",
     "causal_q_bounds",
+    "conditional_mutual_information",
     "counterfactual_expectation",
     "cumulative_regret",
+    "discover",
     "effect_of_treatment_on_treated",
     "finite_horizon_regret",
     "generate_logs",

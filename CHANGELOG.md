@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-05-27
+
+### Added
+- **Causal discovery** (taxonomy Task 5, learning causal models). `discover` runs the PC algorithm
+  over discrete data — conditional-independence tests by thresholded conditional mutual information
+  (`conditional_mutual_information`), then collider orientation and Meek rules R1–R3 — returning a
+  `CPDAG`. `CPDAG.to_causal_graph()` bridges a fully oriented result into the rest of the library, so
+  a discovered structure feeds straight into POMIS planning. Faithful to Spirtes, Glymour & Scheines
+  (PC) and Meek (UAI 1995). Conservative: assumes causal sufficiency, and the bridge raises rather
+  than guessing an orientation.
+- `build_discovery_scm` / `sample_discovery_data` — a collider demo (`X→Z←Y`, `Z→W`) whose CPDAG is
+  recovered from data and then handed to `pomis`.
+
 ## [0.7.0] - 2026-05-27
 
 ### Added
