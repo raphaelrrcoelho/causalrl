@@ -73,6 +73,7 @@ class DTREnv(ConfoundedMDP):
     def reset(  # type: ignore[override]
         self, *, seed: int | None = None, options: dict[str, Any] | None = None
     ) -> tuple[dict[str, int], dict[str, Any]]:
+        super().reset(seed=seed)
         if seed is not None:
             self._rng = np.random.default_rng(seed)
         self._z = int(self._rng.integers(0, 2))

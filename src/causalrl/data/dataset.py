@@ -81,9 +81,10 @@ def generate_logs(env: RolloutEnv, n_episodes: int, seed: int) -> ConfoundedTraj
         while not done:
             state = int(obs["state"])
             action = int(env.behavior_policy(obs))
-            next_obs, reward, done, _trunc, _info = env.step(action)
+            next_obs, reward, terminated, truncated, _info = env.step(action)
+            done = bool(terminated or truncated)
             transitions.append(
-                Transition(state, action, float(reward), int(next_obs["state"]), bool(done))
+                Transition(state, action, float(reward), int(next_obs["state"]), done)
             )
             obs = next_obs
     return ConfoundedTrajectoryDataset(transitions, n_states=env.n_states, n_actions=env.n_actions)

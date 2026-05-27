@@ -29,11 +29,11 @@ class _ArmSubsetThompsonSampling(Agent):
         return self.allowed[int(np.argmax(samples))]
 
     def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
+        if not 0.0 <= reward <= 1.0:
+            raise ValueError(f"reward must lie in [0, 1], got {reward}")
         local = self._local[action]
-        if reward > 0:
-            self._alpha[local] += 1.0
-        else:
-            self._beta[local] += 1.0
+        self._alpha[local] += reward
+        self._beta[local] += 1.0 - reward
 
 
 class POMISThompsonSampling(_ArmSubsetThompsonSampling):

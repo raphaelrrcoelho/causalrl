@@ -1,3 +1,5 @@
+import torch
+
 from causalrl.envs.suite.scbandit import enumerate_arms, make_confounded_chain_env
 
 
@@ -34,3 +36,12 @@ def test_step_returns_binary_reward():
     assert reward in (0.0, 1.0)
     assert terminated is True and truncated is False
     assert "optimal_value" in info
+
+
+def test_environment_construction_reset_and_step_do_not_mutate_global_torch_rng_state():
+    torch.manual_seed(991)
+    before = torch.random.get_rng_state().clone()
+    env = make_confounded_chain_env(seed=0, n_mc=10)
+    env.reset(seed=0)
+    env.step(env.arms.index({}))
+    assert torch.equal(torch.random.get_rng_state(), before)

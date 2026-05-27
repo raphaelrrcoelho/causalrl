@@ -1,3 +1,5 @@
+import pytest
+
 from causalrl.agents.scbandit import (
     BruteForceInterventionTS,
     FixedSetThompsonSampling,
@@ -37,3 +39,17 @@ def test_act_returns_allowed_index_and_update_runs():
     a = agent.act({})
     assert a in agent.allowed
     agent.update({}, a, 1.0)  # must not raise
+
+
+def test_bounded_reward_updates_beta_posterior_fractionally():
+    agent = BruteForceInterventionTS([{}], seed=0)
+    agent.update({}, 0, 0.25)
+    assert agent._alpha[0] == 1.25
+    assert agent._beta[0] == 1.75
+
+
+@pytest.mark.parametrize("reward", [-0.01, 1.01])
+def test_reward_outside_unit_interval_is_rejected(reward: float):
+    agent = BruteForceInterventionTS([{}], seed=0)
+    with pytest.raises(ValueError, match=r"\[0, 1\]"):
+        agent.update({}, 0, reward)

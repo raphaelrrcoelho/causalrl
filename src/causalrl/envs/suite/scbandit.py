@@ -2,6 +2,7 @@ import itertools
 from typing import Any, ClassVar
 
 import gymnasium as gym
+import numpy as np
 import torch
 from torch.distributions import Bernoulli, Distribution, Uniform
 
@@ -84,35 +85,43 @@ class StructuralCausalBanditEnv(CausalEnv):
         self.domains = domains
         self.arms = enumerate_arms(manipulable, domains)
         self.action_space = gym.spaces.Discrete(len(self.arms))
-        self.observation_space = gym.spaces.Dict({})
+        self.observation_space = gym.spaces.Dict({"constant": gym.spaces.Discrete(1)})
         self._mc_seed = 12345 if seed is None else seed + 12345
+        self._rng = np.random.default_rng(seed)
         self.arm_values = self._estimate_arm_values(n_mc)
         self.optimal_value = max(self.arm_values)
-        if seed is not None:
-            torch.manual_seed(seed)  # type: ignore[reportUnknownMemberType]
 
-    def _arm_reward_mean(self, arm: dict[str, int], n: int) -> float:
+    def _arm_reward_mean(self, arm: dict[str, int], n: int, *, seed: int) -> float:
         model = self.scm.do({k: float(v) for k, v in arm.items()}) if arm else self.scm
-        samples = model.see(n)[self.reward]
+        samples = model.see(n, seed=seed)[self.reward]
         return float(samples.mean().item())
 
     def _estimate_arm_values(self, n_mc: int) -> list[float]:
-        torch.manual_seed(self._mc_seed)  # type: ignore[reportUnknownMemberType]
-        return [self._arm_reward_mean(arm, n_mc) for arm in self.arms]
+        rng = np.random.default_rng(self._mc_seed)
+        return [
+            self._arm_reward_mean(arm, n_mc, seed=int(rng.integers(0, 2**31))) for arm in self.arms
+        ]
 
     def reset(  # type: ignore[override]
         self, *, seed: int | None = None, options: dict[str, Any] | None = None
     ) -> tuple[dict[str, Any], dict[str, Any]]:
+        super().reset(seed=seed)
         if seed is not None:
-            torch.manual_seed(seed)  # type: ignore[reportUnknownMemberType]
-        return {}, {}
+            self._rng = np.random.default_rng(seed)
+        return {"constant": 0}, {}
 
     def step(  # type: ignore[override]
         self, action: int
     ) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
         arm = self.arms[action]
-        reward = self._arm_reward_mean(arm, 1)
-        return {}, reward, True, False, {"optimal_value": self.optimal_value, "arm": arm}
+        reward = self._arm_reward_mean(arm, 1, seed=int(self._rng.integers(0, 2**31)))
+        return (
+            {"constant": 0},
+            reward,
+            True,
+            False,
+            {"optimal_value": self.optimal_value, "arm": arm},
+        )
 
 
 def make_confounded_chain_env(

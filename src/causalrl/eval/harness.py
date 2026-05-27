@@ -19,9 +19,10 @@ def run_episodes(agent: Agent, env: Any, n_episodes: int, seed: int) -> list[flo
         ep_return = 0.0
         while not done:
             action = agent.act(obs)
-            next_obs, reward, done, _trunc, _info = env.step(action)
+            next_obs, reward, terminated, truncated, _info = env.step(action)
+            done = bool(terminated or truncated)
             agent.update(obs, action, float(reward))
-            agent.observe_transition(int(obs["state"]), action, int(next_obs["state"]), bool(done))
+            agent.observe_transition(int(obs["state"]), action, int(next_obs["state"]), done)
             obs = next_obs
             ep_return += float(reward)
         returns.append(ep_return)

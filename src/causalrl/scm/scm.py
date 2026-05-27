@@ -30,18 +30,43 @@ class StructuralCausalModel:
                 "bidirected ADMG edges are analytical only. Represent shared latent causes "
                 "as explicit latent nodes."
             )
+        nodes = set(graph.nodes)
+        for name, entries in (("mechanisms", mechanisms), ("exogenous distributions", exogenous)):
+            missing = nodes - set(entries)
+            extra = set(entries) - nodes
+            if missing or extra:
+                raise CausalGraphError(
+                    f"{name} must exactly cover graph nodes; "
+                    f"missing={sorted(missing)}, extra={sorted(extra)}"
+                )
+        for node in graph.nodes:
+            expected = set(graph.parents(node))
+            declared = set(mechanisms[node].parents)
+            if declared != expected:
+                raise CausalGraphError(
+                    f"mechanism parents for {node!r} do not match graph parents; "
+                    f"expected={sorted(expected)}, declared={sorted(declared)}"
+                )
         self.graph = graph
         self.mechanisms = mechanisms
         self.exogenous = exogenous
-        missing = set(graph.nodes) - set(mechanisms)
-        if missing:
-            raise ValueError(f"missing mechanisms for nodes: {sorted(missing)}")
+        self._generator = torch.Generator()  # type: ignore[reportPrivateImportUsage]
+        self._generator.seed()
 
-    def _sample_exogenous(self, n: int, _generator: torch.Generator | None) -> dict[str, Tensor]:  # type: ignore[reportPrivateImportUsage]
-        # torch Distributions don't accept a generator; seed globally for reproducibility.
-        out: dict[str, Tensor] = {}
-        for name, dist in self.exogenous.items():
-            out[name] = dist.sample((n,)).reshape(n).float()
+    def _sample_exogenous(self, n: int, seed: int | None) -> dict[str, Tensor]:
+        """Sample using a private CPU RNG stream without mutating process-global Torch state."""
+        generator = torch.Generator()  # type: ignore[reportPrivateImportUsage]
+        if seed is None:
+            generator.set_state(self._generator.get_state())
+        else:
+            generator.manual_seed(seed)
+        with torch.random.fork_rng():  # type: ignore[reportUnknownMemberType]
+            torch.random.set_rng_state(generator.get_state())  # type: ignore[reportUnknownMemberType]
+            out = {
+                name: dist.sample((n,)).reshape(n).float() for name, dist in self.exogenous.items()
+            }
+            if seed is None:
+                self._generator.set_state(torch.random.get_rng_state())  # type: ignore[reportUnknownMemberType]
         return out
 
     def _evaluate(self, noise: dict[str, Tensor]) -> dict[str, Tensor]:
@@ -81,9 +106,7 @@ class StructuralCausalModel:
         Draw n exogenous samples, keep those whose factual evaluation matches `evidence`,
         then re-evaluate the mutilated model under `interventions` with the retained noise.
         """
-        if seed is not None:
-            torch.manual_seed(seed)  # type: ignore[reportUnknownMemberType]
-        noise = self._sample_exogenous(n, None)
+        noise = self._sample_exogenous(n, seed)
         factual = self._evaluate(noise)
 
         mask = torch.ones(n, dtype=torch.bool)  # type: ignore[reportPrivateImportUsage]
@@ -104,7 +127,5 @@ class StructuralCausalModel:
 
     def see(self, n: int, *, seed: int | None = None) -> dict[str, Tensor]:
         """Layer 1: draw n observational samples P(V)."""
-        if seed is not None:
-            torch.manual_seed(seed)  # type: ignore[reportUnknownMemberType]
-        noise = self._sample_exogenous(n, None)
+        noise = self._sample_exogenous(n, seed)
         return self._evaluate(noise)
