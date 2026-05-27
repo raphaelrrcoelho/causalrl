@@ -5,12 +5,12 @@ from __future__ import annotations
 import pytest
 
 from causalrl.exceptions import CausalGraphError
+from causalrl.identification._separation import d_separated as d_sep
 from causalrl.identification.transport import (
     SelectionDiagram,
     is_transportable,
     transport_formula,
 )
-from causalrl.identification.transport import _d_separated as d_sep
 from causalrl.scm.graph import CausalGraph
 
 
