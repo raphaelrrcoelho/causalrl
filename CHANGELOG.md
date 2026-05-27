@@ -7,7 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-05-27
+
+Depth pass closing the taxonomy gaps surfaced by re-checking the library against the Bareinboim
+causal-RL program page.
+
+### Added
+- **General causal-effect identification** (taxonomy Task 4): `identify_effect` runs the sound and
+  complete Shpitser-Pearl ID algorithm, returning a do-free `Estimand` for `P(y | do(x))` in any
+  ADMG or raising `NotIdentifiableError` with the witnessing hedge. `estimate_effect` evaluates the
+  estimand on data; `is_identifiable_effect` gives the decision. Validated by simulation:
+  back-door/front-door estimands match the true `do()` distribution, and the bow-arc and
+  instrumental-variable graphs are correctly non-identifiable.
+- **Interventional causal discovery** (Task 5): `discover_interventional` combines observational
+  (L1) and experimental (L2) data, orienting edges incident to each intervention target by the
+  invariance principle to recover the interventional essential graph.
+- **Mixed-strategy Nash equilibria** (Task 9): `mixed_nash_equilibria` finds all equilibria of a
+  two-player game exactly by support enumeration over rational arithmetic.
+- **Curriculum-driven RL** (Task 7): `curriculum_q_learning` trains Q-learning through a sequence of
+  subtasks with warm-start transfer, reaching a sparse target that flat learning misses.
+- **"When to intervene"** (Task 2): `requires_experiment` reports when an experiment is necessary —
+  exactly when the effect is not observationally identifiable.
+
 ### Changed
+- `is_identifiable` now delegates to the complete ID algorithm, returning a definite boolean for any
+  ADMG (no longer `None` for front-door-style cases).
 - Documentation: the API reference and `guarantees.md` now cover the full taxonomy (tasks 3-9).
 - Packaging: added `authors`, `keywords`, per-version classifiers, `Typing :: Typed`, and a
   Changelog URL to the project metadata.

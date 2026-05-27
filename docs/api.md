@@ -10,6 +10,8 @@
 
 ::: causalrl.identification.intervention_sets.minimal_intervention_sets
 
+::: causalrl.identification.intervention_sets.requires_experiment
+
 ## Structural Causal Models
 
 ::: causalrl.scm.scm.StructuralCausalModel
@@ -48,9 +50,21 @@
 
 ::: causalrl.identification.transport.is_backdoor_admissible
 
+## General Identification (ID Algorithm)
+
+::: causalrl.identification.id_algorithm.identify_effect
+
+::: causalrl.identification.id_algorithm.is_identifiable_effect
+
+::: causalrl.identification.id_algorithm.estimate_effect
+
+::: causalrl.identification.id_algorithm.Estimand
+
 ## Causal Discovery
 
 ::: causalrl.discovery.discover
+
+::: causalrl.discovery.discover_interventional
 
 ::: causalrl.discovery.CPDAG
 
@@ -69,6 +83,8 @@
 ## Causal Curriculum Learning
 
 ::: causalrl.curriculum.causal_curriculum
+
+::: causalrl.curriculum.curriculum_q_learning
 
 ::: causalrl.curriculum.is_valid_curriculum
 
@@ -91,6 +107,8 @@
 ::: causalrl.games.CausalGame
 
 ::: causalrl.games.pure_nash_equilibria
+
+::: causalrl.games.mixed_nash_equilibria
 
 ::: causalrl.games.best_response
 
