@@ -72,6 +72,7 @@ packages = ["src/causalrl"]
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
+extend-exclude = ["experiments"]  # local experiment scripts, not subject to library code quality gate
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
