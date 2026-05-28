@@ -85,3 +85,9 @@ pythonVersion = "3.11"
 [tool.pytest.ini_options]
 addopts = "-q --cov=causalrl --cov-report=term-missing"
 testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "datasets>=4.8.5",
+    "sentence-transformers>=5.5.1",
+]
