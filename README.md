@@ -311,6 +311,27 @@ print(pure_nash_equilibria(matching_pennies()))    # [] — only a mixed equilib
 Faithful to Koller & Milch (multi-agent influence diagrams, 2003) and Hammond et al., *Reasoning
 about Causality in Games* (2023). **This completes the 9-task causal-RL taxonomy.**
 
+## v0.13 – v0.20: depth pass over the taxonomy
+
+Once each task had a vertical slice, the next releases went back and filled in the
+machinery the slices implicitly relied on:
+
+- **v0.13 – depth pass** — interventional CPDAG discovery; `requires_experiment`;
+  POMIS over equivalence classes; mixed-strategy Nash; curriculum-RL prerequisites.
+- **v0.14 – gID** — general identification from surrogate experiments
+  (Bareinboim & Pearl, JMLR 2015), with witnessing hedges on failure.
+- **v0.15 – sID** — cross-domain transportability via c-factor routing
+  (Bareinboim & Pearl, AAAI 2012).
+- **v0.16 – mz / meta transportability** — multi-source transport
+  (Bareinboim & Pearl, NeurIPS 2014) with documented mechanism alignment.
+- **v0.17 – FCI / PAG** — latent-confounder-aware structure discovery
+  (Spirtes, Glymour & Scheines; Zhang 2008).
+- **v0.18 – mixed Nash for 3+ players** — numerical solver with ε-verification.
+- **v0.19 – OPE bounds** — validated `manski_bounds` and `ipw_sensitivity_bounds`
+  (Manski 1990; Tan 2006).
+- **v0.20 – literature-classics gallery** — reproducible examples from the
+  causal-RL canon, including a causal > associational RL demonstration.
+
 ## Layout
 
 - `causalrl.scm` — ADMG graph operations plus explicit-latent DAG `StructuralCausalModel` (`see`/`do`/`counterfactual`)
@@ -344,3 +365,23 @@ uv run --extra dev python benchmarks/scbandit_report.py confounded-chain \
 The JSON report includes each seed's result plus summary uncertainty. These maintained
 demonstrations validate package behavior on the stated environments; they are not general
 performance guarantees.
+
+## Acknowledgements
+
+This library would not exist without the body of work it stands on. Particular thanks to:
+
+- **Elias Bareinboim**, whose [9-task taxonomy of causal reinforcement learning](https://crl.causalai.net/)
+  is the organising spine of `causalrl`, and whose results with collaborators are
+  the core of nearly every slice — `do`-calculus completeness (with Shpitser & Pearl),
+  transportability and selection diagrams (with Pearl), counterfactual data fusion
+  (with Forney & Pearl), POMIS / structural causal bandits (with Lee), causal
+  imitation learning (with Zhang & Kumor), and the modern definition of causal RL itself.
+- **Judea Pearl**, for the do-calculus and Pearl Causal Hierarchy that make every
+  L1 / L2 / L3 query in this library well-defined.
+- **Sanghack Lee**, for the [reference POMIS implementation](https://github.com/sanghack81/SCMMAB-NIPS2018)
+  the v0.4 engine is adapted from (MIT-licensed; see attribution in
+  `src/causalrl/identification/intervention_sets.py`).
+
+Other foundational references — Spirtes, Glymour & Scheines; Zhang; Manski; Tan;
+Koller & Milch; Ng, Harada & Russell; Bengio et al. — are cited inline at the
+slice that uses each.
