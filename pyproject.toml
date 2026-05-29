@@ -75,6 +75,7 @@ packages = ["src/causalrl"]
 # and local dev caches are kept out of the source distribution.
 exclude = [
   "docs/frontier",
+  "docs/superpowers",
   "experiments",
   ".hypothesis",
   ".devcontainer",
