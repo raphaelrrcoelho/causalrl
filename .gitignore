@@ -17,3 +17,14 @@ site/
 
 # Reference papers — kept locally for citation/reproducibility, not redistributed (copyright)
 papers/*.pdf
+
+# LaTeX build + run artifacts under docs/frontier/ (source .tex/.bib/.sty/.bst and result .json/.pdf are kept)
+docs/frontier/**/*.aux
+docs/frontier/**/*.log
+docs/frontier/**/*.fls
+docs/frontier/**/*.fdb_latexmk
+docs/frontier/**/*.out
+docs/frontier/**/*.blg
+docs/frontier/**/*.bbl
+docs/frontier/**/*.synctex.gz
+docs/frontier/**/seed_cache.json
