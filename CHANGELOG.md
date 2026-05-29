@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.99.2] - 2026-05-29
+
+Packaging-only release; the library is identical to 0.99.1. The published source distribution
+(sdist) now contains **only the library** — the local docs and experiment scripts are
+excluded. Supersedes 0.99.0 and 0.99.1, whose sdists bundled those files.
+
+### Changed
+- `sdist` scoped to the library (non-library files excluded from
+  the package; the wheel was already clean).
+
 ## [0.99.1] - 2026-05-29
 
 First release published to PyPI (`pip install causalrl`). No library/API changes from 0.99.0 —
