@@ -70,6 +70,16 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/causalrl"]
 
+[tool.hatch.build.targets.sdist]
+# The published package ships only the library. The local docs and experiment scripts
+# and local dev caches are kept out of the source distribution.
+exclude = [
+  "docs/frontier",
+  "experiments",
+  ".hypothesis",
+  ".devcontainer",
+]
+
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
