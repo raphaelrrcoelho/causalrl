@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.99.1] - 2026-05-29
+
+First release published to PyPI (`pip install causalrl`). No library/API changes from 0.99.0 —
+this is a documentation and packaging release.
+
+### Changed
+- Documentation overhaul: mkdocs-material theme with a structured navigation
+  (Getting Started · Tour by Task · Tutorials · topic pages · API · Citing). The README is now a
+  concise front page with a capability table and a "How it compares" section; the per-task tour
+  moved into the docs (`docs/tour.md`).
+- Release workflow switched to the canonical `pypa/gh-action-pypi-publish` trusted-publishing
+  action, with inline setup notes.
+- `CITATION.cff` version corrected to match the package.
+
 ## [0.99.0] - 2026-05-27
 
 ### Stable
