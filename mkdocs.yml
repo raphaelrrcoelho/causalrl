@@ -3,20 +3,49 @@ site_description: Causal intervention-selection and causal-RL research tools
 site_url: https://raphaelrrcoelho.github.io/causalrl/
 repo_url: https://github.com/raphaelrrcoelho/causalrl
 repo_name: raphaelrrcoelho/causalrl
+
+# Local notes and process docs live in the
+# repo but are not part of the published library documentation.
 exclude_docs: |
   superpowers/
+  frontier/
 
 theme:
-  name: readthedocs
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - content.code.copy
+    - toc.follow
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
 
 nav:
-  - Overview: index.md
-  - Guarantees And Scope: guarantees.md
+  - Getting Started: index.md
+  - Tour by Task: tour.md
+  - Tutorials: tutorials.md
+  - Guarantees & Scope: guarantees.md
   - Transportability: transportability.md
   - Causal Discovery: discovery.md
-  - Reproducing The Literature: classics.md
+  - Reproducing the Literature: classics.md
   - Reproducible Benchmarks: benchmarks.md
   - API Reference: api.md
+  - Citing: citing.md
 
 plugins:
   - search
@@ -30,5 +59,9 @@ plugins:
 
 markdown_extensions:
   - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
   - toc:
       permalink: true

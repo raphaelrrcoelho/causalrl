@@ -24,5 +24,12 @@ jobs:
         run: uv build
       - name: Check distributions
         run: uvx twine check dist/*
-      - name: Publish through trusted publishing
-        run: uv publish
+      # Trusted publishing (OIDC) — no API token. Requires a publisher configured on
+      # PyPI: https://docs.pypi.org/trusted-publishers/. For the FIRST release of a
+      # project that does not yet exist on PyPI, add a *pending* publisher at
+      # https://pypi.org/manage/account/publishing/ with:
+      #   PyPI project name: causalrl
+      #   Owner: raphaelrrcoelho   Repository: causalrl
+      #   Workflow name: publish.yml   Environment: pypi
+      - name: Publish to PyPI (trusted publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
