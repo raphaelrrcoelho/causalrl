@@ -10,6 +10,27 @@ from causalrl.scm.mechanisms import FunctionalMechanism, Mechanism
 Tensor = torch.Tensor
 
 
+class ExogenousPosterior:
+    """Retained exogenous values from abduction, ready for prediction under interventions.
+
+    Holds the source SCM and a dict of exogenous tensors (the abducted units). Call
+    :meth:`predict` to evaluate the model — optionally mutilated by ``do`` — on them. Abduct
+    once, predict under many interventions (the efficient counterfactual pattern).
+    """
+
+    def __init__(self, scm: StructuralCausalModel, noise: dict[str, Tensor]) -> None:
+        self._scm = scm
+        self.noise = noise
+
+    def __len__(self) -> int:
+        return int(next(iter(self.noise.values())).shape[0]) if self.noise else 0
+
+    def predict(self, *, do: dict[str, float] | None = None) -> dict[str, Tensor]:
+        """Evaluate the (optionally do-mutilated) model on the retained exogenous units."""
+        model = self._scm.do(do) if do else self._scm
+        return model._evaluate(self.noise)
+
+
 class StructuralCausalModel:
     """Executable explicit-latent DAG SCM supporting L1/L2/L3 queries.
 
@@ -92,6 +113,54 @@ class StructuralCausalModel:
             )
         return StructuralCausalModel(graph, mechanisms, self.exogenous)
 
+    def abduct(
+        self,
+        evidence: dict[str, float] | None = None,
+        *,
+        known: dict[str, float] | None = None,
+        n: int = 20_000,
+        seed: int | None = None,
+        atol: float = 1e-6,
+    ) -> ExogenousPosterior:
+        """Layer 3, step 1 — infer the exogenous posterior given evidence/known noise.
+
+        ``known`` pins supplied exogenous values *exactly* (the exact, continuous path: no
+        rejection). Remaining exogenous are sampled; if ``evidence`` is given they are
+        rejection-filtered so the factual evaluation matches ``evidence`` within ``atol``.
+        Returns an :class:`ExogenousPosterior`; call its ``predict(do=...)``.
+        """
+        known = known or {}
+        bad = set(known) - set(self.exogenous)
+        if bad:
+            raise CausalGraphError(f"unknown exogenous node(s): {sorted(bad)}")
+        # Exact path: all-known exogenous, no evidence to reject against.
+        if known and not evidence:
+            noise = {
+                name: (
+                    torch.full((n,), float(known[name]))  # type: ignore[reportPrivateImportUsage]
+                    if name in known
+                    else dist.sample((n,)).reshape(n).float()
+                )
+                for name, dist in self.exogenous.items()
+            }
+            return ExogenousPosterior(self, noise)
+        # Evidence path: sample, pin any known, reject to match evidence.
+        sampled = self._sample_exogenous(n, seed)
+        for name, val in known.items():
+            sampled[name] = torch.full((n,), float(val))  # type: ignore[reportPrivateImportUsage]
+        factual = self._evaluate(sampled)
+        mask = torch.ones(n, dtype=torch.bool)  # type: ignore[reportPrivateImportUsage]
+        for node, val in (evidence or {}).items():
+            if node not in self.mechanisms:
+                raise CausalGraphError(f"unknown evidence node: {node!r}")
+            mask &= (factual[node] - float(val)).abs() <= atol
+        if int(mask.sum()) == 0:
+            raise RealizabilityError(
+                f"no exogenous draws match evidence {evidence!r}; "
+                "increase n or check that the evidence has nonzero probability"
+            )
+        return ExogenousPosterior(self, {name: u[mask] for name, u in sampled.items()})
+
     def counterfactual(
         self,
         evidence: dict[str, float],
@@ -101,29 +170,9 @@ class StructuralCausalModel:
         seed: int | None = None,
         atol: float = 1e-6,
     ) -> dict[str, Tensor]:
-        """Layer 3: abduction-action-prediction via rejection sampling.
-
-        Draw n exogenous samples, keep those whose factual evaluation matches `evidence`,
-        then re-evaluate the mutilated model under `interventions` with the retained noise.
-        """
-        noise = self._sample_exogenous(n, seed)
-        factual = self._evaluate(noise)
-
-        mask = torch.ones(n, dtype=torch.bool)  # type: ignore[reportPrivateImportUsage]
-        for node, val in evidence.items():
-            if node not in self.mechanisms:
-                raise CausalGraphError(f"unknown evidence node: {node!r}")
-            mask &= (factual[node] - float(val)).abs() <= atol
-        kept = int(mask.sum())
-        if kept == 0:
-            raise RealizabilityError(
-                f"no exogenous draws match evidence {evidence!r}; "
-                "increase n or check that the evidence has nonzero probability"
-            )
-
-        retained = {name: u[mask] for name, u in noise.items()}
-        cf_model = self.do(interventions) if interventions else self
-        return cf_model._evaluate(retained)
+        """Layer 3: abduction-action-prediction. Sugar over :meth:`abduct` + predict."""
+        post = self.abduct(evidence, n=n, seed=seed, atol=atol)
+        return post.predict(do=interventions or None)
 
     def see(self, n: int, *, seed: int | None = None) -> dict[str, Tensor]:
         """Layer 1: draw n observational samples P(V)."""
