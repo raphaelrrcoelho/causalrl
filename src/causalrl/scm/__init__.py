@@ -34,6 +34,7 @@ _LAZY: dict[str, tuple[str, str]] = {
     "NeuralMechanism": ("causalrl.scm.mechanisms", "NeuralMechanism"),
     "ExogenousPosterior": ("causalrl.scm.scm", "ExogenousPosterior"),
     "StructuralCausalModel": ("causalrl.scm.scm", "StructuralCausalModel"),
+    "build_unrolled_scm": ("causalrl.scm.unrolled", "build_unrolled_scm"),
 }
 
 __all__ = [
@@ -45,6 +46,7 @@ __all__ = [
     "Mechanism",
     "NeuralMechanism",
     "StructuralCausalModel",
+    "build_unrolled_scm",
 ]
 
 
