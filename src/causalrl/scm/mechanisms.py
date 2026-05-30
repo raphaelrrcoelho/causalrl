@@ -44,6 +44,19 @@ class LinearGaussianMechanism:
         return out
 
 
+class LinearMechanism(LinearGaussianMechanism):
+    """Linear structural equation ``V_i = intercept + sum_j w_j * parent_j + noise``.
+
+    Identical to :class:`LinearGaussianMechanism` but spelled with the ``intercept`` keyword
+    (the additive constant) instead of ``bias`` — a convenience name for plain linear SCMs.
+    """
+
+    def __init__(
+        self, parents: list[str], weights: dict[str, float], intercept: float = 0.0
+    ) -> None:
+        super().__init__(parents, weights, bias=intercept)
+
+
 class NeuralMechanism(torch.nn.Module):
     """V_i = net([parents, noise]). Makes the SCM a neural causal model (NCM)."""
 

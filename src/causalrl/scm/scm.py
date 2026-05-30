@@ -17,25 +17,22 @@ Value = float | Sequence[float] | Tensor
 
 
 def _broadcast_value(value: object, n: int) -> Tensor:
-    """Coerce an intervention / known-noise value to a length-``n`` float tensor.
+    """Coerce an intervention / known-noise value to a per-sample float tensor of length ``n``.
 
     A python/0-d scalar is broadcast to all ``n`` units (the original behaviour). A
-    sequence/array/tensor of length ``n`` is applied elementwise (one value per sample) —
-    the per-trajectory path. Any other length is a programming error and raises.
+    sequence/array/tensor whose leading dimension is ``n`` is applied elementwise — one value
+    (possibly itself a vector, for multi-dimensional nodes) per sample. Any other leading
+    length is a programming error and raises.
     """
-    if isinstance(value, Tensor):
-        t = value
-    elif isinstance(value, (int, float, bool)):
+    if isinstance(value, (int, float, bool)):
         return torch.full((n,), float(value))  # type: ignore[reportPrivateImportUsage]
-    else:
-        t = torch.as_tensor(value)
-    t = t.float().reshape(-1)
+    t = (value if isinstance(value, Tensor) else torch.as_tensor(value)).float()
     if t.numel() == 1:
-        return t.expand(n).clone()
-    if t.numel() != n:
+        return t.reshape(()).expand(n).clone()
+    if t.shape[0] != n:
         raise ValueError(
-            f"per-sample value has length {t.numel()} but n={n}; "
-            "pass a scalar (broadcast to all units) or a length-n vector"
+            f"per-sample value has leading length {t.shape[0]} but n={n}; "
+            "pass a scalar (broadcast to all units) or a length-n (per-sample) value"
         )
     return t
 
