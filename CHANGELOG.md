@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Causal-core API + performance pass (pre-1.0; contains breaking changes — warrants a minor
+version bump at next release).
+
+### Added
+- `causalrl.scm.ExogenousPosterior` and `StructuralCausalModel.abduct(evidence=None, *, known=None, ...)`:
+  Pearl Layer-3 abduction as an explicit step. `abduct(known=...)` pins supplied (continuous /
+  known) exogenous **exactly** — no rejection — enabling exact continuous counterfactuals, and
+  lets you abduct once then `predict(do=...)` under many interventions.
+- `causalrl.identification.bounds.Interval` — a tuple-compatible `NamedTuple(lower, upper)` for
+  partial-identification bounds (`.lower` / `.upper`, still unpacks/indexes as a tuple).
+- `causalrl.identification.bounds.msm_per_step_bounds` and `msm_stratified_bounds` — reusable
+  cumulative-reward marginal-sensitivity-model kernels (additive per-step; weighted per-stratum,
+  never wider than pooled — THEORY Prop 1). Exported at top level.
+- `benchmarks/bench_causal_core.py` — guards the exact-counterfactual and closed-form-MSM
+  fast paths (correctness to 1e-6 vs a scipy-LP reference; ≥5× speedup floor; observed 874×).
+
+### Changed
+- **Breaking:** `causal_q_bounds`, `manski_bounds`, `ipw_sensitivity_bounds` now return `Interval`
+  instead of a bare `tuple[float, float]`. Tuple-compatible, so `lo, hi = ...` and `[0]/[1]`
+  callers are unaffected; only `isinstance(x, tuple)`-strict or type-annotation-strict code differs.
+- `StructuralCausalModel.counterfactual()` is now thin sugar over `abduct()` + `predict()`
+  (behavior, signature, and rejection semantics unchanged).
+
 ## [0.99.2] - 2026-05-29
 
 Packaging-only release; the library is identical to 0.99.1. The published source distribution
