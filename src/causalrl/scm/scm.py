@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import torch
 from torch.distributions import Distribution
 
@@ -8,6 +10,34 @@ from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import FunctionalMechanism, Mechanism
 
 Tensor = torch.Tensor
+
+# An intervention / known-noise value: a scalar (broadcast to all n units) OR a length-n
+# vector applied elementwise (the per-sample / per-trajectory path).
+Value = float | Sequence[float] | Tensor
+
+
+def _broadcast_value(value: object, n: int) -> Tensor:
+    """Coerce an intervention / known-noise value to a length-``n`` float tensor.
+
+    A python/0-d scalar is broadcast to all ``n`` units (the original behaviour). A
+    sequence/array/tensor of length ``n`` is applied elementwise (one value per sample) —
+    the per-trajectory path. Any other length is a programming error and raises.
+    """
+    if isinstance(value, Tensor):
+        t = value
+    elif isinstance(value, (int, float, bool)):
+        return torch.full((n,), float(value))  # type: ignore[reportPrivateImportUsage]
+    else:
+        t = torch.as_tensor(value)
+    t = t.float().reshape(-1)
+    if t.numel() == 1:
+        return t.expand(n).clone()
+    if t.numel() != n:
+        raise ValueError(
+            f"per-sample value has length {t.numel()} but n={n}; "
+            "pass a scalar (broadcast to all units) or a length-n vector"
+        )
+    return t
 
 
 class ExogenousPosterior:
@@ -25,7 +55,7 @@ class ExogenousPosterior:
     def __len__(self) -> int:
         return int(next(iter(self.noise.values())).shape[0]) if self.noise else 0
 
-    def predict(self, *, do: dict[str, float] | None = None) -> dict[str, Tensor]:
+    def predict(self, *, do: dict[str, Value] | None = None) -> dict[str, Tensor]:
         """Evaluate the (optionally do-mutilated) model on the retained exogenous units."""
         model = self._scm.do(do) if do else self._scm
         return model._evaluate(self.noise)
@@ -98,7 +128,7 @@ class StructuralCausalModel:
             values[node] = mech(parent_values, noise[node])
         return values
 
-    def do(self, interventions: dict[str, float]) -> StructuralCausalModel:
+    def do(self, interventions: dict[str, Value]) -> StructuralCausalModel:
         """Layer 2: return the mutilated SCM under do(interventions). Original is unchanged."""
         graph = self.graph
         mechanisms = dict(self.mechanisms)
@@ -106,18 +136,25 @@ class StructuralCausalModel:
             if node not in self.mechanisms:
                 raise CausalGraphError(f"cannot intervene on unknown node: {node!r}")
             graph = graph.remove_incoming_edges(node)
-            const = float(value)
-            mechanisms[node] = FunctionalMechanism(
-                [],
-                lambda pa, u, _c=const: torch.full_like(u, _c),  # type: ignore[reportPrivateImportUsage]
-            )
+            if isinstance(value, (int, float, bool)):
+                const = float(value)
+                mechanisms[node] = FunctionalMechanism(
+                    [],
+                    lambda pa, u, _c=const: torch.full_like(u, _c),  # type: ignore[reportPrivateImportUsage]
+                )
+            else:
+                # Per-sample vector: pin elementwise, broadcast-checked against the unit count.
+                mechanisms[node] = FunctionalMechanism(
+                    [],
+                    lambda pa, u, _v=value: _broadcast_value(_v, u.shape[0]).to(u.dtype),
+                )
         return StructuralCausalModel(graph, mechanisms, self.exogenous)
 
     def abduct(
         self,
         evidence: dict[str, float] | None = None,
         *,
-        known: dict[str, float] | None = None,
+        known: dict[str, Value] | None = None,
         n: int = 20_000,
         seed: int | None = None,
         atol: float = 1e-6,
@@ -137,7 +174,7 @@ class StructuralCausalModel:
         if known and not evidence:
             noise = {
                 name: (
-                    torch.full((n,), float(known[name]))  # type: ignore[reportPrivateImportUsage]
+                    _broadcast_value(known[name], n)
                     if name in known
                     else dist.sample((n,)).reshape(n).float()
                 )
@@ -147,7 +184,7 @@ class StructuralCausalModel:
         # Evidence path: sample, pin any known, reject to match evidence.
         sampled = self._sample_exogenous(n, seed)
         for name, val in known.items():
-            sampled[name] = torch.full((n,), float(val))  # type: ignore[reportPrivateImportUsage]
+            sampled[name] = _broadcast_value(val, n)
         factual = self._evaluate(sampled)
         mask = torch.ones(n, dtype=torch.bool)  # type: ignore[reportPrivateImportUsage]
         for node, val in (evidence or {}).items():
@@ -164,7 +201,7 @@ class StructuralCausalModel:
     def counterfactual(
         self,
         evidence: dict[str, float],
-        interventions: dict[str, float],
+        interventions: dict[str, Value],
         n: int,
         *,
         seed: int | None = None,
