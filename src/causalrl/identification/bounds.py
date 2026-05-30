@@ -126,6 +126,45 @@ def ipw_sensitivity_bounds(
     )
 
 
+def msm_policy_value_bounds(
+    outcomes: Sequence[float],
+    logging_propensities: Sequence[float],
+    target_propensities: Sequence[float],
+    *,
+    gamma: float,
+) -> Interval:
+    """Marginal-sensitivity-model bounds on an off-policy value ``V(pi_t) = E[(pi_t/e0) Y]``.
+
+    Self-normalised (Hájek) off-policy value of a target policy ``pi_t`` estimated from logs of a
+    logging policy with *nominal* propensities ``e0(a|x) = P(a | x)`` (a valid probability in
+    ``(0, 1]``). ``outcomes`` are the logged rewards ``Y_i``; ``target_propensities`` are
+    ``pi_t(a_i | x_i)`` at the logged action. Under Tan's marginal sensitivity model the true
+    logging propensity deviates from nominal by an odds-ratio at most ``gamma >= 1``, so the true
+    inverse weight ``1/ẽ0`` lies in ``[1 + odds/gamma, 1 + odds*gamma]`` with ``odds = (1-e0)/e0``;
+    each unit's contribution weight is ``pi_t(a_i|x_i) * (1/ẽ0)``. The bounds are the extreme
+    stabilised weighted means of ``Y`` over those per-unit weight ranges.
+
+    Reduces to :func:`ipw_sensitivity_bounds` when ``pi_t`` is constant across the logged actions
+    (the treated / uniform-target mean — the constant cancels in the self-normalised ratio), and
+    collapses to the self-normalised IPS point at ``gamma = 1``. The off-policy generalisation of
+    Tan's MSM in the spirit of N. Kallus & A. Zhou, *Confounding-Robust Policy Evaluation in
+    Infinite-Horizon Reinforcement Learning* (NeurIPS 2020). The caller supplies ``pi_t`` and the
+    nominal ``e0``; no code is ported.
+    """
+    if gamma < 1.0:
+        raise ValueError("gamma must be >= 1")
+    y = np.asarray(outcomes, dtype=float)
+    e0 = np.asarray(logging_propensities, dtype=float)
+    pt = np.asarray(target_propensities, dtype=float)
+    odds = (1.0 - e0) / e0
+    lo_w = pt * (1.0 + odds / gamma)
+    hi_w = pt * (1.0 + odds * gamma)
+    return Interval(
+        _fractional_extreme(y, lo_w, hi_w, maximize=False),
+        _fractional_extreme(y, lo_w, hi_w, maximize=True),
+    )
+
+
 def msm_per_step_bounds(
     rewards_by_step: Sequence[Sequence[float]],
     propensities_by_step: Sequence[Sequence[float]],

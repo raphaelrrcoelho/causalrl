@@ -77,6 +77,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "causal_potential": ("causalrl.shaping", "causal_potential"),
     "causal_q_bounds": ("causalrl.identification.bounds", "causal_q_bounds"),
     "ipw_sensitivity_bounds": ("causalrl.identification.bounds", "ipw_sensitivity_bounds"),
+    "msm_policy_value_bounds": ("causalrl.identification.bounds", "msm_policy_value_bounds"),
     "manski_bounds": ("causalrl.identification.bounds", "manski_bounds"),
     "conditional_mutual_information": ("causalrl.discovery", "conditional_mutual_information"),
     "counterfactual_expectation": (
@@ -155,11 +156,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
 }
 
 __all__ = [
-    "Interval",
-    "ExogenousPosterior",
-    "build_unrolled_scm",
-    "msm_per_step_bounds",
-    "msm_stratified_bounds",
     "CPDAG",
     "DOVI",
     "PAG",
@@ -184,8 +180,10 @@ __all__ = [
     "DeepDeconfoundedQ",
     "Domain",
     "Estimand",
+    "ExogenousPosterior",
     "FixedSetThompsonSampling",
     "FunctionalMechanism",
+    "Interval",
     "LinearGaussianMechanism",
     "MABUCEnv",
     "Mechanism",
@@ -211,6 +209,7 @@ __all__ = [
     "apply_potential_shaping",
     "backdoor_adjustment_set",
     "best_response",
+    "build_unrolled_scm",
     "causal_curriculum",
     "causal_potential",
     "causal_q_bounds",
@@ -248,6 +247,9 @@ __all__ = [
     "manski_bounds",
     "minimal_intervention_sets",
     "mixed_nash_equilibria",
+    "msm_per_step_bounds",
+    "msm_policy_value_bounds",
+    "msm_stratified_bounds",
     "pomis",
     "pure_nash_equilibria",
     "q_learning",

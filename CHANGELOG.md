@@ -20,6 +20,10 @@ version bump at next release).
 - `causalrl.identification.bounds.msm_per_step_bounds` and `msm_stratified_bounds` — reusable
   cumulative-reward marginal-sensitivity-model kernels (additive per-step; weighted per-stratum,
   never wider than pooled — THEORY Prop 1). Exported at top level.
+- `causalrl.identification.bounds.msm_policy_value_bounds` — off-policy marginal-sensitivity-model
+  bounds on a target policy's value `V(π_t) = E[(π_t/e0) Y]` (self-normalised IPS under Tan's MSM
+  on the logging propensity; Kallus–Zhou 2020). The off-policy generalisation of
+  `ipw_sensitivity_bounds`, to which it reduces exactly for a constant target. Exported at top level.
 - `benchmarks/bench_causal_core.py` — guards the exact-counterfactual and closed-form-MSM
   fast paths (correctness to 1e-6 vs a scipy-LP reference; ≥5× speedup floor; observed 874×).
 

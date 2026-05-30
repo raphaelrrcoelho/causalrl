@@ -7,6 +7,7 @@ from causalrl.identification.bounds import (
     ipw_sensitivity_bounds,
     manski_bounds,
     msm_per_step_bounds,
+    msm_policy_value_bounds,
     msm_stratified_bounds,
 )
 
@@ -43,6 +44,47 @@ def test_per_step_gamma1_collapses_to_point():
     p = [rng.uniform(0.3, 0.7, size=100)]
     iv = msm_per_step_bounds(r, p, gamma=1.0)
     assert iv.upper - iv.lower < 1e-6
+
+
+def test_policy_value_reduces_to_ipw_for_constant_target():
+    # A target that picks every logged action with the SAME probability is the treated/uniform
+    # mean: the constant cancels in the self-normalised ratio, so the policy-value MSM bound must
+    # equal ipw_sensitivity_bounds (the existing kernel) at every gamma.
+    rng = np.random.default_rng(3)
+    y = rng.uniform(0, 1, size=400)
+    e0 = rng.uniform(0.1, 0.9, size=400)
+    pt = np.full(400, 0.017)  # arbitrary constant target propensity
+    for g in (1.0, 1.5, 3.0):
+        pv = msm_policy_value_bounds(y.tolist(), e0.tolist(), pt.tolist(), gamma=g)
+        ipw = ipw_sensitivity_bounds(y.tolist(), e0.tolist(), gamma=g)
+        assert abs(pv.lower - ipw.lower) < 1e-9
+        assert abs(pv.upper - ipw.upper) < 1e-9
+
+
+def test_policy_value_gamma1_is_self_normalised_ips_point():
+    # At gamma=1 the band collapses to the Hájek IPS point V_hat = sum(w Y)/sum(w), w = pi_t/e0.
+    rng = np.random.default_rng(4)
+    y = rng.uniform(0, 1, size=300)
+    e0 = rng.uniform(0.2, 0.8, size=300)
+    pt = rng.uniform(0.0, 0.05, size=300)
+    w = pt / e0
+    v_hat = float((w * y).sum() / w.sum())
+    iv = msm_policy_value_bounds(y.tolist(), e0.tolist(), pt.tolist(), gamma=1.0)
+    assert iv.upper - iv.lower < 1e-9
+    assert abs(iv.lower - v_hat) < 1e-9
+
+
+def test_policy_value_widens_with_gamma_and_brackets_point():
+    rng = np.random.default_rng(5)
+    y = rng.uniform(0, 1, size=300)
+    e0 = rng.uniform(0.2, 0.8, size=300)
+    pt = rng.uniform(0.0, 0.05, size=300)
+    w = pt / e0
+    v_hat = float((w * y).sum() / w.sum())
+    iv1 = msm_policy_value_bounds(y.tolist(), e0.tolist(), pt.tolist(), gamma=1.5)
+    iv2 = msm_policy_value_bounds(y.tolist(), e0.tolist(), pt.tolist(), gamma=3.0)
+    assert iv1.lower <= v_hat <= iv1.upper
+    assert (iv2.upper - iv2.lower) >= (iv1.upper - iv1.lower)
 
 
 def test_stratified_never_wider_than_pooled():
