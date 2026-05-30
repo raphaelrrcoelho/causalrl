@@ -12,6 +12,8 @@ from typing import cast as _cast
 __version__ = _pkg_version("causalrl")
 
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "ExogenousPosterior": ("causalrl.scm.scm", "ExogenousPosterior"),
+    "build_unrolled_scm": ("causalrl.scm.unrolled", "build_unrolled_scm"),
     "DOVI": ("causalrl.agents.dovi", "DOVI"),
     "UCDTR": ("causalrl.agents.offline_online", "UCDTR"),
     "Agent": ("causalrl.agents.base", "Agent"),
@@ -153,6 +155,11 @@ _EXPORTS: dict[str, tuple[str, str]] = {
 }
 
 __all__ = [
+    "Interval",
+    "ExogenousPosterior",
+    "build_unrolled_scm",
+    "msm_per_step_bounds",
+    "msm_stratified_bounds",
     "CPDAG",
     "DOVI",
     "PAG",
