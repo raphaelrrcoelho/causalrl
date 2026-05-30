@@ -124,3 +124,68 @@ def ipw_sensitivity_bounds(
         _fractional_extreme(y, lo_w, hi_w, maximize=False),
         _fractional_extreme(y, lo_w, hi_w, maximize=True),
     )
+
+
+def msm_per_step_bounds(
+    rewards_by_step: Sequence[Sequence[float]],
+    propensities_by_step: Sequence[Sequence[float]],
+    *,
+    gamma: float,
+) -> Interval:
+    """Per-step marginal-sensitivity-model bounds on a cumulative (summed) reward.
+
+    Each element of ``rewards_by_step`` / ``propensities_by_step`` is one time step's
+    per-unit rewards ``r_t`` and nominal propensities ``e_t``; the cumulative-reward MSM
+    bound is the sum over steps of the per-step :func:`ipw_sensitivity_bounds`. This is the
+    additive (per-step) cumulative-reward MSM: each step is bounded independently under the
+    sensitivity model and the bounds add, which is tight for sparse / per-step rewards.
+
+    Reusable kernel of the per-step cumulative-reward MSM used for confounded multi-step OPE
+    (Bennett & Kallus, *Efficient and Sharp OPE in Robust MDPs*, NeurIPS 2024). The
+    experiment supplies the per-step nominal propensities; no code is ported.
+    """
+    if gamma < 1.0:
+        raise ValueError("gamma must be >= 1")
+    if len(rewards_by_step) != len(propensities_by_step):
+        raise ValueError("rewards_by_step and propensities_by_step must have equal length")
+    lower = upper = 0.0
+    for r_t, e_t in zip(rewards_by_step, propensities_by_step, strict=True):
+        iv = ipw_sensitivity_bounds(r_t, e_t, gamma=gamma)
+        lower += iv.lower
+        upper += iv.upper
+    return Interval(lower, upper)
+
+
+def msm_stratified_bounds(
+    values: Sequence[float],
+    propensities: Sequence[float],
+    strata: Sequence[int],
+    target_weights: Mapping[int, float],
+    *,
+    gamma: float,
+) -> Interval:
+    """Stratified marginal-sensitivity-model bounds: ``Σ_s w_s · MSM_s``.
+
+    Compute the MSM bound within each stratum (units sharing a ``strata`` label) and combine
+    them with ``target_weights`` (the target stratum marginal ``w_s``, e.g. a uniform initial
+    state distribution). Strata absent from the data contribute nothing. Because conditioning
+    removes between-stratum weight variation, the stratified bound is never wider than the
+    pooled :func:`ipw_sensitivity_bounds` and never under-covers (THEORY.md, Prop 1).
+
+    The reusable kernel of the stratified cumulative-reward MSM; the experiment supplies the
+    stratum labels (e.g. initial state) and nominal propensities.
+    """
+    if gamma < 1.0:
+        raise ValueError("gamma must be >= 1")
+    v = np.asarray(values, dtype=float)
+    e = np.asarray(propensities, dtype=float)
+    s = np.asarray(strata)
+    lower = upper = 0.0
+    for label, w in target_weights.items():
+        mask = s == label
+        if not bool(mask.any()):
+            continue
+        iv = ipw_sensitivity_bounds(v[mask].tolist(), e[mask].tolist(), gamma=gamma)
+        lower += w * iv.lower
+        upper += w * iv.upper
+    return Interval(lower, upper)
