@@ -3,11 +3,23 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from typing import NamedTuple
 
 import numpy as np
 
 from causalrl.data.dataset import ConfoundedTrajectoryDataset
 from causalrl.exceptions import NotIdentifiableError
+
+
+class Interval(NamedTuple):
+    """A partial-identification interval ``[lower, upper]``.
+
+    Tuple-compatible: ``lo, hi = interval`` and ``interval[0]`` work, so existing
+    tuple-consuming callers are unaffected; ``.lower`` / ``.upper`` read more clearly.
+    """
+
+    lower: float
+    upper: float
 
 
 def causal_q_bounds(
@@ -16,7 +28,7 @@ def causal_q_bounds(
     action: int,
     *,
     require_identified: bool = False,
-) -> tuple[float, float]:
+) -> Interval:
     """Manski natural bounds on E[return | do(action), state] from confounded logs.
 
     For a return in [0, 1] with empirical mean m = E[R|s,a] and propensity p = P(a|s):
@@ -35,7 +47,7 @@ def causal_q_bounds(
             f"in this state (vacuous bound [0, 1])",
             witness=(state, action),
         )
-    return lower, upper
+    return Interval(lower, upper)
 
 
 def manski_bounds(
@@ -45,7 +57,7 @@ def manski_bounds(
     outcome: str,
     action: int,
     outcome_range: tuple[float, float] = (0.0, 1.0),
-) -> tuple[float, float]:
+) -> Interval:
     """Sharp no-assumptions bounds on ``E[outcome | do(treatment = action)]`` (Manski 1990).
 
     From observational ``data`` (integer ``treatment`` column, numeric ``outcome`` in
@@ -61,7 +73,7 @@ def manski_bounds(
     mask = x == action
     p = float(mask.mean())
     observed = float(y[mask].mean()) if bool(mask.any()) else 0.0
-    return observed * p + y_min * (1.0 - p), observed * p + y_max * (1.0 - p)
+    return Interval(observed * p + y_min * (1.0 - p), observed * p + y_max * (1.0 - p))
 
 
 def _fractional_extreme(y: np.ndarray, lo: np.ndarray, hi: np.ndarray, *, maximize: bool) -> float:
@@ -86,7 +98,7 @@ def _fractional_extreme(y: np.ndarray, lo: np.ndarray, hi: np.ndarray, *, maximi
 
 def ipw_sensitivity_bounds(
     outcomes: Sequence[float], propensities: Sequence[float], *, gamma: float
-) -> tuple[float, float]:
+) -> Interval:
     """Marginal-sensitivity-model bounds on the treated counterfactual mean ``E[Y(1)]``.
 
     ``outcomes`` and ``propensities`` are the treated units' outcomes ``Y_i`` and *nominal*
@@ -108,7 +120,7 @@ def ipw_sensitivity_bounds(
     odds = (1.0 - e) / e
     lo_w = 1.0 + odds / gamma
     hi_w = 1.0 + odds * gamma
-    return (
+    return Interval(
         _fractional_extreme(y, lo_w, hi_w, maximize=False),
         _fractional_extreme(y, lo_w, hi_w, maximize=True),
     )

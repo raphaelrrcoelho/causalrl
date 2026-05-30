@@ -44,6 +44,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "Estimand": ("causalrl.identification.id_algorithm", "Estimand"),
     "FixedSetThompsonSampling": ("causalrl.agents.scbandit", "FixedSetThompsonSampling"),
     "FunctionalMechanism": ("causalrl.scm.mechanisms", "FunctionalMechanism"),
+    "Interval": ("causalrl.identification.bounds", "Interval"),
     "LinearGaussianMechanism": ("causalrl.scm.mechanisms", "LinearGaussianMechanism"),
     "MABUCEnv": ("causalrl.envs.suite.mabuc", "MABUCEnv"),
     "Mechanism": ("causalrl.scm.mechanisms", "Mechanism"),
