@@ -24,6 +24,7 @@ if TYPE_CHECKING:  # for type checkers / IDEs only; not executed at runtime
         NeuralMechanism,
     )
     from causalrl.scm.scm import ExogenousPosterior, StructuralCausalModel
+    from causalrl.scm.unrolled import build_unrolled_scm
 
 # name -> (submodule, attribute); resolved on first attribute access.
 _LAZY: dict[str, tuple[str, str]] = {

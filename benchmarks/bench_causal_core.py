@@ -10,12 +10,12 @@ Guards two performance claims behind the 2026-05-30 API/perf pass:
 
 Asserts correctness + a conservative speedup floor so a regression fails the bench.
 """
+
 from __future__ import annotations
 
 import time
 
 import numpy as np
-import torch
 from torch.distributions import Normal
 
 from causalrl.identification.bounds import ipw_sensitivity_bounds
@@ -86,7 +86,10 @@ def _linprog_msm_reference(y: np.ndarray, e: np.ndarray, gamma: float) -> tuple[
         # Charnes-Cooper: w_i = lo_i*t + s_i, s_i in [0, (hi_i-lo_i)*t], Σ w_i = 1.
         # Variables: [s_0..s_{n-1}, t]. Maximize Σ s_i y_i + t Σ lo_i y_i.
         c_y = y.copy()
-        c = np.concatenate([(-c_y if maximize else c_y), [(-(lo * y).sum() if maximize else (lo * y).sum())]])
+        head = -c_y if maximize else c_y
+        lo_y = (lo * y).sum()
+        tail = -lo_y if maximize else lo_y
+        c = np.concatenate([head, [tail]])
         # Σ w_i = 1  ->  Σ s_i + t Σ lo_i = 1
         a_eq = np.concatenate([np.ones(n), [lo.sum()]]).reshape(1, -1)
         b_eq = np.array([1.0])

@@ -16,6 +16,7 @@ helper stays completely model-agnostic: no domain dynamics live in the library.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from typing import ClassVar
 
 import torch
 from torch.distributions import Distribution
@@ -40,11 +41,11 @@ class _Degenerate(Distribution):
     without injecting spurious randomness when the transition is deterministic.
     """
 
-    arg_constraints: dict[str, object] = {}
+    arg_constraints: ClassVar[dict[str, object]] = {}  # type: ignore
     has_rsample = False
 
-    def sample(self, sample_shape: torch.Size = torch.Size()) -> Tensor:  # noqa: B008
-        return torch.zeros(sample_shape)
+    def sample(self, sample_shape: Sequence[int] = ()) -> Tensor:
+        return torch.zeros(tuple(sample_shape))  # type: ignore[reportPrivateImportUsage]
 
 
 def build_unrolled_scm(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 import torch
 from torch.distributions import Distribution
@@ -26,7 +26,10 @@ def _broadcast_value(value: object, n: int) -> Tensor:
     """
     if isinstance(value, (int, float, bool)):
         return torch.full((n,), float(value))  # type: ignore[reportPrivateImportUsage]
-    t = (value if isinstance(value, Tensor) else torch.as_tensor(value)).float()
+    if isinstance(value, Tensor):  # noqa: SIM108
+        t = value.float()
+    else:
+        t = torch.as_tensor(value).float()  # type: ignore[reportPrivateImportUsage]
     if t.numel() == 1:
         return t.reshape(()).expand(n).clone()
     if t.shape[0] != n:
@@ -52,10 +55,10 @@ class ExogenousPosterior:
     def __len__(self) -> int:
         return int(next(iter(self.noise.values())).shape[0]) if self.noise else 0
 
-    def predict(self, *, do: dict[str, Value] | None = None) -> dict[str, Tensor]:
+    def predict(self, *, do: Mapping[str, Value] | None = None) -> dict[str, Tensor]:
         """Evaluate the (optionally do-mutilated) model on the retained exogenous units."""
         model = self._scm.do(do) if do else self._scm
-        return model._evaluate(self.noise)
+        return model._evaluate(self.noise)  # type: ignore[reportPrivateUsage]
 
 
 class StructuralCausalModel:
@@ -125,7 +128,7 @@ class StructuralCausalModel:
             values[node] = mech(parent_values, noise[node])
         return values
 
-    def do(self, interventions: dict[str, Value]) -> StructuralCausalModel:
+    def do(self, interventions: Mapping[str, Value]) -> StructuralCausalModel:
         """Layer 2: return the mutilated SCM under do(interventions). Original is unchanged."""
         graph = self.graph
         mechanisms = dict(self.mechanisms)
@@ -151,7 +154,7 @@ class StructuralCausalModel:
         self,
         evidence: dict[str, float] | None = None,
         *,
-        known: dict[str, Value] | None = None,
+        known: Mapping[str, Value] | None = None,
         n: int = 20_000,
         seed: int | None = None,
         atol: float = 1e-6,
@@ -198,7 +201,7 @@ class StructuralCausalModel:
     def counterfactual(
         self,
         evidence: dict[str, float],
-        interventions: dict[str, Value],
+        interventions: Mapping[str, Value],
         n: int,
         *,
         seed: int | None = None,

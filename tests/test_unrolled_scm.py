@@ -8,7 +8,7 @@ from torch.distributions import Bernoulli, Normal
 from causalrl.scm.unrolled import build_unrolled_scm
 
 
-def _gravity_transition(state, action, latents, noise):  # noqa: ANN001, ARG001
+def _gravity_transition(state, action, latents, noise):
     """x_{t+1} = x_t + (+1 if F else -1). Deterministic; ignores action and noise."""
     f = latents["F"]
     step = torch.where(f > 0.5, torch.ones_like(state), -torch.ones_like(state))
@@ -47,7 +47,10 @@ def test_unrolled_per_sample_vector_latent():
 def test_horizon_must_be_positive():
     try:
         build_unrolled_scm(
-            _gravity_transition, horizon=0, state0_dist=Normal(0.0, 1.0), latents={"F": Bernoulli(0.5)}
+            _gravity_transition,
+            horizon=0,
+            state0_dist=Normal(0.0, 1.0),
+            latents={"F": Bernoulli(0.5)},
         )
     except ValueError:
         return
@@ -56,9 +59,7 @@ def test_horizon_must_be_positive():
 
 def test_requires_at_least_one_latent():
     try:
-        build_unrolled_scm(
-            _gravity_transition, horizon=2, state0_dist=Normal(0.0, 1.0), latents={}
-        )
+        build_unrolled_scm(_gravity_transition, horizon=2, state0_dist=Normal(0.0, 1.0), latents={})
     except ValueError:
         return
     raise AssertionError("expected ValueError for empty latents")
