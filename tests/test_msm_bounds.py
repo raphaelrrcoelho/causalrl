@@ -6,6 +6,7 @@ from causalrl.identification.bounds import (
     Interval,
     ipw_sensitivity_bounds,
     manski_bounds,
+    msm_contribution_bounds,
     msm_per_step_bounds,
     msm_policy_value_bounds,
     msm_stratified_bounds,
@@ -98,3 +99,42 @@ def test_stratified_never_wider_than_pooled():
     pooled = ipw_sensitivity_bounds(v.tolist(), p.tolist(), gamma=2.0)
     assert isinstance(strat, Interval)
     assert (strat.upper - strat.lower) <= (pooled.upper - pooled.lower) + 1e-9
+
+
+def _disjoint_arms(seed: int, n: int = 300):
+    rng = np.random.default_rng(seed)
+    y = rng.uniform(0, 1, size=n)
+    e0 = rng.uniform(0.2, 0.8, size=n)
+    f = rng.integers(0, 2, size=n).astype(float)
+    return y.tolist(), e0.tolist(), f.tolist(), (1.0 - f).tolist()  # one-hot on / off, disjoint
+
+
+def test_contribution_gamma1_is_point_difference():
+    # At gamma=1 the contribution interval collapses to the difference of the two arms'
+    # self-normalised IPS points.
+    y, e0, on, off = _disjoint_arms(7)
+    on_iv = msm_policy_value_bounds(y, e0, on, gamma=1.0)
+    off_iv = msm_policy_value_bounds(y, e0, off, gamma=1.0)
+    iv = msm_contribution_bounds(y, e0, on, off, gamma=1.0)
+    assert iv.upper - iv.lower < 1e-9
+    assert abs(iv.lower - (on_iv.lower - off_iv.lower)) < 1e-9
+
+
+def test_contribution_widens_and_brackets_point():
+    y, e0, on, off = _disjoint_arms(8)
+    d_hat = msm_contribution_bounds(y, e0, on, off, gamma=1.0).lower
+    iv15 = msm_contribution_bounds(y, e0, on, off, gamma=1.5)
+    iv30 = msm_contribution_bounds(y, e0, on, off, gamma=3.0)
+    assert iv15.lower <= d_hat <= iv15.upper  # brackets the point estimate
+    assert (iv30.upper - iv30.lower) >= (iv15.upper - iv15.lower)  # monotone in gamma
+
+
+def test_contribution_equals_arm_interval_difference():
+    # Definitional: the contribution interval IS [on.lo - off.hi, on.hi - off.lo].
+    y, e0, on, off = _disjoint_arms(9)
+    a = msm_policy_value_bounds(y, e0, on, gamma=2.0)
+    b = msm_policy_value_bounds(y, e0, off, gamma=2.0)
+    iv = msm_contribution_bounds(y, e0, on, off, gamma=2.0)
+    assert isinstance(iv, Interval)
+    assert abs(iv.lower - (a.lower - b.upper)) < 1e-12
+    assert abs(iv.upper - (a.upper - b.lower)) < 1e-12

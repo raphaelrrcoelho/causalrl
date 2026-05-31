@@ -165,6 +165,41 @@ def msm_policy_value_bounds(
     )
 
 
+def msm_contribution_bounds(
+    outcomes: Sequence[float],
+    logging_propensities: Sequence[float],
+    target_propensities_on: Sequence[float],
+    target_propensities_off: Sequence[float],
+    *,
+    gamma: float,
+) -> Interval:
+    """Marginal-sensitivity-model bounds on a *contribution* ``V(pi_on) - V(pi_off)``.
+
+    The off-policy value DIFFERENCE between two target rules, estimated from confounded logs
+    under Tan's marginal sensitivity model — e.g. a per-agent credit or per-factor contribution
+    ``E[Y_{do(F=1)}] - E[Y_{do(F=0)}]``. Each arm is bounded by :func:`msm_policy_value_bounds`
+    (``target_propensities_on`` = ``pi_on(a_i | x_i)`` at the logged action, ``..._off`` likewise,
+    shared nominal ``e0``) and the contribution interval is the difference
+
+        [ on.lower - off.upper ,  on.upper - off.lower ].
+
+    Always *valid* (it contains the true difference for any targets); **sharp** when the two
+    target supports are disjoint — e.g. the deterministic one-hot arms ``1{F=1}`` / ``1{F=0}``
+    that partition the logged units, so the two arms' weight perturbations are independent — and
+    *conservative* otherwise. Collapses to the difference of the two self-normalised IPS points at
+    ``gamma = 1`` and widens monotonically with ``gamma``.
+    """
+    if gamma < 1.0:
+        raise ValueError("gamma must be >= 1")
+    on = msm_policy_value_bounds(
+        outcomes, logging_propensities, target_propensities_on, gamma=gamma
+    )
+    off = msm_policy_value_bounds(
+        outcomes, logging_propensities, target_propensities_off, gamma=gamma
+    )
+    return Interval(on.lower - off.upper, on.upper - off.lower)
+
+
 def msm_per_step_bounds(
     rewards_by_step: Sequence[Sequence[float]],
     propensities_by_step: Sequence[Sequence[float]],

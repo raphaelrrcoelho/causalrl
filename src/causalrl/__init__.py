@@ -78,6 +78,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "causal_q_bounds": ("causalrl.identification.bounds", "causal_q_bounds"),
     "ipw_sensitivity_bounds": ("causalrl.identification.bounds", "ipw_sensitivity_bounds"),
     "msm_policy_value_bounds": ("causalrl.identification.bounds", "msm_policy_value_bounds"),
+    "msm_contribution_bounds": ("causalrl.identification.bounds", "msm_contribution_bounds"),
     "manski_bounds": ("causalrl.identification.bounds", "manski_bounds"),
     "conditional_mutual_information": ("causalrl.discovery", "conditional_mutual_information"),
     "counterfactual_expectation": (
@@ -247,6 +248,7 @@ __all__ = [
     "manski_bounds",
     "minimal_intervention_sets",
     "mixed_nash_equilibria",
+    "msm_contribution_bounds",
     "msm_per_step_bounds",
     "msm_policy_value_bounds",
     "msm_stratified_bounds",
