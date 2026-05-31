@@ -5,10 +5,10 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.99.3] - 2026-05-31
 
-Causal-core API + performance pass (pre-1.0; contains breaking changes — warrants a minor
-version bump at next release).
+Causal-core API + performance pass (pre-1.0). The partial-identification bounds now return a
+tuple-compatible `Interval`; everything else is additive or backward-compatible.
 
 ### Added
 - `causalrl.scm.ExogenousPosterior` and `StructuralCausalModel.abduct(evidence=None, *, known=None, ...)`:
@@ -24,6 +24,14 @@ version bump at next release).
   bounds on a target policy's value `V(π_t) = E[(π_t/e0) Y]` (self-normalised IPS under Tan's MSM
   on the logging propensity; Kallus–Zhou 2020). The off-policy generalisation of
   `ipw_sensitivity_bounds`, to which it reduces exactly for a constant target. Exported at top level.
+- `causalrl.scm.build_unrolled_scm` — build a time-unrolled (sequential) SCM over a fixed horizon
+  from a caller-supplied transition, enabling sequential counterfactuals (abduct → do → re-roll the
+  trajectory under the same actions). Exported at top level.
+- `causalrl.scm.LinearMechanism` — a linear (coefficient + bias) structural mechanism.
+- Top-level re-exports from `causalrl`: `Interval`, the MSM kernels (`ipw_sensitivity_bounds`,
+  `msm_policy_value_bounds`, `msm_per_step_bounds`, `msm_stratified_bounds`), `ExogenousPosterior`,
+  and `build_unrolled_scm` are now importable directly from the package root; `causalrl.scm`
+  resolves its torch-backed names lazily.
 - `benchmarks/bench_causal_core.py` — guards the exact-counterfactual and closed-form-MSM
   fast paths (correctness to 1e-6 vs a scipy-LP reference; ≥5× speedup floor; observed 874×).
 
@@ -33,6 +41,10 @@ version bump at next release).
   callers are unaffected; only `isinstance(x, tuple)`-strict or type-annotation-strict code differs.
 - `StructuralCausalModel.counterfactual()` is now thin sugar over `abduct()` + `predict()`
   (behavior, signature, and rejection semantics unchanged).
+- `do()`, `abduct(known=...)`, `counterfactual()`, and `predict(do=...)` accept **per-sample vector
+  values** (leading dimension = unit count) in addition to scalars (scalars still broadcast).
+- Intervention / known-noise mappings are typed `Mapping[str, Value]` (covariant) rather than
+  `dict[str, Value]`, so `dict[str, float]` callers type-check; runtime behavior is unchanged.
 
 ## [0.99.2] - 2026-05-29
 

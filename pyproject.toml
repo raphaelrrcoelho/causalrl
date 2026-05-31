@@ -1,6 +1,6 @@
 [project]
 name = "causalrl"
-version = "0.99.2"
+version = "0.99.3"
 description = "Causal reinforcement learning: structural causal models meet RL."
 readme = "README.md"
 requires-python = ">=3.11"
