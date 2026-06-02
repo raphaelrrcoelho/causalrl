@@ -44,6 +44,10 @@ Changelog = "https://github.com/raphaelrrcoelho/causalrl/blob/main/CHANGELOG.md"
 torch = [
     "torch>=2.5",
 ]
+examples = [
+    "torch>=2.5",
+    "stable-baselines3>=2.3",
+]
 docs = [
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
