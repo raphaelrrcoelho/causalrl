@@ -125,12 +125,25 @@ class CGFAAdvantageCallback(BaseCallback):
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
+def main(total_timesteps: int = 100, eval_steps: int = 20, n_mc: int = 500) -> None:
+    """Run the CGFA-PPO wiring demonstration.
+
+    Parameters
+    ----------
+    total_timesteps:
+        Number of environment steps passed to ``model.learn``.  Set to a very small value
+        (e.g. 16) for smoke tests; 100 is sufficient for illustration.
+    eval_steps:
+        Number of evaluation steps taken after training.
+    n_mc:
+        Monte-Carlo samples used to estimate arm values in the bandit env.  Reduce for
+        faster construction in smoke tests.
+    """
     print("=== CGFA-PPO wiring example ===")
     print(f"stable-baselines3 version: {sb3.__version__}")
 
     # 1. Build the causal env wrapped with CausalEnvWrapper so we get reward_parents.
-    inner_env = make_confounded_chain_env(n_mc=500, seed=0)
+    inner_env = make_confounded_chain_env(n_mc=n_mc, seed=0)
     env = CausalEnvWrapper(inner_env, reward_node="Y")
 
     print(f"Reward node: {env.reward_node}")
@@ -157,20 +170,29 @@ def main() -> None:
 
     # 4. Train PPO with the CGFA callback (short run — for illustration only).
     callback = CGFAAdvantageCallback(config, verbose=1)
-    model = sb3.PPO("MultiInputPolicy", env, verbose=0, n_steps=32, batch_size=16, n_epochs=2)
-    print("\nTraining PPO with CGFAAdvantageCallback (100 steps for illustration)...")
-    model.learn(total_timesteps=100, callback=callback)
+    n_steps = max(16, min(32, total_timesteps))
+    batch_size = max(8, n_steps // 2)
+    model = sb3.PPO(
+        "MultiInputPolicy",
+        env,
+        verbose=0,
+        n_steps=n_steps,
+        batch_size=batch_size,
+        n_epochs=2,
+    )
+    print(f"\nTraining PPO with CGFAAdvantageCallback ({total_timesteps} steps)...")
+    model.learn(total_timesteps=total_timesteps, callback=callback)
 
     # 5. Evaluate.
     obs, _ = env.reset()
     total_reward = 0.0
-    for _ in range(20):
+    for _ in range(eval_steps):
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, terminated, truncated, _ = env.step(int(action))
         total_reward += float(reward)
         if terminated or truncated:
             obs, _ = env.reset()
-    print(f"\nMean reward over 20 steps (random policy warmup): {total_reward / 20:.4f}")
+    print(f"\nMean reward over {eval_steps} steps: {total_reward / eval_steps:.4f}")
 
     # 6. Show the do-intervention handle exposed by the wrapper.
     mutilated_scm = env.intervene("X1", 1.0)

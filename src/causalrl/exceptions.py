@@ -23,3 +23,13 @@ class RealizabilityError(CausalRLError):
 
 class UnverifiedAssumptionError(CausalRLError):
     """A method's claimed guarantee requires an assumption the caller has not declared."""
+
+
+class CausalInterfaceUnavailableError(CausalRLError):
+    """The causal interface is not available on this wrapper.
+
+    Raised when a method that requires a live SCM and a named reward node is called
+    on a :class:`~causalrl.envs.wrapper.CausalEnvWrapper` that was constructed without
+    them (e.g. wrapping a :class:`~causalrl.envs.base.ConfoundedMDP` that carries
+    ``scm=None``, or without passing a ``reward_node``).
+    """

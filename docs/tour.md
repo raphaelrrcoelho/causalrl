@@ -238,6 +238,56 @@ print(pure_nash_equilibria(matching_pennies()))    # [] — only a mixed equilib
 Faithful to Koller & Milch (multi-agent influence diagrams, 2003) and Hammond et al.,
 *Reasoning about Causality in Games* (2023).
 
+## Gymnasium wrapper and CGFA-PPO credit assignment
+
+`CausalEnvWrapper` exposes the causal structure of any SCM-backed environment as a
+standard Gymnasium interface, and enables **persistent interventional rollouts** via
+`set_intervention`.  `factored_advantage` is the framework-agnostic causal primitive that
+decomposes the PPO advantage along the SCM parents of the reward (arXiv:2605.06066).
+
+After `import causalrl`, all demo environments are also available via `gymnasium.make`.
+
+```python
+import gymnasium
+import causalrl                                      # triggers registration
+from causalrl import CausalEnvWrapper, FactoredAdvantageConfig, factored_advantage
+from causalrl.envs.suite.scbandit import make_confounded_chain_env
+import numpy as np
+
+# --- Wrap and inspect the causal structure ---
+inner = make_confounded_chain_env(seed=0)
+env = CausalEnvWrapper(inner, reward_node="Y")
+
+print(env.has_causal_interface)       # True
+print(env.reward_parents)             # ['X3', 'U'] — SCM parents of Y
+
+# --- Pure SCM query (does not affect the running episode) ---
+mutilated = env.do({"X3": 1.0})       # new StructuralCausalModel under do(X3=1)
+samples = mutilated.see(200, seed=0)
+print(float(samples["Y"].mean()))     # ~0.5 (breaks X3==U coupling)
+
+# --- Persistent interventional rollout ---
+env.set_intervention({"X3": 1.0})    # subsequent reset/step sample from do(X3=1)
+obs, info = env.reset(seed=0)
+obs, r, terminated, truncated, _ = env.step(0)
+print(r)                              # ~0.5 under do(X3=1)
+env.clear_intervention()             # restore original SCM
+
+# --- CGFA-PPO causal primitive ---
+config = FactoredAdvantageConfig(factor_nodes=env.reward_parents, aggregation="sum")
+K, T = len(config.factor_nodes), 8
+V = np.random.default_rng(0).standard_normal((T, K))
+b = np.random.default_rng(1).standard_normal(T)
+adv = factored_advantage(V, b, config=config)   # shape (T,)
+
+# --- gym.make and vectorized envs ---
+env2 = gymnasium.make("causalrl/StructuralCausalBandit-v0", n_mc=200)
+vec = gymnasium.make_vec("causalrl/StructuralCausalBandit-v0", num_envs=4)
+```
+
+For a full SB3 integration example (requires `pip install "causalrl[examples]"`), see
+`examples/cgfa_ppo_example.py`.
+
 ## Identification machinery
 
 Beneath the task slices is a conservative identification layer:

@@ -146,6 +146,34 @@
 
 ::: causalrl.games.is_nash_equilibrium
 
+## Causal Gymnasium Wrapper
+
+::: causalrl.envs.wrapper.CausalEnvWrapper
+
+## Causal Graph-Factored Advantage (CGFA)
+
+::: causalrl.agents.factored_advantage.factored_advantage
+
+::: causalrl.agents.factored_advantage.FactoredAdvantageConfig
+
+## Gymnasium Env Registration
+
+::: causalrl.envs.registration.register_envs
+
+## Exceptions
+
+::: causalrl.exceptions.CausalRLError
+
+::: causalrl.exceptions.CausalInterfaceUnavailableError
+
+::: causalrl.exceptions.NotIdentifiableError
+
+::: causalrl.exceptions.CausalGraphError
+
+::: causalrl.exceptions.RealizabilityError
+
+::: causalrl.exceptions.UnverifiedAssumptionError
+
 ## Partial-Identification And OPE Bounds
 
 ::: causalrl.identification.bounds.manski_bounds

@@ -11,7 +11,18 @@ from typing import cast as _cast
 
 __version__ = _pkg_version("causalrl")
 
+# Register demo environments in the Gymnasium registry at import time.
+# This is cheap (just dict inserts) and idempotent.
+from causalrl.envs.registration import register_envs as _register_envs
+
+_register_envs()
+
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "CausalInterfaceUnavailableError": (
+        "causalrl.exceptions",
+        "CausalInterfaceUnavailableError",
+    ),
+    "register_envs": ("causalrl.envs.registration", "register_envs"),
     "ExogenousPosterior": ("causalrl.scm.scm", "ExogenousPosterior"),
     "build_unrolled_scm": ("causalrl.scm.unrolled", "build_unrolled_scm"),
     "DOVI": ("causalrl.agents.dovi", "DOVI"),
@@ -177,6 +188,7 @@ __all__ = [
     "CausalGraph",
     "CausalGraphError",
     "CausalImitator",
+    "CausalInterfaceUnavailableError",
     "CausalRLError",
     "CausalThompsonSampling",
     "ConfoundedGridworld",
@@ -264,6 +276,7 @@ __all__ = [
     "pomis",
     "pure_nash_equilibria",
     "q_learning",
+    "register_envs",
     "report_to_dict",
     "requires_experiment",
     "run_confounded_chain_benchmark",

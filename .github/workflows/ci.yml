@@ -51,6 +51,8 @@ jobs:
         with:
           python-version: "3.11"
       - name: Sync dependencies
-        run: uv sync --extra dev
+        run: uv sync --extra dev --extra examples
       - name: Execute example notebooks
         run: uv run pytest --nbmake --no-cov examples/
+      - name: Smoke-test CGFA-PPO example
+        run: uv run python examples/cgfa_ppo_example.py

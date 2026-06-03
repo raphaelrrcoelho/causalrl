@@ -5,6 +5,31 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `CausalEnvWrapper` (Gymnasium causal wrapper): relaxed to accept envs with `scm=None`
+  or without a `reward_node`; construction now succeeds in pass-through mode.  New
+  `has_causal_interface` property reports availability.  `reward_parents`, `do`,
+  `intervene`, and `set_intervention` raise the new
+  `CausalInterfaceUnavailableError` (with an informative message) when the interface is
+  disabled, rather than failing at construction.
+- **Persistent interventional rollouts** on `CausalEnvWrapper`: `set_intervention(...)`,
+  `clear_intervention()`, and the `active_interventions` property.  When an intervention
+  is active, `reset` and `step` temporarily swap the wrapped env's live SCM to the
+  pre-computed mutilated SCM (via `try/finally` that always restores the original).
+- `factored_advantage` + `FactoredAdvantageConfig` (CGFA-PPO causal primitive,
+  arXiv:2605.06066): decompose the advantage along the SCM parents of the return node.
+  Framework-agnostic pure-NumPy primitive.
+- Gymnasium env registration (`register_envs`): calling `import causalrl` now registers
+  `causalrl/StructuralCausalBandit-v0` and `causalrl/FrontdoorBandit-v0` in the Gymnasium
+  registry, enabling `gymnasium.make("causalrl/StructuralCausalBandit-v0")` and
+  `gymnasium.make_vec(...)` vectorisation out of the box.  `register_envs` is exported at
+  top level and is idempotent.
+- `CausalInterfaceUnavailableError` exported at top level.
+- `[examples]` optional extra (`pip install "causalrl[examples]"`): installs
+  `stable-baselines3` and `torch` for the CGFA-PPO wiring example.
+
 ## [0.99.3] - 2026-05-31
 
 Causal-core API + performance pass (pre-1.0). The partial-identification bounds now return a
