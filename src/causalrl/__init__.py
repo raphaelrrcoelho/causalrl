@@ -96,6 +96,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ipw_sensitivity_bounds": ("causalrl.identification.bounds", "ipw_sensitivity_bounds"),
     "msm_policy_value_bounds": ("causalrl.identification.bounds", "msm_policy_value_bounds"),
     "msm_contribution_bounds": ("causalrl.identification.bounds", "msm_contribution_bounds"),
+    "tipping_gamma": ("causalrl.identification.bounds", "tipping_gamma"),
     "manski_bounds": ("causalrl.identification.bounds", "manski_bounds"),
     "conditional_mutual_information": ("causalrl.discovery", "conditional_mutual_information"),
     "counterfactual_expectation": (
@@ -282,6 +283,7 @@ __all__ = [
     "run_confounded_chain_benchmark",
     "run_episodes",
     "run_frontdoor_benchmark",
+    "tipping_gamma",
     "transport_estimand",
     "transport_formula",
     "transported_effect",

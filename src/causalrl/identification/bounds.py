@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import NamedTuple
 
 import numpy as np
@@ -263,3 +263,44 @@ def msm_stratified_bounds(
         lower += w * iv.lower
         upper += w * iv.upper
     return Interval(lower, upper)
+
+
+def tipping_gamma(
+    bound: Callable[[float], Interval],
+    *,
+    reference: float = 0.0,
+    gamma_max: float = 10.0,
+    tol: float = 1e-3,
+) -> float | None:
+    """Sensitivity tipping point: the smallest ``gamma >= 1`` at which the partial-ID interval
+    ``bound(gamma)`` first contains ``reference``.
+
+    This is the causal-sensitivity *reporting* companion to the MSM bound kernels: it answers
+    "how strong would unmeasured confounding have to be (on the MSM/Rosenbaum odds-ratio scale)
+    to overturn the conclusion that the estimand lies strictly on one side of ``reference``?".
+    A larger tipping ``gamma`` ⇒ a more robust conclusion — the odds-ratio-scale analog of the
+    E-value (VanderWeele & Ding, *Ann. Intern. Med.* 2017) and of Rosenbaum's ``Gamma``.
+
+    ``bound`` maps a sensitivity level ``gamma`` to an :class:`Interval`; it must collapse to a
+    point at ``gamma = 1`` and widen monotonically with ``gamma`` (as every MSM kernel here does —
+    e.g. ``lambda g: msm_contribution_bounds(y, e0, on, off, gamma=g)``). Returns ``1.0`` if the
+    point already sits on ``reference``, and ``None`` if the interval never reaches ``reference``
+    by ``gamma_max`` (the conclusion is robust to confounding at least that strong).
+    """
+    if gamma_max < 1.0:
+        raise ValueError("gamma_max must be >= 1")
+    eps = 1e-12
+    at1 = bound(1.0)
+    if at1.lower - eps <= reference <= at1.upper + eps:
+        return 1.0
+    if not (bound(gamma_max).lower - eps <= reference <= bound(gamma_max).upper + eps):
+        return None  # robust: never reaches `reference` within [1, gamma_max]
+    lo, hi = 1.0, gamma_max
+    while hi - lo > tol:
+        mid = 0.5 * (lo + hi)
+        iv = bound(mid)
+        if iv.lower - eps <= reference <= iv.upper + eps:
+            hi = mid
+        else:
+            lo = mid
+    return float(hi)

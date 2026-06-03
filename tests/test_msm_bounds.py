@@ -10,6 +10,7 @@ from causalrl.identification.bounds import (
     msm_per_step_bounds,
     msm_policy_value_bounds,
     msm_stratified_bounds,
+    tipping_gamma,
 )
 
 
@@ -138,3 +139,36 @@ def test_contribution_equals_arm_interval_difference():
     assert isinstance(iv, Interval)
     assert abs(iv.lower - (a.lower - b.upper)) < 1e-12
     assert abs(iv.upper - (a.upper - b.lower)) < 1e-12
+
+
+def test_tipping_gamma_finds_crossing():
+    # Synthetic monotone-widening bound: point +0.5 at g=1, each endpoint moves 0.3*(g-1).
+    def bound(g):
+        return Interval(0.5 - 0.3 * (g - 1), 0.5 + 0.3 * (g - 1))
+
+    gt = tipping_gamma(bound, reference=0.0, gamma_max=10.0)
+    assert gt is not None and abs(gt - (1 + 0.5 / 0.3)) < 0.01  # lower hits 0 at g = 1 + 0.5/0.3
+
+
+def test_tipping_gamma_none_when_robust():
+    def bound(g):
+        return Interval(0.5 - 0.01 * (g - 1), 0.5 + 0.01 * (g - 1))  # barely widens
+
+    assert tipping_gamma(bound, reference=0.0, gamma_max=3.0) is None  # never reaches 0 by g=3
+
+
+def test_tipping_gamma_one_when_already_at_reference():
+    def bound(g):
+        return Interval(-0.1 - (g - 1), 0.1 + (g - 1))  # already contains 0 at g=1
+
+    assert tipping_gamma(bound, reference=0.0) == 1.0
+
+
+def test_tipping_gamma_on_real_msm_contribution():
+    y, e0, on, off = _disjoint_arms(13)
+
+    def bound(g):
+        return msm_contribution_bounds(y, e0, on, off, gamma=g)
+
+    gt = tipping_gamma(bound, reference=0.0, gamma_max=20.0)
+    assert gt is None or (isinstance(gt, float) and gt >= 1.0)
