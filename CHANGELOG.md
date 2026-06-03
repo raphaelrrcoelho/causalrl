@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.99.5] - 2026-06-03
+
+Causal-sensitivity reporting. Additive, backward-compatible public API.
+
+### Added
+- `causalrl.tipping_gamma` — the sensitivity tipping point: the smallest marginal-sensitivity-model
+  `gamma >= 1` at which a partial-ID bound first contains a reference value (default 0) — i.e. how
+  strong unobserved confounding must be to overturn a sign / decision. The odds-ratio-scale analog
+  of the E-value (VanderWeele & Ding, 2017) / Rosenbaum's `Gamma`; takes any `gamma -> Interval`
+  callable (e.g. `msm_contribution_bounds`). Exported at top level.
+- `examples/sensitivity_bounds.py` — worked example: MSM contribution bounds + `tipping_gamma`.
+
 ## [0.99.4] - 2026-06-02
 
 Gymnasium conformance + CGFA-PPO primitive. Additive, backward-compatible public API.
