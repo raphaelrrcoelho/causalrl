@@ -5,7 +5,9 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.99.6] - 2026-06-03
+
+Transportability made operational for policies. Additive, backward-compatible public API.
 
 ### Added
 - `causalrl.transport_regret_certificate` + `TransportRegretCertificate` — the transport-regret
