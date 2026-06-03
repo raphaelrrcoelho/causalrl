@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `causalrl.transport_regret_certificate` + `TransportRegretCertificate` — the transport-regret
+  certificate: turns the transport engine's decision (`is_transportable_effect` /
+  `transport_formula` on a `SelectionDiagram`) into an operational guarantee for a specific
+  policy across the domain shift — a computable `Interval(0, span * mu)` upper bound on the
+  policy's aggregate transfer regret, the selection-marked witness the policy must not trust
+  off-distribution, and a vacuity check. Pure composition of existing engine outputs (no new
+  identification theory; inherits `transport.py`'s conservatism).
+- `causalrl.decision_flip_rate` — `mu`, the rate at which a policy's *executed trajectory*
+  diverges under the do()-sweep on the selection-marked mechanism (the bound's valid scale: a
+  single early flip cascades, so the single-decision rate under-counts and must not scale the
+  bound).
+- `causalrl.decision_abstain_mask` — per-unit abstention rule: fire where the policy's immediate
+  greedy decision is not invariant to intervening on the witness.
+- Promoted on its pre-registered promote-on-pass rule from the G1 "Spurious CoinRun"
+  world-model-transfer arena (bound covered the realized transfer regret 10/10 seeds and stayed
+  non-vacuous; abstention recovered the confused set; negative control silent). All exported at
+  top level.
+
 ## [0.99.5] - 2026-06-03
 
 Causal-sensitivity reporting. Additive, backward-compatible public API.
