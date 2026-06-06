@@ -5,6 +5,40 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.99.7] - 2026-06-05
+
+The decision-pivotality layer: certify sign-robustness of a naive contrast under hidden
+confounding from the logging agent's information channel — the zeroth (cheapest) layer of the
+decision stack, ahead of the MSM bands and `tipping_gamma` abstention. Additive,
+backward-compatible public API.
+
+### Added
+- `causalrl.confounding_bias_bound` — upper bound on the omitted-variable bias
+  `|naive − Z-adjusted|` from logged rows: total-variation form (sharp — attained with equality
+  by an explicit two-point family at every parameter value) and the sharp mutual-information
+  form `sqrt(MI/2 · (M₁²/p + M₀²/(1−p)))` (optimal KL split across arms; numerically attained
+  to 0.999× in its small-MI working range). Strict positivity validation: strata missing an arm
+  raise — a logger that conditions hard on the hidden variable destroys overlap, which is
+  surfaced, not averaged away.
+- `causalrl.mi_flip_threshold` — the decision-pivotality threshold `MI_flip`: the channel
+  capacity (nats) below which NO hidden confounder can flip the naive sign. Combined with the
+  data-processing inequality `MI(F;Z) ≤ MI(I;Z)`, the *information structure of the
+  environment* (who can see what) caps the reachable confounding budget.
+- `causalrl.pivotality_certificate` + `PivotalityCertificate` — one-sided sign-robustness
+  certificate, two modes: measured-`Z` (post-hoc oracle/showdown data) and structural `mi_cap`
+  (certify from the information rules alone, no outcome model, no analyst-chosen sensitivity
+  parameter). One-sided by design: failure to certify is not evidence of a flip.
+- `causalrl.confounding_bias_per_step_bounds` — sequential per-step credits, each bounded by
+  its own per-step information channel; the average-budget (information) sibling of
+  `msm_per_step_bounds`' uniform-odds budgets. Carries the growing-channel property: later
+  decisions in imperfect-information play are systematically less protected.
+- Promoted on the portfolio's promote-on-pass rule after verification against measured ground
+  truth in three logged-game regimes (cheating logger / fair self-play / human play): the bound
+  held in all three, and the certificate called every regime correctly — including *certifying*
+  the fair self-play cell from its measured 7e-4-nat channel and correctly abstaining on the
+  human-play cell. Proofs, tightness/converse, and the sequential theorem are documented with
+  the research portfolio; the library ships the kernels and their tests.
+
 ## [0.99.6] - 2026-06-03
 
 Transportability made operational for policies. Additive, backward-compatible public API.
