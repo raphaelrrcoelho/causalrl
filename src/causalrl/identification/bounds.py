@@ -348,7 +348,11 @@ def confounding_bias_bound(
         raise ValueError("both arms must be present")
     p = float(f.mean())
     bins = np.unique(z)
-    m1, m0, pz, pz1, pz0 = [], [], [], [], []
+    m1: list[float] = []
+    m0: list[float] = []
+    pz: list[float] = []
+    pz1: list[float] = []
+    pz0: list[float] = []
     for b in bins:
         in_b = z == b
         if not ((in_b & f).any() and (in_b & ~f).any()):
@@ -363,7 +367,9 @@ def confounding_bias_bound(
         pz0.append(float((in_b & ~f).sum() / (~f).sum()))
     span1 = max(m1) - min(m1)
     span0 = max(m0) - min(m0)
-    pz_a, pz1_a, pz0_a = np.array(pz), np.array(pz1), np.array(pz0)
+    pz_a = np.asarray(pz, dtype=float)
+    pz1_a = np.asarray(pz1, dtype=float)
+    pz0_a = np.asarray(pz0, dtype=float)
     if form == "tv":
         tv1 = 0.5 * float(np.abs(pz1_a - pz_a).sum())
         tv0 = 0.5 * float(np.abs(pz0_a - pz_a).sum())
@@ -393,8 +399,7 @@ def confounding_bias_per_step_bounds(
     are systematically less protected (the growing-channel prediction).
     """
     return [
-        confounding_bias_bound(outcomes, f_t, confounder_bins, form=form)
-        for f_t in treated_by_step
+        confounding_bias_bound(outcomes, f_t, confounder_bins, form=form) for f_t in treated_by_step
     ]
 
 

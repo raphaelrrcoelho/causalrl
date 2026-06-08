@@ -141,10 +141,10 @@ class TestSequentialPerStep:
             f_b = f_t.astype(bool)
             naive = y[f_b].mean() - y[~f_b].mean()
             biases.append(abs(naive - _adjusted(y, f_t.astype(float), z)))
-        for bias, bound in zip(biases, bounds):
+        for bias, bound in zip(biases, bounds, strict=True):
             assert bias <= bound + 1e-9
-        assert biases[0] < 0.05 < 0.2 < biases[2]   # protected early, confounded late
-        assert bounds[0] < bounds[1] < bounds[2]     # the bounds see the growing channel
+        assert biases[0] < 0.05 < 0.2 < biases[2]  # protected early, confounded late
+        assert bounds[0] < bounds[1] < bounds[2]  # the bounds see the growing channel
 
 
 class TestPivotalityCertificate:
