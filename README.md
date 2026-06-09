@@ -21,9 +21,14 @@ are labelled benchmark/demo, not production. See
 ## Install
 
 ```bash
-uv pip install -e .             # graph, POMIS, tabular agents/environments
-uv pip install -e ".[torch]"    # SCM sampling, neural mechanisms, Torch-backed demos
-uv sync --extra dev             # contributors: tests, lint, typing, notebooks
+pip install causalrl            # core: graph, POMIS, tabular agents/environments
+pip install "causalrl[torch]"   # + SCM sampling, neural mechanisms, Torch-backed demos
+```
+
+From a clone, for development:
+
+```bash
+uv sync --extra dev             # tests, lint, typing, notebooks
 uv sync --extra docs            # local documentation site and API reference
 ```
 
@@ -67,7 +72,7 @@ for _ in range(8000):
 | 7 — Causal curriculum | Prerequisite-ordered skill learning | `causal_curriculum` |
 | 8 — Reward shaping | Policy-invariant causal potentials | `causal_potential`, `q_learning` |
 | 9 — Causal games | Influence diagrams + equilibria | `pure_nash_equilibria`, `CausalGame` |
-| Identification | Complete ID / gID / sID / mz, partial-ID & sensitivity bounds | `identify_effect`, `manski_bounds`, `ipw_sensitivity_bounds` |
+| Identification | Complete ID / gID / sID / mz; partial-ID, sensitivity & decision certificates | `identify_effect`, `manski_bounds`, `certify_decision` |
 
 A runnable example for every row is in the
 [**Tour by Task**](https://raphaelrrcoelho.github.io/causalrl/tour/); end-to-end notebooks are in
@@ -92,10 +97,10 @@ treatment-effect *estimate*.
 ## Stability
 
 The public API — the names exported from the top-level `causalrl` package — is stable and follows
-[semantic versioning](https://semver.org). The project is released as **v0.99.0**: a deliberate,
-humble step short of a 1.0 tag while the API settles in real use. See
-[Guarantees & Scope](https://raphaelrrcoelho.github.io/causalrl/guarantees/) for what each method
-does and does not promise.
+[semantic versioning](https://semver.org): from **v1.0.0** on, breaking changes to exported names
+move the major version. The 0.99.x line deliberately let the surface settle in real use first; 1.0
+commits to it. See [Guarantees & Scope](https://raphaelrrcoelho.github.io/causalrl/guarantees/) for
+what each method does and does not promise.
 
 ## Reproducible benchmarks
 

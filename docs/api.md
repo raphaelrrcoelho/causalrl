@@ -181,3 +181,29 @@
 ::: causalrl.identification.bounds.ipw_sensitivity_bounds
 
 ::: causalrl.identification.bounds.causal_q_bounds
+
+::: causalrl.identification.bounds.msm_policy_value_bounds
+
+::: causalrl.identification.bounds.msm_contribution_bounds
+
+::: causalrl.identification.bounds.msm_per_step_bounds
+
+::: causalrl.identification.bounds.msm_stratified_bounds
+
+## Decision Certificates
+
+The decision stack — certify whether a confounded / off-policy decision ("is the treated arm
+better than the control arm?") is robust to hidden confounding, cheapest layer first.
+`certify_decision` is the one-call front door over the layers below.
+
+::: causalrl.identification.decision.certify_decision
+
+::: causalrl.identification.decision.DecisionCertificate
+
+::: causalrl.identification.bounds.pivotality_certificate
+
+::: causalrl.identification.bounds.confounding_bias_bound
+
+::: causalrl.identification.bounds.mi_flip_threshold
+
+::: causalrl.identification.bounds.tipping_gamma

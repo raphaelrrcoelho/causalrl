@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-06-08
+
+First stable release. The exported API converged over the 0.x line is now committed to under
+semantic versioning: breaking changes to public names move the major version. No behavioural
+change to existing kernels — this release adds one ergonomic front door over the decision stack
+and promotes the package to Production/Stable.
+
+### Added
+- `causalrl.certify_decision` + `DecisionCertificate` — a one-call decision-certificate front
+  door. Given confounded / off-policy logs of a binary decision ("is the treated arm better than
+  the control arm?"), it composes the documented decision stack — the cheap sign-robustness
+  certificate (`pivotality_certificate`) and, when logging propensities are supplied, the
+  marginal-sensitivity-model tipping point (`tipping_gamma` over `msm_contribution_bounds`) — into
+  a single call with a human-readable verdict. No new theory: an orchestrator over
+  `causalrl.identification.bounds`, one-sided by construction (failure to certify is not evidence
+  of a flip).
+
+### Changed
+- Development status promoted from Beta to Production/Stable.
+
 ## [0.99.7] - 2026-06-05
 
 The decision-pivotality layer: certify sign-robustness of a naive contrast under hidden
