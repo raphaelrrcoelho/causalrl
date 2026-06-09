@@ -107,6 +107,11 @@ class TestOrchestration:
         assert isinstance(summary, str) and summary
         assert "prefer treated" in summary
 
+    def test_str_returns_summary(self):
+        y, f, z = _confounded_rows(100, 0.0)
+        cert = certify_decision(y, f, confounder_bins=z)
+        assert str(cert) == cert.summary
+
     def test_requires_some_evidence(self):
         y, f, _ = _confounded_rows(200, 0.0)
         with pytest.raises(ValueError, match=r"confounder_bins|mi_cap|propensities"):
