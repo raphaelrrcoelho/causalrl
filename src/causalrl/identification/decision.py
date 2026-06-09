@@ -43,6 +43,9 @@ class DecisionCertificate(NamedTuple):
     msm_certified: bool | None  # MSM layer robust to gamma_max? None if the MSM layer did not run
     summary: str
 
+    def __str__(self) -> str:
+        return self.summary
+
 
 def certify_decision(
     outcomes: Sequence[float],
