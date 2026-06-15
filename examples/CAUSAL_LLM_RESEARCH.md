@@ -136,3 +136,11 @@ because it has complete ID + an executable SCM + partial-ID bounds.
    scale (≈ baseline on unseen sizes). Both match the literature: genuine structural causal
    generalisation needs the scale / curriculum / positional-encoding care of the Axiomatic-Training
    regime — d-separation is the learnable foundation. *(approach d, first executable slice)*
+5. `examples/causal_reasoner_train.py` — the **robust, scalable trainer** for prototype 4, built to
+   be launched and trusted on CPU (smoke test) or GPU (full run): device-agnostic with CUDA AMP,
+   warmup+cosine LR, gradient clipping, best/last checkpointing with resume, seeded reproducibility,
+   JSON metrics and file logging, and `--task {dsep,ident}`. The key **architecture fix** for the
+   size-extrapolation wall above: positional scheme is selectable and defaults to **RoPE** (rotary)
+   instead of learned positional embeddings — RoPE extrapolates to longer sequences far better, the
+   standard remedy for length generalisation. `--pos {rope,nope,learned}` enables the ablation. This
+   is the configuration intended for the real CPU+GPU runs.
