@@ -126,6 +126,13 @@ because it has complete ID + an executable SCM + partial-ID bounds.
 3. `examples/causal_ncm_reasoning.py` — differentiable NCM: do() by graph surgery, counterfactual by
    abduction-action-prediction, trained obs-only, generalises to unseen identifiable queries.
    *(approach b)*
-4. `examples/causal_reasoner_prototype.py` — small transformer trained on **identifiability-decision
-   traces** generated and verified by `causalrl`; tests generalisation to unseen graph sizes. The
-   first executable slice of the recommended architecture. *(approach d + identifiability gating)*
+4. `examples/causal_reasoner_prototype.py` — small from-scratch transformer trained on
+   **d-separation traces** generated and verified by `causalrl` (d-separation is the graphical
+   bedrock of every identification result). On held-out graphs of the trained sizes it judges
+   d-separation well above baseline (~0.84) — it learned the rule, not the instances. Two honest
+   negatives surfaced while building it: (a) **size extrapolation** to larger graphs drops to near
+   baseline — that is transformer *length generalisation*, a separate hard problem; (b) training the
+   same setup to predict full **identifiability** (hedge detection) did **not** generalise at this
+   scale (≈ baseline on unseen sizes). Both match the literature: genuine structural causal
+   generalisation needs the scale / curriculum / positional-encoding care of the Axiomatic-Training
+   regime — d-separation is the learnable foundation. *(approach d, first executable slice)*
