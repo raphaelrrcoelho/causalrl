@@ -207,6 +207,27 @@ assumed.
    must extract it. (4) Single seed, tiny data, no variance. Rigorous follow-up: train on collider-rich
    data, report **stratified** accuracy and **multi-seed** variance, and separate representation from
    architecture. This is the methodology now baked into the L3 work below.
+
+   **Follow-up — was the shortcut an architecture limit or a curriculum limit? Curriculum.** With a
+   **difficulty-stratified curriculum** (`--curriculum stratified`, each of the five strata forced to
+   ~20%) and more depth (6 layers, so multi-hop paths can compose), the *same* causal graph transformer
+   learns the hard cases. Stratified diagnostic on the natural distribution at **unseen** sizes 6-7:
+
+   | stratum | balanced, 4 layers | **stratified, 6 layers** |
+   | --- | --- | --- |
+   | overall (natural; baseline 0.673) | 0.745 | **0.926** |
+   | `collider_open` (the core d-sep rule) | 0.039 | **0.961** |
+   | `conn_robust` (multi-hop path) | 0.10 | **0.990** |
+   | `blocked` | 0.97 | 0.836 |
+   | `adjacent` | 1.00 | 0.996 |
+   | `sep_robust` | 0.99 | 0.784 |
+
+   So the architecture *can* learn d-separation — colliders and multi-hop paths included — at unseen
+   graph sizes; the earlier failure was the natural distribution starving it of hard cases, not an
+   architectural ceiling. Honest caveats remain: there is a real trade-off (`sep_robust` dropped
+   0.99→0.78, `blocked` 0.97→0.84), it is not yet uniform mastery, and these are single-seed numbers
+   (multi-seed variance pending). But "causal as core + the right curriculum + enough depth" turns the
+   shortcut learner into something that handles the subtle rule.
 7. `examples/causal_counterfactual_twin.py` — **the L3 layer**: a twin-network counterfactual head.
    Two coupled graph-transformer worlds share an exogenous-noise latent; the factual world abducts it
    from the unit's evidence, the counterfactual world applies `do(X)` by edge ablation and reads the
