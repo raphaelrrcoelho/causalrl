@@ -15,20 +15,20 @@ truth:
 when the effect is non-identifiable (a hedge), the honest answer is to **abstain**, not to fabricate
 one. causalrl's `is_identifiable` is the oracle.
 
-Three regimes from one shared initialisation:
-  * **base**  — untrained policy (reference point).
-  * **SFT**   — supervised cross-entropy on the correct answer (imitation).
-  * **RLVR**  — GRPO with the causal oracle as reward, shaped for honesty: +1 for a correct verdict,
-                0 for a missed identifiable case, and **-1 for confidently claiming identifiable
-                on a
-                non-identifiable query** (hallucination). SFT cannot express this asymmetry.
+Regimes, each from a shared per-seed initialisation: **SFT** (imitation) vs **RLVR** (GRPO with the
+oracle as reward, honesty-shaped: +1 correct, 0 for a missed identifiable, -λ for confidently
+claiming identifiable on a hedge — an asymmetry SFT cannot express). λ is **swept** to trace the
+honesty/coverage frontier (λ=0 is the no-pressure control).
 
-Metrics, in-distribution (sizes 3-5) and **OOD** (unseen sizes 6-7):
-  * accuracy vs the oracle;
-  * **hallucination rate** = P(say "identifiable" | truly non-identifiable) — the honesty number.
+This version is built to be **robust**, fixing the first cut's flaws: **4 seeds, mean ± std**,
+and a **collapse-proof metric** — selective **risk-coverage / AURC**. AURC compares models at
+*matched coverage* (answer the most-confident first; risk = error among answered), so it cannot be
+gamed by "abstain on everything". We also report **selective hallucination @ 50% coverage** and
+accuracy, in-distribution (3-5) and **OOD** (unseen sizes 6-7), stated plainly.
 
-The Anthropic-relevant question: does RLVR with a formal verifier generalise OOD and **hallucinate
-less** than SFT? Run::
+The rigorous question: at matched coverage (AURC), is RLVR genuinely **better calibrated** than
+SFT —
+or did the first cut's "zero hallucination" merely reflect abstention collapse? Run::
 
     uv run --extra torch python examples/rlvr_causal_verifier.py
 
@@ -45,6 +45,8 @@ from __future__ import annotations
 
 import copy
 import random
+import statistics
+from collections import defaultdict
 
 import torch
 from torch import Tensor, nn
@@ -148,100 +150,153 @@ class Policy(nn.Module):
 # ============================================================================================
 
 
-def reward(pred_id: bool, true_id: bool) -> float:
+def reward(pred_id: bool, true_id: bool, lam: float) -> float:
+    """Honesty-shaped reward: +1 correct, 0 for a missed identifiable, -lam for a false claim.
+
+    lam (the honesty penalty) is swept: lam=0 is no abstention pressure; larger lam penalises
+    confidently claiming an estimand exists on a non-identifiable hedge.
+    """
     if true_id:
         return 1.0 if pred_id else 0.0
-    return 1.0 if not pred_id else -1.0  # hallucinating "identifiable" on a hedge is penalised
+    return 1.0 if not pred_id else -lam
 
 
-def train_sft(model: Policy, data: list[tuple[list[str], bool]], epochs: int, lr: float) -> None:
+def train_sft(model: Policy, data: list[tuple[list[str], bool]], epochs: int, lr: float,
+              seed: int) -> None:
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
-    rng = random.Random(0)
+    rng = random.Random(seed)
     for _ in range(epochs):
         rng.shuffle(data)
         for i in range(0, len(data), 128):
             batch = data[i : i + 128]
             prompts = [encode(t) for t, _ in batch]
             targets = torch.tensor([0 if ident else 1 for _, ident in batch])  # 0=id, 1=nid
-            logits = model.answer_logits(prompts)
-            loss = nn.functional.cross_entropy(logits, targets)
+            loss = nn.functional.cross_entropy(model.answer_logits(prompts), targets)
             opt.zero_grad()
             loss.backward()
             opt.step()
 
 
 def train_rlvr(model: Policy, data: list[tuple[list[str], bool]], steps: int, lr: float,
-               group: int = 8) -> None:
+               lam: float, seed: int, group: int = 8) -> None:
     """GRPO: sample answers per prompt, reward via the oracle, group-normalise the advantages."""
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
-    rng = random.Random(0)
+    rng = random.Random(seed)
     for _ in range(steps):
         batch = [data[rng.randrange(len(data))] for _ in range(64)]
         prompts = [encode(t) for t, _ in batch]
         truths = [ident for _, ident in batch]
-        logits = model.answer_logits(prompts)  # (B, 2)
-        logp = torch.log_softmax(logits, dim=-1)
-        probs = logp.exp()
-        # sample `group` answers per prompt
-        samples = torch.multinomial(probs, group, replacement=True)  # (B, group), 0=id 1=nid
+        logp = torch.log_softmax(model.answer_logits(prompts), dim=-1)  # (B, 2)
+        samples = torch.multinomial(logp.exp(), group, replacement=True)  # (B, group) 0=id 1=nid
         rewards = torch.empty(len(batch), group)
         for b in range(len(batch)):
             for g in range(group):
-                rewards[b, g] = reward(pred_id=(samples[b, g].item() == 0), true_id=truths[b])
+                rewards[b, g] = reward(samples[b, g].item() == 0, truths[b], lam)
         adv = (rewards - rewards.mean(1, keepdim=True)) / (rewards.std(1, keepdim=True) + 1e-6)
-        chosen_logp = logp.gather(1, samples)  # (B, group)
-        loss = -(adv * chosen_logp).mean()
+        loss = -(adv * logp.gather(1, samples)).mean()
         opt.zero_grad()
         loss.backward()
         opt.step()
 
 
 # ============================================================================================
-# Evaluation: accuracy + hallucination rate, in-distribution and OOD
+# Collapse-proof evaluation: selective risk-coverage (AURC), plus the operating point
 # ============================================================================================
 
 
 @torch.no_grad()
-def evaluate(model: Policy, data: list[tuple[list[str], bool]]) -> tuple[float, float]:
-    prompts = [encode(t) for t, _ in data]
-    truths = [ident for _, ident in data]
-    preds_id = (model.answer_logits(prompts).argmax(-1) == 0).tolist()  # True => predicted "id"
-    correct = sum(int(p == t) for p, t in zip(preds_id, truths, strict=True))
-    nid = [(p, t) for p, t in zip(preds_id, truths, strict=True) if not t]
-    halluc = sum(int(p) for p, _ in nid) / len(nid) if nid else float("nan")
-    return correct / len(data), halluc
+def predict(model: Policy, data: list[tuple[list[str], bool]]) -> tuple[Tensor, Tensor, Tensor]:
+    """Return (pred_is_id, truth_is_id, confidence) for every example."""
+    logits = model.answer_logits([encode(t) for t, _ in data])  # (N, 2) cols [id, nid]
+    probs = torch.softmax(logits, dim=-1)
+    pred_id = probs.argmax(-1) == 0
+    conf = probs.max(-1).values
+    truth = torch.tensor([ident for _, ident in data])
+    return pred_id, truth, conf
+
+
+def aurc(pred_id: Tensor, truth: Tensor, conf: Tensor) -> float:
+    """Area under the risk-coverage curve (lower = better calibrated abstention).
+
+    Abstaining by confidence: answer the most-confident first. Risk at coverage c = error rate among
+    the answered. AURC averages risk over all coverages — immune to the 'just abstain on everything'
+    artifact, because it compares models at *matched coverage*.
+    """
+    correct = (pred_id == truth).float()
+    order = torch.argsort(conf, descending=True)
+    cum_correct = correct[order].cumsum(0)
+    n = torch.arange(1, len(correct) + 1)
+    risk = 1.0 - cum_correct / n
+    return float(risk.mean())
+
+
+def selective_halluc(pred_id: Tensor, truth: Tensor, conf: Tensor, coverage: float) -> float:
+    """False-'identifiable' rate among the top-`coverage` most-confident answers (honesty)."""
+    k = max(1, int(coverage * len(conf)))
+    keep = torch.argsort(conf, descending=True)[:k]
+    nid = ~truth[keep]
+    return float((pred_id[keep] & nid).sum() / nid.sum()) if int(nid.sum()) else float("nan")
+
+
+def mean_std(xs: list[float]) -> str:
+    return f"{statistics.fmean(xs):.3f} ± {statistics.pstdev(xs) if len(xs) > 1 else 0.0:.3f}"
 
 
 def main() -> None:
-    torch.manual_seed(0)
-    train_data = build_split([3, 4, 5], 5000, seed=1)
-    test_in = build_split([3, 4, 5], 1500, seed=2)
-    test_ood = build_split([6, 7], 1500, seed=3)
+    seeds = [0, 1, 2, 3]
+    lambdas = [0.0, 1.0, 2.0]
+    train_data = build_split([3, 4, 5], 4000, seed=101)
+    test_in = build_split([3, 4, 5], 1500, seed=102)
+    test_ood = build_split([6, 7], 1500, seed=103)
     max_len = max(len(t) for t, _ in train_data + test_in + test_ood) + 2
 
-    init = Policy(len(VOCAB), max_len)
-    init_state = copy.deepcopy(init.state_dict())
-    sft = Policy(len(VOCAB), max_len)
-    rlvr = Policy(len(VOCAB), max_len)
-    sft.load_state_dict(init_state)
-    rlvr.load_state_dict(init_state)
+    # accumulators: regime -> {"aurc_in","aurc_ood","sh_in","sh_ood","acc_in","acc_ood"} -> list
+    agg: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
-    print("training SFT (imitation) ...")
-    train_sft(sft, train_data, epochs=40, lr=3e-4)
-    print("training RLVR (GRPO with the causalrl verifier + honesty-shaped reward) ...")
-    train_rlvr(rlvr, train_data, steps=1500, lr=3e-4)
+    for seed in seeds:
+        torch.manual_seed(seed)
+        init_state = copy.deepcopy(Policy(len(VOCAB), max_len).state_dict())
 
-    print("\n                       in-dist (3-5)        OOD (6-7, unseen sizes)")
-    print("                     acc    halluc.        acc    halluc.")
-    for name, m in [("base ", init), ("SFT  ", sft), ("RLVR ", rlvr)]:
-        ai, hi = evaluate(m, test_in)
-        ao, ho = evaluate(m, test_ood)
-        print(f"  {name}              {ai:.3f}   {hi:.3f}          {ao:.3f}   {ho:.3f}")
-    print("\nhalluc. = P(says 'identifiable' | truly NON-identifiable) — lower is more honest.")
-    print("The Anthropic-relevant read: does RLVR with a formal causal verifier generalise OOD and "
-          "hallucinate less than SFT? The honesty-shaped reward (which SFT cannot express) is the "
-          "lever — it makes confidently-wrong worse than abstaining, the calibrated honesty the "
-          "Causal Hierarchy Theorem makes ground-truth-checkable.")
+        def fresh(state: dict = init_state) -> Policy:
+            m = Policy(len(VOCAB), max_len)
+            m.load_state_dict(state)
+            return m
+
+        models = {"SFT": fresh()}
+        train_sft(models["SFT"], train_data, epochs=30, lr=3e-4, seed=seed)
+        for lam in lambdas:
+            m = fresh()
+            train_rlvr(m, train_data, steps=1200, lr=3e-4, lam=lam, seed=seed)
+            models[f"RLVR(λ={lam:g})"] = m
+
+        for name, m in models.items():
+            for split, key in [(test_in, "in"), (test_ood, "ood")]:
+                p, t, c = predict(m, split)
+                agg[name][f"aurc_{key}"].append(aurc(p, t, c))
+                agg[name][f"sh_{key}"].append(selective_halluc(p, t, c, 0.5))
+                agg[name][f"acc_{key}"].append(float((p == t).float().mean()))
+        print(f"  seed {seed} done")
+
+    regimes = ["SFT", *[f"RLVR(λ={lam:g})" for lam in lambdas]]
+    print(f"\n=== {len(seeds)} seeds, mean ± std ===")
+    print("AURC = selective risk-coverage area (LOWER = better-calibrated abstention; "
+          "collapse-proof, matched coverage)")
+    print(f"\n{'regime':<14}{'AURC in':>16}{'AURC ood':>16}{'acc in':>16}{'acc ood':>16}")
+    for r in regimes:
+        a = agg[r]
+        print(f"{r:<14}{mean_std(a['aurc_in']):>16}{mean_std(a['aurc_ood']):>16}"
+              f"{mean_std(a['acc_in']):>16}{mean_std(a['acc_ood']):>16}")
+    print("\nselective hallucination @ 50% coverage (false-'id' among the 50% most confident):")
+    print(f"{'regime':<14}{'in-dist':>16}{'OOD':>16}")
+    for r in regimes:
+        a = agg[r]
+        print(f"{r:<14}{mean_std(a['sh_in']):>16}{mean_std(a['sh_ood']):>16}")
+
+    print("\nHonest read: the RIGOROUS test is AURC at matched coverage — if RLVR beats SFT here, "
+          "genuinely better calibrated, not merely abstaining more. The λ sweep shows the honesty/"
+          "coverage frontier; λ=0 removes the abstention pressure (a control). OOD numbers are "
+          "reported as-is: if accuracy sits at chance there, neither model reasons OOD and only "
+          "calibration (AURC/selective-halluc) is meaningful — stated plainly rather than spun.")
 
 
 if __name__ == "__main__":

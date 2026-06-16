@@ -299,22 +299,35 @@ identification oracle, shaped for honesty (−1 for confidently claiming "identi
 non-identifiable hedge — an asymmetry SFT cannot express). The Causal Hierarchy Theorem makes
 "this question is unanswerable" a *provable* ground truth, so correct **abstention** is checkable.
 
-Result (balanced; hallucination = P(says "identifiable" | truly non-identifiable), lower = honest):
+**A first cut looked great — and the robust redo refuted it.** The first single-seed run reported
+RLVR holding hallucination at ≈0 in and out of distribution vs SFT rising to 0.74, read as "calibrated
+honesty SFT cannot produce." But a single seed and a raw hallucination rate are exactly the kind of
+number this project audits. The robust version (`rlvr_causal_verifier.py`: **4 seeds**, λ-sweep, and a
+**collapse-proof selective risk-coverage metric, AURC**, which compares models at *matched coverage* so
+"abstain on everything" cannot win) tells a soberer story:
 
-| regime | in-dist acc | in-dist halluc. | OOD acc (6-7, unseen) | OOD halluc. |
+| regime | AURC in ↓ | AURC OOD ↓ | acc in | acc OOD |
 | --- | --- | --- | --- | --- |
-| base | 0.49 | 0.77 | 0.51 | 0.65 |
-| SFT (imitation) | **0.76** | 0.27 | 0.49 | **0.74** |
-| RLVR (verifier + honesty reward) | 0.62 | **0.00** | 0.50 | **0.00** |
+| SFT | **0.139 ± 0.009** | 0.534 ± 0.010 | **0.734 ± 0.012** | 0.479 ± 0.007 |
+| RLVR (λ=0) | 0.276 ± 0.037 | 0.511 ± 0.030 | 0.662 ± 0.008 | 0.517 ± 0.008 |
+| RLVR (λ=1) | 0.286 ± 0.035 | 0.502 ± 0.039 | 0.658 ± 0.021 | 0.521 ± 0.017 |
+| RLVR (λ=2) | 0.266 ± 0.038 | 0.511 ± 0.033 | 0.650 ± 0.005 | 0.517 ± 0.010 |
 
-**Read.** SFT learns in-distribution but **out-of-distribution it collapses and gets *confidently
-wrong*** — hallucination rises 0.27 → 0.74 (the "causal parrot" failure). RLVR with the formal
-verifier holds hallucination at ≈ 0 **in and out of distribution** — calibrated honesty SFT cannot
-produce. Honest caveat: RLVR achieves this by learning **aggressive abstention** (it trades
-identifiable-case recall for zero false-positives — accuracy 0.62, biased toward "abstain"), exactly
-what the asymmetric reward incentivises; it is calibrated honesty, not higher raw accuracy.
+Selective hallucination @ 50% coverage (false-"identifiable" among the most-confident half):
+SFT **0.185 / 0.862** (in / OOD); RLVR(λ=1) **0.070 / 0.000**.
 
-This is the faithful minimal instance of the pitch: a formal causal oracle as a verifiable RL reward
-yields OOD-robust, *provably-grounded* abstention where imitation hallucinates. Scaling the identical
-reward/abstention design to GRPO on an open LLM (Qwen/Llama), measured on Corr2Cause/CLadder/
-CounterBench plus a non-identifiable abstention split, is the compute step — and the open landmark.
+**Honest read (revised).** (1) On the rigorous matched-coverage metric, **SFT is *better* calibrated
+than RLVR in-distribution** (AURC 0.139 vs ~0.28) — the first cut's "RLVR is more honest" was an
+abstention-bias artifact, and it does not survive. (2) **Nobody reasons OOD:** accuracy is at chance
+(~0.5) for every regime, so the identifiability task does not size-generalise (consistent with §5) and
+OOD AURC ≈ 0.5 is vacuous. (3) The **one robust RLVR effect** is that the honesty penalty makes the
+model **refuse to assert non-existent estimands OOD** — selective hallucination SFT 0.86 → RLVR ~0.00 —
+but via a *bias toward "non-identifiable" (risk-aversion)*, not better calibration (AURC does not
+improve, accuracy drops). It is reward-induced refusal, not generalising causal reasoning.
+
+**Net.** The robust experiment *weakens* the pitch. What remains defensible is narrow but real: a
+formal verifier reward with an honesty penalty can make a model **stop fabricating causal claims
+out-of-distribution where imitation confidently hallucinates (0.86 → 0)** — at a cost in accuracy. That
+is calibrated refusal, not causal reasoning that generalises. A genuine break of the parrot ceiling
+would need OOD accuracy above chance, which this does not show — the open landmark stands, and the
+honest evidence here is a risk-aversion result, not a reasoning one.
