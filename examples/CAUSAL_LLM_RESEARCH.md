@@ -259,21 +259,34 @@ assumed.
    lookup. **Scope:** fixed topology, random parameters; random *topologies* (with an exact-MC oracle)
    are the prepared next step. *(causal-core, row 5 of §4b)*
 
-## 6. Prepared next steps (ready to launch, not yet run)
+## 6. Next steps — run, with results
 
-Scaffolded, lint-clean, and smoke-verified to run — left ready to launch on demand:
+All three were run; the results sharpen the honest picture above.
 
-- **Random-topology L3** — `examples/causal_counterfactual_topo.py`. Twin-network counterfactuals
-  over random DAG *topologies* and random parameters, with an exact Monte-Carlo abduction oracle;
-  shortcut-aware audit on the counterfactual-relevant subset across unseen topologies, **unseen
-  sizes** (train 3-4, test 5), and **OOD parameters**. The final crutch (fixed graph) removed.
-  Launch: `uv run --extra torch python examples/causal_counterfactual_topo.py` (`--smoke` for seconds).
-- **Architecture vs representation ablation** — `--ablate-structure` on the causal graph transformer
-  makes attention structure-blind (drops the relational bias, keeping node-role/value embeddings), so
-  the contribution of the *causal structural bias* can be isolated from the parsed-input
-  representation. Launch: `... causal_graph_transformer.py --curriculum stratified --ablate-structure`
-  and compare the stratified diagnostic against the non-ablated run.
-- **Multi-seed rigor** — `examples/run_dsep_multiseed.py` trains K seeds (stratified) and reports the
-  difficulty-stratified diagnostic as **mean ± std**, turning the two-seed result above into proper
-  variance bars on the traded-off strata. Launch: `uv run --extra torch python
-  examples/run_dsep_multiseed.py --seeds 5` (`--smoke` for two tiny seeds).
+- **Architecture vs representation ablation** (`--ablate-structure`). With attention made
+  structure-blind (relational bias removed, node-role/value embeddings kept), the model **collapses
+  to the majority classifier**: natural accuracy 0.673 (= the base rate), predicting "not separated"
+  for everything (`sep_robust` and `blocked` → 0.00; the "no" strata → 1.00). So the win is the
+  **architecture** — the causal structural bias in attention — *not* merely being handed the parsed
+  adjacency: keep the representation, drop the bias, and it learns nothing. This settles the
+  representation-vs-architecture confound flagged in §5.
+
+- **Multi-seed rigor** (`run_dsep_multiseed.py`, 3 seeds, stratified diagnostic, natural dist, sizes
+  6-7): mean ± std — `collider_open` **0.93 ± 0.02**, `conn_robust` **0.97 ± 0.01**, `adjacent`
+  1.00 ± 0.00, `blocked` 0.76 ± 0.23, `sep_robust` 0.70 ± 0.15. The headline (hard structural cases
+  learned) is robust with **low** variance; the honest caveat is now quantified — the traded-off
+  strata have **high** variance and are not reliably mastered.
+
+- **Random-topology L3** (`causal_counterfactual_topo.py`): the final crutch (fixed graph) removed —
+  random DAG topologies *and* parameters, exact Monte-Carlo abduction oracle. Brier vs oracle on the
+  counterfactual-relevant subset (truth differs from both shortcuts):
+
+  | | twin network | factual | interventional |
+  | --- | --- | --- | --- |
+  | in-distribution | **0.0017** | 0.254 | 0.065 |
+  | size extrapolation (n=5, unseen) | **0.0025** | 0.253 | 0.068 |
+  | OOD parameters | **0.0033** | 0.299 | 0.066 |
+
+  The twin network beats both shortcuts decisively across **unseen topologies, unseen sizes, and OOD
+  parameters** — genuine, generalising L3 abduction-action-prediction, not a lookup. (Binary monotone
+  SCMs; richer mechanism classes and verification against `causalrl`'s sampler at scale remain open.)
