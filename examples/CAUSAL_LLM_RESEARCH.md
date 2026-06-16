@@ -175,3 +175,16 @@ assumed.
    `causalrl` generates and verifies (d-separation). This is the architecture meant to beat the
    sequence model's size extrapolation by making structure — not sequence position — the core.
    *(the causal-core architecture; rows 1-3 of the table in §4b)*
+
+   **Measured (same 0.85M params, same task/budget, CPU).** Making causality the core, not an add-in,
+   moves both metrics decisively — the size-extrapolation result the sequence model could not reach:
+
+   | model | held-out (3-5 vars) | size extrapolation (6-7 vars) |
+   | --- | --- | --- |
+   | sequence transformer (`causal_reasoner_train.py`, RoPE) | ~0.84 | ~0.52 (≈ baseline 0.50) |
+   | **causal graph transformer** (`causal_graph_transformer.py`) | **0.96** | **0.80** |
+
+   The only change is architectural: attention as the causal graph + node-tokens. Extrapolation is
+   the headline — +0.28 absolute over the sequence model — and it is exactly what the permutation-
+   invariant, structure-keyed design predicts. (Still short of 1.0; full size generalisation remains
+   the open frontier, now from a far stronger base.)
