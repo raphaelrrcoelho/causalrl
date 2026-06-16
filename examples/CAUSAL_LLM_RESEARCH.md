@@ -207,3 +207,15 @@ assumed.
    must extract it. (4) Single seed, tiny data, no variance. Rigorous follow-up: train on collider-rich
    data, report **stratified** accuracy and **multi-seed** variance, and separate representation from
    architecture. This is the methodology now baked into the L3 work below.
+7. `examples/causal_counterfactual_twin.py` — **the L3 layer**: a twin-network counterfactual head.
+   Two coupled graph-transformer worlds share an exogenous-noise latent; the factual world abducts it
+   from the unit's evidence, the counterfactual world applies `do(X)` by edge ablation and reads the
+   outcome — *abduction-action-prediction* inside the network, the only thing that distinguishes L3
+   from L2. The evaluation is **shortcut-aware by construction** (the d-sep lesson): it scores against
+   an exact causalrl-consistent oracle AND against two baselines — predict the factual outcome, and
+   predict the interventional marginal — on the subset where the truth differs from *both*. Result:
+   the twin network matches the oracle (Brier ≈ 0) and beats both baselines there, so it genuinely
+   used evidence *and* intervention, not a shortcut. **Honest caveat:** this SCM has only 8 evidence
+   states, so that is the architecture being *correct and shortcut-free*, **not** generalising —
+   learning abduction over richer/continuous SCMs and unseen units is open. *(causal-core, row 5 of
+   §4b)*
