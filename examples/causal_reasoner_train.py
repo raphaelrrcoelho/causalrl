@@ -267,14 +267,42 @@ def _apply_rope(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     return x * cos[None, None] + _rotate_half(x) * sin[None, None]
 
 
+class RMSNorm(nn.Module):
+    """Root-mean-square layer norm (Llama/Qwen/Gemma standard): no mean subtraction, no bias."""
+
+    def __init__(self, dim: int, eps: float = 1e-6) -> None:
+        super().__init__()
+        self.eps = eps
+        self.weight = nn.Parameter(torch.ones(dim))
+
+    def forward(self, x: Tensor) -> Tensor:
+        norm = x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        return norm * self.weight
+
+
+class SwiGLU(nn.Module):
+    """Gated SiLU feed-forward (Llama/PaLM/Mistral standard), bias-free. Hidden ≈ 8/3·d_model."""
+
+    def __init__(self, d_model: int, dropout: float) -> None:
+        super().__init__()
+        hidden = ((8 * d_model // 3 + 31) // 32) * 32  # round 8/3·d to a multiple of 32
+        self.w1 = nn.Linear(d_model, hidden, bias=False)
+        self.w3 = nn.Linear(d_model, hidden, bias=False)
+        self.w2 = nn.Linear(hidden, d_model, bias=False)
+        self.drop = nn.Dropout(dropout)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.drop(self.w2(nn.functional.silu(self.w1(x)) * self.w3(x)))
+
+
 class Attention(nn.Module):
     def __init__(self, cfg: Config) -> None:
         super().__init__()
         self.h = cfg.n_heads
         self.dh = cfg.d_model // cfg.n_heads
         self.pos = cfg.pos
-        self.qkv = nn.Linear(cfg.d_model, 3 * cfg.d_model)
-        self.proj = nn.Linear(cfg.d_model, cfg.d_model)
+        self.qkv = nn.Linear(cfg.d_model, 3 * cfg.d_model, bias=False)
+        self.proj = nn.Linear(cfg.d_model, cfg.d_model, bias=False)
         self.drop = cfg.dropout
 
     def forward(self, x: Tensor, attn_mask: Tensor) -> Tensor:
@@ -296,14 +324,10 @@ class Attention(nn.Module):
 class Block(nn.Module):
     def __init__(self, cfg: Config) -> None:
         super().__init__()
-        d_ff = cfg.d_ff or 4 * cfg.d_model
-        self.n1 = nn.LayerNorm(cfg.d_model)
+        self.n1 = RMSNorm(cfg.d_model)
         self.attn = Attention(cfg)
-        self.n2 = nn.LayerNorm(cfg.d_model)
-        self.mlp = nn.Sequential(
-            nn.Linear(cfg.d_model, d_ff), nn.GELU(), nn.Linear(d_ff, cfg.d_model),
-            nn.Dropout(cfg.dropout),
-        )
+        self.n2 = RMSNorm(cfg.d_model)
+        self.mlp = SwiGLU(cfg.d_model, cfg.dropout)
 
     def forward(self, x: Tensor, attn_mask: Tensor) -> Tensor:
         x = x + self.attn(self.n1(x), attn_mask)
@@ -319,7 +343,7 @@ class CausalReasoner(nn.Module):
             nn.Embedding(256, cfg.d_model) if cfg.pos == "learned" else None
         )
         self.blocks = nn.ModuleList([Block(cfg) for _ in range(cfg.n_layers)])
-        self.norm = nn.LayerNorm(cfg.d_model)
+        self.norm = RMSNorm(cfg.d_model)
         self.head = nn.Linear(cfg.d_model, vocab_size, bias=False)
         self.head.weight = self.tok.weight  # weight tying
         self.apply(self._init)

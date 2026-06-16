@@ -118,6 +118,30 @@ because it has complete ID + an executable SCM + partial-ID bounds.
 - ⚠️ Pure hybrid (c) is capped by graph elicitation (~60% variance) — the graph must come from a
   trusted source / SCM, not be guessed by the LLM.
 
+## 4b. Causal as *core design*, not an add-in
+
+In every approach above except the NCM, the transformer itself is causally blind — causality lives
+in the data (control tokens) or in a separate module. The symptom is the size-extrapolation failure:
+a standard decoder attends all-to-all inside a temporal triangle and keys on *sequence position*, so
+it must learn structure *despite* the architecture. Making causality the core means rewriting each
+primitive in causal terms:
+
+| Standard primitive | Causal-core version |
+| --- | --- |
+| All-to-all attention (temporal mask) | **Attention *is* the causal graph** — information flows along edges; `do(X)` = **ablating the edges into X** (graph surgery native to attention) |
+| Tokens = subwords | **Tokens = variables (nodes)** — permutation-invariant; identity carried by *role* (X/Y/Z/intervened), not a fixed symbol → fixes size generalisation at the root |
+| Sequential positional encoding | **Structural/relational encoding** — position = topological role in the DAG (per-edge-type bias), not sequence index |
+| FFN | the structural mechanism *f_i* (node value from parents + exogenous noise) |
+| — | **explicit exogenous-noise inputs** → abduction; counterfactuals via **twin networks** sharing noise (Pearl) |
+| Next-token loss | **layered L1/L2/L3 + identifiability-aware** objective that abstains when non-identifiable (honours the CHT) |
+
+The keystone — the change that flips causality from add-in to core — is the first row: *attention is
+the causal graph, intervention is edge ablation*. `examples/causal_graph_transformer.py` implements
+it (rows 1-3) on the Llama-recipe internals (RMSNorm + SwiGLU + bias-free). Rows 4-6 (mechanism /
+exogenous noise / twin networks / layered objective) compound on it and are the documented research
+frontier — each adds genuine causal capability but also genuine risk, so they are layered, not
+assumed.
+
 ## 5. Prototype ladder in this repo
 
 1. `examples/causal_lm_from_scratch.py` — 6-token toy: proves do≠see is learnable. *(approach a, minimal)*
@@ -143,4 +167,11 @@ because it has complete ID + an executable SCM + partial-ID bounds.
    size-extrapolation wall above: positional scheme is selectable and defaults to **RoPE** (rotary)
    instead of learned positional embeddings — RoPE extrapolates to longer sequences far better, the
    standard remedy for length generalisation. `--pos {rope,nope,learned}` enables the ablation. This
-   is the configuration intended for the real CPU+GPU runs.
+   is the configuration intended for the real CPU+GPU runs. Internals upgraded to the Llama recipe
+   (RMSNorm + SwiGLU + bias-free) — the modern, robust small-LM standard. *(approach d, baseline)*
+6. `examples/causal_graph_transformer.py` — **causal as core design**: a graph transformer whose
+   attention *is* the causal graph (per-edge-type relational bias), variables as permutation-
+   invariant node-tokens, and `do(X)` as native edge ablation (`intervene`). Llama-recipe internals.
+   `causalrl` generates and verifies (d-separation). This is the architecture meant to beat the
+   sequence model's size extrapolation by making structure — not sequence position — the core.
+   *(the causal-core architecture; rows 1-3 of the table in §4b)*
