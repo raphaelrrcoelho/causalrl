@@ -176,15 +176,34 @@ assumed.
    sequence model's size extrapolation by making structure — not sequence position — the core.
    *(the causal-core architecture; rows 1-3 of the table in §4b)*
 
-   **Measured (same 0.85M params, same task/budget, CPU).** Making causality the core, not an add-in,
-   moves both metrics decisively — the size-extrapolation result the sequence model could not reach:
+   **Measured, class-balanced (same 0.85M params, same task/budget, CPU):**
 
    | model | held-out (3-5 vars) | size extrapolation (6-7 vars) |
    | --- | --- | --- |
    | sequence transformer (`causal_reasoner_train.py`, RoPE) | ~0.84 | ~0.52 (≈ baseline 0.50) |
    | **causal graph transformer** (`causal_graph_transformer.py`) | **0.96** | **0.80** |
 
-   The only change is architectural: attention as the causal graph + node-tokens. Extrapolation is
-   the headline — +0.28 absolute over the sequence model — and it is exactly what the permutation-
-   invariant, structure-keyed design predicts. (Still short of 1.0; full size generalisation remains
-   the open frontier, now from a far stronger base.)
+   **But these balanced numbers overstate competence — do not trust them.** A difficulty-stratified
+   audit on the *natural* (unbalanced) distribution (`causal_graph_transformer_diagnose.py`) tells the
+   honest story for the graph model at sizes 6-7:
+
+   | stratum | share | accuracy | |
+   | --- | --- | --- | --- |
+   | `adjacent` (direct X–Y edge → never separated) | 40% | 1.00 | trivial neg |
+   | `sep_robust` (no path → separated) | 28% | 0.99 | easy pos |
+   | `conn_robust` (multi-hop open path) | 23% | **0.10** | the model can't trace paths of length ≥2 |
+   | `blocked` (Z blocks a chain/fork) | 5% | 0.97 | medium |
+   | `collider_open` (conditioning on a collider opens a path) | 5% | **0.04** | **the core d-sep rule — essentially 0** |
+
+   Natural-distribution accuracy is **0.745**, barely above the majority baseline of **0.673**. The
+   model learned two shortcuts — "adjacent ⇒ connected" and "no path ⇒ separated" — and fails the two
+   genuinely structural cases (multi-hop paths, colliders). Balancing 50/50 oversampled the trivial
+   `adjacent` negatives, inflating the headline to 0.96/0.80.
+
+   **Honest takeaways.** (1) Causal-as-core *does* help: it nails and size-generalises the structural-
+   shortcut cases the sequence model struggled with — that part is real. (2) But neither model learned
+   d-separation; the graph model is a *better shortcut learner*, not a reasoner. (3) The architecture
+   comparison is partly confounded — the graph model is handed the parsed adjacency, the sequence model
+   must extract it. (4) Single seed, tiny data, no variance. Rigorous follow-up: train on collider-rich
+   data, report **stratified** accuracy and **multi-seed** variance, and separate representation from
+   architecture. This is the methodology now baked into the L3 work below.
