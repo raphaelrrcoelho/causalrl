@@ -103,9 +103,12 @@ def main() -> None:
     p.add_argument("--sizes", type=int, nargs="+", default=[6, 7])
     p.add_argument("--n", type=int, default=8000)
     p.add_argument("--seed", type=int, default=123)
+    p.add_argument("--ablate-structure", action="store_true",
+                   help="set if the checkpoint was trained structure-blind")
     a = p.parse_args()
 
-    cfg = Config(d_model=a.d_model, n_layers=a.layers, n_heads=a.heads)
+    cfg = Config(d_model=a.d_model, n_layers=a.layers, n_heads=a.heads,
+                 ablate_structure=a.ablate_structure)
     device = cfg.resolved_device()
     model = CausalGraphTransformer(cfg).to(device)
     model.load_state_dict(torch.load(a.ckpt, map_location=device))

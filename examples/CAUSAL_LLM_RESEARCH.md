@@ -258,3 +258,22 @@ assumed.
    decisively *and* holds up out-of-distribution — genuine L3 generalisation over unseen SCMs, not a
    lookup. **Scope:** fixed topology, random parameters; random *topologies* (with an exact-MC oracle)
    are the prepared next step. *(causal-core, row 5 of §4b)*
+
+## 6. Prepared next steps (ready to launch, not yet run)
+
+Scaffolded, lint-clean, and smoke-verified to run — left ready to launch on demand:
+
+- **Random-topology L3** — `examples/causal_counterfactual_topo.py`. Twin-network counterfactuals
+  over random DAG *topologies* and random parameters, with an exact Monte-Carlo abduction oracle;
+  shortcut-aware audit on the counterfactual-relevant subset across unseen topologies, **unseen
+  sizes** (train 3-4, test 5), and **OOD parameters**. The final crutch (fixed graph) removed.
+  Launch: `uv run --extra torch python examples/causal_counterfactual_topo.py` (`--smoke` for seconds).
+- **Architecture vs representation ablation** — `--ablate-structure` on the causal graph transformer
+  makes attention structure-blind (drops the relational bias, keeping node-role/value embeddings), so
+  the contribution of the *causal structural bias* can be isolated from the parsed-input
+  representation. Launch: `... causal_graph_transformer.py --curriculum stratified --ablate-structure`
+  and compare the stratified diagnostic against the non-ablated run.
+- **Multi-seed rigor** — `examples/run_dsep_multiseed.py` trains K seeds (stratified) and reports the
+  difficulty-stratified diagnostic as **mean ± std**, turning the two-seed result above into proper
+  variance bars on the traded-off strata. Launch: `uv run --extra torch python
+  examples/run_dsep_multiseed.py --seeds 5` (`--smoke` for two tiny seeds).

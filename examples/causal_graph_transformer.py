@@ -95,6 +95,7 @@ class Config:
     amp: bool = True
     eval_every: int = 5
     curriculum: str = "balanced"  # "balanced" (class-balanced) | "stratified" (difficulty-balanced)
+    ablate_structure: bool = False  # if True, attention is structure-blind (causal-bias ablation)
     out: str = "runs/causal_graph_transformer"
 
     def resolved_device(self) -> str:
@@ -282,6 +283,8 @@ class GraphAttention(nn.Module):
         self.drop = cfg.dropout
         # one learned scalar per (head, causal relation) — the structural attention bias
         self.rel_bias = nn.Parameter(torch.zeros(cfg.n_heads, N_RELATIONS))
+        # ablation: make attention structure-blind to measure how much the causal bias contributes
+        self.ablate = cfg.ablate_structure
 
     def forward(self, h: Tensor, rel: Tensor, pad: Tensor) -> Tensor:
         b, n, _ = h.shape
@@ -289,8 +292,12 @@ class GraphAttention(nn.Module):
         q = q.view(b, n, self.h, self.dh).transpose(1, 2)
         k = k.view(b, n, self.h, self.dh).transpose(1, 2)
         v = v.view(b, n, self.h, self.dh).transpose(1, 2)
-        # structural bias: gather rel_bias[head, rel[b,i,j]] -> (B, H, N, N)
-        bias = self.rel_bias[:, rel].permute(1, 0, 2, 3)
+        if self.ablate:
+            # structure-blind: no relation bias, only role/value embeddings + padding mask
+            bias = torch.zeros(b, 1, n, n, device=h.device)
+        else:
+            # structural bias: gather rel_bias[head, rel[b,i,j]] -> (B, H, N, N)
+            bias = self.rel_bias[:, rel].permute(1, 0, 2, 3)
         # mask padded keys
         bias = bias.masked_fill(pad[:, None, None, :], float("-inf"))
         out = nn.functional.scaled_dot_product_attention(
@@ -472,18 +479,21 @@ def build_config() -> Config:
     p.add_argument("--no-amp", action="store_true")
     p.add_argument("--eval-every", type=int, default=d.eval_every)
     p.add_argument("--curriculum", choices=["balanced", "stratified"], default=d.curriculum)
+    p.add_argument("--ablate-structure", action="store_true",
+                   help="make attention structure-blind (ablate the causal relational bias)")
     p.add_argument("--out", default=d.out)
     p.add_argument("--smoke", action="store_true")
     a = p.parse_args()
     if a.smoke:
         return Config(n_train=600, n_eval=200, d_model=64, n_layers=2, n_heads=4, epochs=4,
-                      eval_every=1, device=a.device, amp=False, curriculum=a.curriculum, out=a.out)
+                      eval_every=1, device=a.device, amp=False, curriculum=a.curriculum,
+                      ablate_structure=a.ablate_structure, out=a.out)
     return Config(
         n_train=a.n_train, n_eval=a.n_eval, train_sizes=tuple(a.train_sizes),
         extrap_sizes=tuple(a.extrap_sizes), d_model=a.d_model, n_layers=a.layers,
         n_heads=a.heads, epochs=a.epochs, lr=a.lr, batch_size=a.batch_size, seed=a.seed,
         device=a.device, amp=not a.no_amp, eval_every=a.eval_every, curriculum=a.curriculum,
-        out=a.out,
+        ablate_structure=a.ablate_structure, out=a.out,
     )
 
 
