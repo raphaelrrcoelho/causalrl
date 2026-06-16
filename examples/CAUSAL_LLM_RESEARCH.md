@@ -242,3 +242,19 @@ assumed.
    states, so that is the architecture being *correct and shortcut-free*, **not** generalising —
    learning abduction over richer/continuous SCMs and unseen units is open. *(causal-core, row 5 of
    §4b)*
+8. `examples/causal_counterfactual_general.py` — **generalising L3**: removes the 8-state crutch by
+   drawing the SCM's mechanism parameters at random per example (continuous, infinite space; fresh
+   SCMs every step, so memorisation is impossible) and feeding them as features. The twin network must
+   learn the abduction-action-prediction *algorithm* and apply it to unseen SCMs — including learning
+   which parameters are irrelevant to the query. Shortcut-aware audit on the counterfactual-relevant
+   subset (truth differs from both the factual and interventional baselines):
+
+   | | twin network | factual baseline | interventional baseline |
+   | --- | --- | --- | --- |
+   | in-distribution (σ=1.5) | **0.0001** | 0.251 | 0.067 |
+   | OOD params (σ=2.5, wider than training) | **0.0006** | 0.314 | 0.065 |
+
+   (Brier vs the exact oracle on the relevant subset.) The twin network beats both shortcuts
+   decisively *and* holds up out-of-distribution — genuine L3 generalisation over unseen SCMs, not a
+   lookup. **Scope:** fixed topology, random parameters; random *topologies* (with an exact-MC oracle)
+   are the prepared next step. *(causal-core, row 5 of §4b)*
