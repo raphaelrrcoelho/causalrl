@@ -94,6 +94,7 @@ class Config:
     device: str = "auto"
     amp: bool = True
     eval_every: int = 5
+    curriculum: str = "balanced"  # "balanced" (class-balanced) | "stratified" (difficulty-balanced)
     out: str = "runs/causal_graph_transformer"
 
     def resolved_device(self) -> str:
@@ -118,7 +119,7 @@ class Example:
     label: bool
 
 
-def _make_example(cfg: Config, n: int, rng: random.Random, pool: list[str]) -> Example:
+def _make_example(cfg: Config, n: int, rng: random.Random, pool: list[str]) -> tuple[Example, str]:
     names = rng.sample(pool, n)
     order = names[:]
     rng.shuffle(order)
@@ -134,6 +135,18 @@ def _make_example(cfg: Config, n: int, rng: random.Random, pool: list[str]) -> E
     rest = [v for v in names if v not in (x, y)]
     z = rng.sample(rest, rng.randint(0, min(cfg.max_cond, len(rest))))
     label = d_separated(graph, {x}, {y}, set(z))  # the oracle
+    # difficulty stratum (compare separation with and without Z) — used by the stratified curriculum
+    sep_empty = d_separated(graph, {x}, {y}, set())
+    if (x, y) in directed or (y, x) in directed:
+        stratum = "adjacent"
+    elif sep_empty and not label:
+        stratum = "collider_open"
+    elif not sep_empty and label:
+        stratum = "blocked"
+    elif label:
+        stratum = "sep_robust"
+    else:
+        stratum = "conn_robust"
 
     idx = {name: i for i, name in enumerate(names)}
     roles = [PLAIN] * n
@@ -148,7 +161,12 @@ def _make_example(cfg: Config, n: int, rng: random.Random, pool: list[str]) -> E
     for a, b in graph.directed_edges:  # a -> b
         rel[idx[b]][idx[a]] = PARENT  # a is a parent of b
         rel[idx[a]][idx[b]] = CHILD  # b is a child of a
-    return Example(roles, rel, idx[x], idx[y], label)
+    return Example(roles, rel, idx[x], idx[y], label), stratum
+
+
+# the five difficulty strata; the stratified curriculum fills the hard ones (which are rare in
+# random graphs) to equal share, so the model cannot coast on adjacency / no-path shortcuts.
+STRATA = ("adjacent", "sep_robust", "conn_robust", "blocked", "collider_open")
 
 
 def build_split(cfg: Config, sizes: tuple[int, ...], n: int, seed: int, pool: list[str]
@@ -158,13 +176,38 @@ def build_split(cfg: Config, sizes: tuple[int, ...], n: int, seed: int, pool: li
     neg: list[Example] = []
     target = n // 2
     while len(pos) < target or len(neg) < target:
-        ex = _make_example(cfg, rng.choice(sizes), rng, pool)
+        ex, _ = _make_example(cfg, rng.choice(sizes), rng, pool)
         bucket = pos if ex.label else neg
         if len(bucket) < target:
             bucket.append(ex)
     data = pos + neg
     rng.shuffle(data)
     return data
+
+
+def build_stratified(cfg: Config, sizes: tuple[int, ...], n: int, seed: int, pool: list[str]
+                     ) -> list[Example]:
+    """Difficulty-balanced set: each of the five strata filled to ~n/5 (rejection-sampled).
+
+    Forces the genuinely structural cases (multi-hop ``conn_robust``, ``collider_open``) — rare in
+    random graphs — to ~20% each, so the model must learn path-tracing and the collider rule rather
+    than the adjacency / no-path shortcuts a class-balanced set lets it coast on.
+    """
+    rng = random.Random(seed)
+    per = n // len(STRATA)
+    buckets: dict[str, list[Example]] = {s: [] for s in STRATA}
+    guard = 0
+    while any(len(buckets[s]) < per for s in STRATA):
+        ex, st = _make_example(cfg, rng.choice(sizes), rng, pool)
+        if len(buckets[st]) < per:
+            buckets[st].append(ex)
+        guard += 1
+        if guard > 400 * n:  # safety valve if a stratum is unreachable at these sizes
+            break
+    data = [ex for s in STRATA for ex in buckets[s]]
+    rng.shuffle(data)
+    return data
+
 
 
 class GraphDataset(Dataset[Example]):
@@ -358,10 +401,11 @@ def train(cfg: Config) -> None:
     pool = list(string.ascii_uppercase[: cfg.max_nodes])
     log(f"device={device} amp={use_amp} task={cfg.task} (causal graph transformer)")
 
-    log("generating traces from causalrl (generator + d-separation oracle) ...")
-    train_data = build_split(cfg, cfg.train_sizes, cfg.n_train, cfg.seed + 1, pool)
-    eval_data = build_split(cfg, cfg.eval_sizes, cfg.n_eval, cfg.seed + 2, pool)
-    extrap_data = build_split(cfg, cfg.extrap_sizes, cfg.n_eval, cfg.seed + 3, pool)
+    builder = build_stratified if cfg.curriculum == "stratified" else build_split
+    log(f"generating traces from causalrl (oracle); curriculum={cfg.curriculum} ...")
+    train_data = builder(cfg, cfg.train_sizes, cfg.n_train, cfg.seed + 1, pool)
+    eval_data = builder(cfg, cfg.eval_sizes, cfg.n_eval, cfg.seed + 2, pool)
+    extrap_data = builder(cfg, cfg.extrap_sizes, cfg.n_eval, cfg.seed + 3, pool)
 
     loader = DataLoader(
         GraphDataset(train_data), batch_size=cfg.batch_size, shuffle=True,
@@ -427,17 +471,19 @@ def build_config() -> Config:
     p.add_argument("--device", default=d.device)
     p.add_argument("--no-amp", action="store_true")
     p.add_argument("--eval-every", type=int, default=d.eval_every)
+    p.add_argument("--curriculum", choices=["balanced", "stratified"], default=d.curriculum)
     p.add_argument("--out", default=d.out)
     p.add_argument("--smoke", action="store_true")
     a = p.parse_args()
     if a.smoke:
         return Config(n_train=600, n_eval=200, d_model=64, n_layers=2, n_heads=4, epochs=4,
-                      eval_every=1, device=a.device, amp=False, out=a.out)
+                      eval_every=1, device=a.device, amp=False, curriculum=a.curriculum, out=a.out)
     return Config(
         n_train=a.n_train, n_eval=a.n_eval, train_sizes=tuple(a.train_sizes),
         extrap_sizes=tuple(a.extrap_sizes), d_model=a.d_model, n_layers=a.layers,
         n_heads=a.heads, epochs=a.epochs, lr=a.lr, batch_size=a.batch_size, seed=a.seed,
-        device=a.device, amp=not a.no_amp, eval_every=a.eval_every, out=a.out,
+        device=a.device, amp=not a.no_amp, eval_every=a.eval_every, curriculum=a.curriculum,
+        out=a.out,
     )
 
 
