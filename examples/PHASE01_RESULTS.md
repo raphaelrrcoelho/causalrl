@@ -93,3 +93,67 @@ CG_CACHE=1 uv run --extra torch python examples/causal_grounding_das_iit.py   # 
   and (c) installed as a domain-invariant feature — each step verified against causalrl ground truth.
 - **Is not:** a frontier-scale or natural-language result. The central open risk (proposal Phase 3) is
   the synthetic→natural and small→large transfer; this demonstrates the method, not its transfer.
+
+---
+
+# Phase 2 results — grounding *multiple* causal primitives
+
+Code: `causal_grounding_phase2.py` (reuses the Phase 0-1 machinery and the same cached base). The task
+now has **two** causal variables that both move P(recover): the **regime** R∈{see,do} and the
+**treatment** T∈{drug,nodrug}. Four-cell SCM truth: see/drug 0.86, see/nodrug 0.14, do/drug 0.65,
+do/nodrug 0.35 (R-gap +0.21, T-gap +0.30). The question: are the two primitives grounded as
+*separate, independently-controllable* latents?
+
+### 1. Naive per-variable DAS entangles the two
+
+Locating each variable on its own gives overlapping directions and off-diagonal leakage:
+
+```
+|cos(D_R, D_T)| = 0.749
+                swap regime     swap treatment
+  patch D_R :     +1.00            +0.66        <- swapping regime also moves treatment
+  patch D_T :     +0.71            +1.00
+  composition MAE = 0.131
+```
+
+### 2. Joint orthonormal DAS disentangles the directions
+
+Locating both *jointly* in an orthonormal 2-frame, optimised so the interchange matrix is the
+identity, cuts the off-diagonal leakage ~4× (at a modest cost to the on-diagonal):
+
+```
+|cos(D_R, D_T)| = 0.000
+                swap regime     swap treatment
+  patch D_R :     +0.78            +0.16        <- off-diagonal 0.66 -> 0.16
+  patch D_T :     +0.22            +0.87        <- off-diagonal 0.71 -> 0.22
+```
+
+### 3. Composition exposes a real limit — variable interaction
+
+Setting (R,T) from a single prompt by intervening on both subspaces reconstructs the low-interaction
+cells but **fails on the high-interaction cell**:
+
+```
+  cell          composed   truth    |err|
+  see_drug      0.908     0.860    0.048
+  do_drug       0.743     0.650    0.092
+  see_nodrug    0.672     0.141    0.531   <- the high-interaction cell, badly off
+  do_nodrug     0.372     0.350    0.022
+  MAE = 0.173   (naive DAS: 0.131)
+```
+
+The reason is structural, not a tuning artifact: the **treatment's effect is regime-dependent** —
+under see the drug→nodrug gap is 0.72, under do it is 0.30. A *single linear direction* per variable,
+calibrated at one regime, cannot carry an effect whose magnitude depends on the other variable.
+
+**Honest finding.** Disentangling the *directions* succeeds (off-diagonal cut ~4×), but it is
+**necessary, not sufficient**: when causal variables interact, the interaction itself must be grounded
+(a higher-dim subspace, or installed via IIT so the downstream computes the interaction from clean
+disentangled carriers — the constructive Phase 3 step). This is exactly the kind of boundary a
+ground-truth (causalrl) testbed is meant to surface.
+
+### Reproduce
+
+```
+CG_CACHE=1 uv run --extra torch python examples/causal_grounding_phase2.py
+```
