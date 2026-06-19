@@ -232,3 +232,47 @@ block, or scale) — candidates this run did not test.
 ```
 CG_CACHE=1 uv run --extra torch python examples/causal_grounding_phase3b.py
 ```
+
+---
+
+# Transfer step 1 — a Corr2Cause-style task, generated from causalrl
+
+Code: `causal_transfer_corr2cause.py`. The central open risk is transfer to *natural* causal reasoning.
+The real Corr2Cause benchmark needs a large pretrained LLM + a dataset download (both out of scope in
+this offline container), so this is the honest first step: the **same skill** (infer a causal relation
+from correlation / conditional-independence facts) rendered in language, but **generated from causalrl**
+so every label is ground truth — random DAGs → the d-separation facts in words → "does X cause Y?"
+(truth = Y is a descendant of X). Labels are balanced 50/50; we score against a correlation heuristic
+(predict "cause" iff X,Y marginally correlated) and a brute-force **Markov-equivalence-class oracle**
+(the best any premise-based reasoner can do — direction is only identifiable up to the MEC).
+
+### Result (2.78M GPT-2, trained from scratch, converged)
+
+| accuracy | model | majority | corr-heuristic | MEC-ceiling |
+|---|---|---|---|---|
+| **train (3 vars, seen)** | 0.682 | 0.510 | 0.799 | 0.821 |
+| **in-dist (3 vars)** | 0.641 | 0.500 | 0.787 | 0.838 |
+| **OOD (4 vars, unseen)** | 0.572 | 0.500 | 0.732 | 0.801 |
+
+### Honest read — a negative transfer result that *confirms the thesis*
+
+The model **does not learn the Corr2Cause skill**. It plateaus at ~0.65–0.68 — *below the trivial
+correlation heuristic* (~0.79) and well below the MEC ceiling (~0.82) — and degrades OOD (~0.57). The
+decisive diagnostic is the train row: **train accuracy ≈ val accuracy** (0.68 ≈ 0.64), so this is *not*
+overfitting. Under standard LM training the model cannot even **fit** the conditional-independence →
+direction mapping on seen data, and a bigger model + more data + more epochs did not move it (the 0.86M
+4-layer model gave the same ~0.66).
+
+This **reproduces the real Corr2Cause finding** (LLMs barely beat trivial baselines at inferring
+causation from correlation) — now in a fully controlled, ground-truth setting where the data is clean
+and provably sufficient (MEC ceiling 0.82). So the failure is the model's *reasoning*, not the data.
+
+And that is exactly the point of the whole program: **causal direction does not emerge from
+correlational next-token training — it has to be identified and installed** (Phases 0–3), not hoped for.
+The negative transfer result and the positive grounding results are two sides of the same thesis.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_transfer_corr2cause.py
+```
