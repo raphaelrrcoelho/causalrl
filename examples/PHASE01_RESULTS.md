@@ -157,3 +157,45 @@ ground-truth (causalrl) testbed is meant to surface.
 ```
 CG_CACHE=1 uv run --extra torch python examples/causal_grounding_phase2.py
 ```
+
+---
+
+# Phase 3 results — install disentangled carriers *and* the grounded interaction
+
+Code: `causal_grounding_phase3.py`. The constructive answer to Phase 2's limit: using two frozen
+orthonormal carriers (e_R for regime, e_T for treatment), run IIT so the model (a) routes each
+variable through its carrier (disentanglement specs) and (b) computes the **interaction downstream**
+(composition specs: setting (R,T) via the carriers must hit the SCM-truth cell, including see/nodrug).
+All targets are fixed SCM truth.
+
+### Before → after (composition error, lower is better)
+
+| | off-diagonal IE | composition MAE | high-interaction cell see/nodrug |
+|---|---|---|---|
+| base + Phase-2 carriers, in-dist A | 0.19 | 0.173 | err 0.531 |
+| **after Phase 3 IIT, in-dist A** | **0.12** | **0.104** | **err 0.228** |
+| base + Phase-2 carriers, OOD B | 0.32 | 0.150 | err 0.311 |
+| **after Phase 3 IIT, OOD B** | **—** | **0.104** | **err 0.113** |
+
+### Honest read — a *partial* success
+
+IIT **partially grounds the interaction**: composition MAE drops ~40% (0.173 → 0.104), the
+high-interaction cell see/nodrug roughly halves (0.531 → 0.228 in-dist; 0.311 → 0.113 OOD), and the
+improvement **transfers to the held-out OOD domain B**. So the downstream did learn to compute part of
+the interaction from the two clean carriers — something Phase 2's frozen-base linear control could not.
+
+It does **not** fully close, and the script says so: see/drug regresses (0.86 → ~0.72) and training is
+delicate (a late-epoch instability spike). Fully grounding an interaction with **frozen 1-D** carriers
+in a 0.84M model is hard — the carriers have no room to also encode the interaction, and the single
+downstream block must do all the work. The clear next step (Phase 3+/scaling) is **co-trained or
+higher-dimensional carriers** so the representation has capacity for the interaction itself.
+
+This is the honest shape of the result: grounding *non-interacting* primitives (Phases 0-1) is clean
+and strong; grounding *interacting* primitives is partially achievable and the residual difficulty is
+real — exactly the kind of boundary a ground-truth (causalrl) testbed exists to expose.
+
+### Reproduce
+
+```
+CG_CACHE=1 uv run --extra torch python examples/causal_grounding_phase3.py
+```
