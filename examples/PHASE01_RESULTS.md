@@ -199,3 +199,36 @@ real — exactly the kind of boundary a ground-truth (causalrl) testbed exists t
 ```
 CG_CACHE=1 uv run --extra torch python examples/causal_grounding_phase3.py
 ```
+
+---
+
+# Phase 3b — co-training the carriers (a negative result)
+
+Code: `causal_grounding_phase3b.py`. Hypothesis: the partial Phase 3 was limited because the carriers
+were *frozen*; **co-training** them (warm-started from the Phase-2 frame, kept orthonormal) should give
+the optimiser freedom to pick axes that disentangle tightly *and* support the interaction, closing
+composition. **The hypothesis was wrong.**
+
+```
+epoch 1..6:  losses freeze (beh 0.143, disent 0.514, comp 0.692) — stuck after epoch 1
+after:  every cell composes to ~0.604 (constant)   off-diagonal IE = 0.00   composition MAE = 0.255
+```
+
+Co-training **collapses** the model into a degenerate flat minimum: it outputs a near-constant
+P(rec)≈0.60 for every cell, the carriers carry nothing (IE=0), and composition MAE *rises* to 0.255 —
+worse than frozen Phase 3 (0.104) and even worse than the base (0.173). The same OOD-B numbers (0.255)
+confirm it is a genuine collapse, not overfitting.
+
+**Why this matters.** This is the *same* degenerate-collapse failure mode that the naive joint DAS/IIT
+hit in Phases 1-2, and the reason Phases 1b/3 **froze** their carriers. Making the carriers trainable
+reintroduces it. So: **freezing the located direction is load-bearing**, not a convenience — it is what
+keeps interchange training out of the trivial "make the output constant, carry nothing" basin. The
+frozen-carrier Phase 3 (partial, MAE 0.104) remains the best result; closing the interaction needs a
+different lever that preserves freezing (higher-dim *frozen* carriers, training only the downstream
+block, or scale) — candidates this run did not test.
+
+### Reproduce
+
+```
+CG_CACHE=1 uv run --extra torch python examples/causal_grounding_phase3b.py
+```
