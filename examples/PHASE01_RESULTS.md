@@ -363,3 +363,39 @@ size-general — which motivates the curriculum experiment below.
 ```
 uv run --extra torch python examples/causal_grounding_install.py
 ```
+
+---
+
+# (2) Can a size curriculum make structure-reasoning size-general?  (negative)
+
+Code: `causal_reasoning_curriculum.py`. The pipeline above works in-distribution but not across graph
+sizes. This tests whether training the reason-over-structure model on a **curriculum of sizes** makes
+it extrapolate. Two struct-only models (CPDAG → answer, size-agnostic format), both evaluated on
+**4-variable graphs neither saw** (held-out, larger). Variable names are randomized over A–E so every
+symbol appears at every size — isolating *pure size-extrapolation* (no new-token confound).
+
+| answer accuracy | single (sizes {3}) | curric (sizes {2,3}) | corr | MEC-ceiling |
+|---|---|---|---|---|
+| size 3 (in-dist) | 0.827 | 0.721 | 0.811 | 0.829 |
+| **size 4 (held-out)** | **0.559** | **0.551** | 0.766 | 0.855 |
+
+**It does not work.** On the held-out size 4, both models sit at ~chance (0.55), far below the MEC
+ceiling (0.855) and below even the correlation heuristic — and the curriculum is no better than the
+single-size model. Training on multiple sizes did **not** induce a reasoning procedure that
+extrapolates to a larger unseen graph. (An earlier run with `LETTERS[:k]` gave the same collapse but
+was confounded by a never-seen variable token at test; randomizing names removes that confound and the
+failure persists — so it is genuine **size/length-extrapolation failure**, the well-known wall for
+algorithmic generalization in transformers, not symbol novelty.)
+
+**Where this leaves the arc.** The method works *at a fixed scale* — ground the causal structure and
+route through it, and a stuck reasoner reaches the ceiling (the install/pipeline result). It does
+**not** yet generalize in size. So the honest boundary is exactly the one flagged from the start:
+**scale/extrapolation, not the in-distribution mechanism, is the wall.** Closing it likely needs
+ideas beyond a plain curriculum — algorithmic/length-generalization techniques (e.g. positional
+schemes, recurrence/scratchpad iteration, or explicit graph-traversal inductive biases).
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_reasoning_curriculum.py
+```
