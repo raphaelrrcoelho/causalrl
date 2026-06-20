@@ -323,3 +323,43 @@ making structure-reasoning size-general is the open work.
 ```
 uv run --extra torch python examples/causal_reasoning_scaffold.py
 ```
+
+---
+
+# Installing the causal structure + extract-then-reason pipeline (the positive result)
+
+Code: `causal_grounding_install.py`. The scaffold localized the bottleneck (reason-over-structure works,
+extract-from-correlations doesn't). This tests the program's core move — *install* the causal structure
+and route the answer through it.
+
+| in-dist (3 vars) | plain-direct | grounded-direct | **pipeline** | corr | MEC-ceiling |
+|---|---|---|---|---|---|
+| answer accuracy | 0.659 | 0.654 | **0.812** | 0.787 | 0.838 |
+| aux CPDAG accuracy | — | **1.000 / pair** | — | — | — |
+
+Two findings, both important:
+
+1. **Representational grounding alone is necessary but not sufficient.** Giving the *same hidden state
+   that produces the answer* a dense auxiliary target (predict the CPDAG) makes the representation
+   encode the structure **perfectly (aux accuracy 1.000/pair)** — yet the answer is **unchanged**
+   (0.654 ≈ plain 0.659). The structure is *present* but the answer head does not *route through it*:
+   **presence ≠ mediation** — exactly the Phase-0 lesson (a feature must be causally load-bearing, not
+   just decodable).
+
+2. **Routing the answer through the structure closes the gap.** The extract-then-reason **pipeline**
+   (the grounded model extracts the CPDAG — which it does at 100% — then a struct model reasons over
+   it) lifts accuracy **0.659 → 0.812**, to the MEC ceiling (0.838) and matching struct-only.
+
+So, on this task, **explicit causal reasoning — ground the causal structure *and* route the
+computation through it — turns a stuck reasoner (0.66) into a near-optimal one (0.81).** And the
+surprise from the aux head (1.000): *extraction was never the wall* — with decomposed per-edge
+supervision the model extracts the full structure; the wall was **mediation/routing**.
+
+Caveat: in-distribution (3-var). The aux extractor is size-specific, so the pipeline is not yet
+size-general — which motivates the curriculum experiment below.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_grounding_install.py
+```
