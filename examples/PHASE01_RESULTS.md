@@ -276,3 +276,50 @@ The negative transfer result and the positive grounding results are two sides of
 ```
 uv run --extra torch python examples/causal_transfer_corr2cause.py
 ```
+
+---
+
+# Does causal reasoning improve the model's reasoning?  (the on-thesis result)
+
+Code: `causal_reasoning_scaffold.py`. The most direct test of the program's claim. On the same
+Corr2Cause-style task where direct answering is stuck at ~0.66, three conditions (same tiny model):
+
+1. **DIRECT** — premises → answer (extract causal direction from raw correlations).
+2. **STRUCT-ONLY** — the **CPDAG alone** → answer (reason over a *given* causal structure; no premises,
+   so structure-reasoning is the only path — avoids the redundancy of showing both).
+3. **CoT** — premises → *model derives the CPDAG* → answer (derive the structure, then use it).
+
+The CPDAG (skeleton + Markov-equivalence-invariant orientations) is the exact identifiable causal
+structure, computed from causalrl ground truth.
+
+### Result
+
+| accuracy | direct | **struct-only** | CoT (self-derived) | corr-heuristic | MEC-ceiling |
+|---|---|---|---|---|---|
+| **in-dist (3 vars)** | 0.659 | **0.818** | 0.655 | 0.787 | 0.838 |
+| OOD (4 vars) | 0.573 | 0.565 | 0.138 | 0.732 | 0.801 |
+
+### Read — the clearest "causal reasoning improves reasoning" signal in this work
+
+In-distribution, **handing the model the causal structure lifts accuracy from 0.659 to 0.818 — to the
+information-theoretic MEC ceiling (0.838)**, and past the correlation heuristic (0.787). So:
+
+- the model **can reason over a causal model** — near-optimally;
+- it **cannot extract** that model from raw correlations (direct stuck at 0.66);
+- it **cannot derive** it itself either (CoT ≈ direct).
+
+That triangulates the thesis precisely: **the causal structure is the missing ingredient, and the
+bottleneck is extraction/grounding — exactly what Phases 0–3 target.** "Causal reasoning improves
+reasoning" here is not a slogan: providing a causal model moves a stuck reasoner to the ceiling.
+
+**Honest caveat.** It does **not** generalize OOD: on 4-variable graphs struct-only (0.565) collapses
+back to direct, and CoT generation breaks (0.138). The *structure-reasoning skill learned on 3-var
+graphs is not size-general*, and self-derivation fails. So this is a controlled existence proof — the
+causal model is usable and is what's missing — not a scalable solution. Closing the extraction gap and
+making structure-reasoning size-general is the open work.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_reasoning_scaffold.py
+```
