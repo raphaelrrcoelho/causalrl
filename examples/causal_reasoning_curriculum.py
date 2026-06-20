@@ -90,7 +90,9 @@ def build(n_examples: int, sizes: list[int], seed: int) -> list[dict]:
     tries = 0
     while len(out) < 2 * want and tries < n_examples * 400:
         tries += 1
-        nodes = LETTERS[: rng.choice(sizes)]
+        # random letter subset (not LETTERS[:k]) so every variable name appears at every size --
+        # removes the "new token at test size" confound, isolating pure size-extrapolation.
+        nodes = sorted(rng.sample(LETTERS, rng.choice(sizes)))
         specs = full_specs(nodes)
         g = c2c.random_dag(nodes, p=0.45, rng=rng)
         x, y = rng.sample(nodes, 2)
