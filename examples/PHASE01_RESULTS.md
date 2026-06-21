@@ -689,3 +689,37 @@ refinement; see `ARCHITECTURE.md`.
 ```
 uv run --extra torch python examples/causal_hybrid_lm.py
 ```
+
+---
+
+# Robustness: multi-seed mean ± std for the load-bearing claims
+
+Code: `causal_robustness.py`. The headlines above were single-seed. This re-runs the three most
+load-bearing claims across 3 seeds (full training budget) and reports mean ± std.
+
+| claim | metric | result (mean ± std over 3 seeds) |
+|---|---|---|
+| **(a) hybrid vs vanilla** | hybrid confounded (size 3) | **1.000 ± 0.000** |
+| | hybrid confounded (size 4, held-out) | **0.914 ± 0.071** |
+| | vanilla confounded | 0.15 ± 0.05 |
+| **(b) active vs random** | active @ budget 2 | **0.991 ± 0.002** |
+| | random @ budget 2 | 0.923 ± 0.003 |
+| | observation floor | 0.814 ± 0.001 |
+| **(c) discovery obs vs int** | interventional confounded | **0.859 ± 0.222** |
+| | observational confounded | 0.113 ± 0.097 |
+
+The gaps hold across seeds: hybrid ≫ vanilla, active ≫ random, interventional ≫ observational. Active
+and the hybrid are tight; discovery-from-evidence (interventional) is robust in the mean but the most
+seed-variable (one seed 0.60) — it is the hardest *learned* component.
+
+**Honest caveat that multi-seed surfaced.** A reduced-budget sweep (8 epochs) made the hybrid **bimodal**
+across seeds — `[1.0, 0.0, 1.0]` — i.e. it *collapsed* on some seeds. That was **under-training**: at
+the full budget (12 epochs) it is `[1.0, 1.0, 1.0]` in-dist and `0.914 ± 0.071` held-out. So the results
+are robust *with adequate training*; under-trained, the embedded-core models are seed-fragile. The
+single-seed headlines were the good mode — now confirmed to be the typical mode at full budget.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_robustness.py
+```
