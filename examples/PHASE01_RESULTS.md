@@ -757,3 +757,35 @@ discovery from genuinely raw, messy data at scale remains open.
 ```
 uv run --extra torch python examples/causal_data_discovery.py
 ```
+
+---
+
+# The PURE path: can a real GPT-2 internalise causal reasoning? (multi-seed)
+
+Code: `causal_pure_lm.py`. The hybrid bolts an explicit core onto GPT-2; the "pure" alternative is a
+real LM doing the reasoning *in its own weights*. We give it its best shot — including grounding
+*pressure* (an aux loss making its hidden states encode the true edges, while the answer still comes
+only from the LM head) — and test multi-seed on confounded-cause (correlated but not causal).
+
+| | confounded (mean ± std, 2 seeds) |
+|---|---|
+| pure-direct, in-dist (size 3) | 0.155 ± 0.056 |
+| pure-direct, held-out (size 4) | 0.150 ± 0.095 |
+| pure-grounded, in-dist (size 3) | 0.370 ± 0.064 |
+| pure-grounded, held-out (size 4) | 0.529 ± 0.108 |
+| **hybrid (explicit routed core), reference** | **~1.000 / ~0.914** |
+
+**The pure path does not internalise causal reasoning.** Vanilla GPT-2 sits at ~0.15 (it answers
+"causes" whenever correlated). Grounding *pressure* helps — 0.37–0.53 — i.e. forcing the structure into
+the hidden states does make the LM head use it *somewhat*, but it stays far below the hybrid's routed
+core (~1.0 / ~0.91). This is **presence ≠ mediation at LM scale**: pushing structure into the weights is
+not enough; the answer must be *routed through* an explicit causal computation. So, of the fork
+"internalise vs bolt-on", the **hybrid (bolt-on explicit core) is the path that works**; the pure
+internalised path is the weaker one — exactly the diagnosis from the start of the arc, now confirmed
+with a real LM and multiple seeds.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_pure_lm.py
+```

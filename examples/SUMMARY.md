@@ -65,8 +65,11 @@ routing, size-general iterative reasoning, the do() operator, relational percept
 2. **Discovery from messy real data/text** at the perception front-end (the recurring bottleneck; the
    hybrid's residual held-out drop is its GPT-2 perception, not the core's reasoning).
 3. **The "pure" path** — whether a real LM can *internalise* the causal computation in its own weights
-   (vs the hybrid module). Our diagnostics suggest this is hard (emergence fails, presence ≠ mediation);
-   it is the next thing to test with robustness.
+   (vs the hybrid module) — **now tested, multi-seed** (`causal_pure_lm.py`): it does **not**. A vanilla
+   GPT-2 sits at ~0.15 on confounded; adding grounding *pressure* (aux loss on the hidden states) lifts
+   it to ~0.37–0.53 but nowhere near the hybrid's routed core (~1.0 / ~0.91). Presence ≠ mediation holds
+   at LM scale: pushing structure into the weights is not enough; the explicit routed core is what
+   delivers causal reasoning. So the hybrid is the path that works; the pure path is the weaker one.
 4. **Scale & faithfulness** — whether the exact, size-general behaviour survives being *learned* at
    frontier scale on real distributions. This — with a real pretrained LM and a real benchmark
    (Corr2Cause) — is the only test that would show whether this is a genuine advance; it needs a
