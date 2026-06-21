@@ -1,9 +1,14 @@
-"""Generate causal_rl_presentation.ipynb from source cells.
+"""Generate causal_rl_presentation.ipynb — the hands-on "see & touch the agent" notebook.
 
-Keeping the notebook in a generator means the prose and code live in one reviewable file and
-the .ipynb is a build artifact. Run::
+The notebook is a build artifact; this generator is the reviewable source. Run::
 
     uv run python examples/presentation/_make_notebook.py
+
+Design goal (per the brief): make the agent's *acting and learning* tangible, not the
+causal theory. Every demo exposes the inner loop — what the agent observed, what it now
+believes, why it chose an action, how the belief moved — with live ipywidgets controls.
+Each demo also has a static cell that runs the same logic once, so the notebook validates
+headlessly and projects even where widgets don't render.
 """
 
 from __future__ import annotations
@@ -12,260 +17,353 @@ from pathlib import Path
 
 import nbformat as nbf
 
-nb = nbf.v4.new_notebook()
 md = nbf.v4.new_markdown_cell
 code = nbf.v4.new_code_cell
 cells: list = []
 
-cells.append(md(r"""# Causal RL, hands-on: three levels of the Pearl hierarchy
+# ======================================================================================
+# Intro
+# ======================================================================================
+cells.append(md(r"""# Causal RL you can *see and touch*
 
-**An applied-math walkthrough of `causalrl`.**
+This notebook is not about the theory of causality — it is about **watching an RL agent act
+and learn**, and seeing exactly *where* the causal information enters its decision.
 
-The thesis of causal reinforcement learning is that an agent equipped with a *causal model*
-makes decisions a correlation-only agent provably cannot. We make that concrete with three
-self-contained bandit problems, one per rung of the **Pearl Causal Hierarchy**:
+Three tiny bandit games, one per rung of the Pearl hierarchy. In each one you can:
 
-| Demo | Rung | Question the agent must answer | Causal agent | Naive agent |
-|------|------|-------------------------------|:------------:|:-----------:|
-| **1. MABUC** | $L_1\!\to\!L_2$ | *Which arm, when the $do()$-means are equal?* | **0.76** | 0.50 |
-| **2. POMIS** | $L_2$ | *Where, among $2^n$ intervention sets, is it worth intervening?* | **1.00** | 0.50 |
-| **3. Counterfactual policy** | $L_3$ | *Given my intent, what is $\mathbb{E}[Y_{do(a)}\mid\text{intent}]$?* | **0.80** | 0.37 |
+- **watch a single decision** — what the agent saw, what it sampled, which arm it pulled, what it got;
+- **scrub the agent's learning** — drag a slider through training and watch its *beliefs* form;
+- **touch the action space** — poke individual arms / intents and read off their value.
 
-The recurring punchline: in every demo the **interventional** signal alone is uninformative
-(all arms look identical under $do$), yet the *observational* or *counterfactual* signal breaks
-the tie. Everything here is tabular and runs in seconds.
+The causal agent always sits next to a naive one, so the gap is something you *see happen*,
+not a number you're told. (One line of theory per demo, no derivations.)
 
-> Reference spine: Bareinboim's [9-task taxonomy of causal RL](https://crl.causalai.net/);
-> Pearl, *Causality*; Bareinboim, Forney & Pearl, *Bandits with Unobserved Confounders* (NeurIPS 2015);
-> Lee & Bareinboim, *Structural Causal Bandits* (NeurIPS 2018)."""))
+> Run top-to-bottom. Each demo has a **▶ live** cell (interactive) and a **▦ static** cell
+> (same logic, renders anywhere)."""))
 
-cells.append(code("""import numpy as np
+cells.append(code("""%matplotlib inline
+import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import beta as beta_dist
+import ipywidgets as widgets
+from IPython.display import display
 
-BLUE, RED, GREY = "#1f77b4", "#d62728", "#999999"
-rng = np.random.default_rng(0)
-
-
-def running_mean(x):
-    x = np.asarray(x, float)
-    return np.cumsum(x) / (np.arange(len(x)) + 1)
+BLUE, RED, GREY, GOLD = "#1f77b4", "#d62728", "#9aa0a6", "#e8a33d"
+plt.rcParams["figure.dpi"] = 110
 
 
-def run_bandit(agent, env, n=8000, seed=1):
-    \"\"\"One pull per episode; reset draws a fresh confounder. Returns the reward sequence.\"\"\"
-    obs, _ = env.reset(seed=seed)
-    rewards = []
-    for _ in range(n):
-        a = agent.act(obs)
-        _, r, _, _, _ = env.step(a)
-        agent.update(obs, a, r)
-        obs, _ = env.reset()
-        rewards.append(r)
-    return np.asarray(rewards, float)"""))
+def beta_posteriors(agent, ctx):
+    \"\"\"Return (alpha, beta) arrays over arms for an agent at context `ctx`.
 
-# ---- Demo 1 ---------------------------------------------------------------------------
-cells.append(md(r"""## Demo 1 — MABUC: the founding paradox ($L_1$ vs $L_2$)
+    CausalThompsonSampling keeps one row per (intuition, arm); the naive agent keeps a
+    single row it reuses for every context. Reading these private arrays is exactly the
+    state the agent's `act()` samples from.\"\"\"
+    if getattr(agent, "n_contexts", None) is not None:
+        return agent._alpha[ctx].copy(), agent._beta[ctx].copy()
+    return agent._alpha.copy(), agent._beta.copy()
 
-The **Multi-Armed Bandit with Unobserved Confounders.** A latent state (mood/context)
-$U=(D,B)$ drives *both* the agent's gut *intuition* $I=D\oplus B$ and which arm is lucky.
-The structural model is `U → I → X → Y`, `U → Y`.
 
-The trap, stated for a math audience: the two arms are **interventionally indistinguishable**,
-$$\mathbb{E}[Y\mid do(X{=}0)] \;=\; \mathbb{E}[Y\mid do(X{=}1)] \;=\; \tfrac12 .$$
-An agent that reasons only at $L_2$ (the $do$-level) is provably stuck at 0.5 — $do(X{=}a)$ severs
-the edge $U\to X$, averaging the confounder away. But the **observational** quantity
-$\mathbb{E}[Y\mid X{=}a, I{=}i]$ is *not* flat: the agent's own intuition $I$ is a measurable
-proxy for $U$. `CausalThompsonSampling` keeps one Beta posterior per $(I, a)$ cell and recovers
-the lucky arm; `NaiveThompsonSampling` marginalizes $I$ away and cannot."""))
+def transparent_pull(agent, obs, env, rng):
+    \"\"\"One episode, but we draw the Thompson samples ourselves so they're visible.
 
-cells.append(code("""from causalrl.envs.suite.mabuc import build_mabuc_scm
+    This *is* what `agent.act()` does internally (argmax of one Beta draw per arm); doing it
+    here just lets us show the sampled values. The agent's posterior is still the single
+    source of truth — we update it via `agent.update()`.\"\"\"
+    ctx = int(obs["intuition"])
+    a_row, b_row = beta_posteriors(agent, ctx)
+    thetas = rng.beta(a_row, b_row)
+    action = int(np.argmax(thetas))
+    _, r, _, _, _ = env.step(action)
+    agent.update(obs, action, r)
+    return ctx, thetas, action, float(r)"""))
 
-scm = build_mabuc_scm()
-do0 = scm.do({"X": 0.0}).see(20000, seed=0)["Y"].mean().item()
-do1 = scm.do({"X": 1.0}).see(20000, seed=1)["Y"].mean().item()
-print(f"E[Y | do(X=0)] = {do0:.3f}")
-print(f"E[Y | do(X=1)] = {do1:.3f}   <- identical: no do()-only agent can choose")"""))
+# ======================================================================================
+# DEMO 1 — MABUC
+# ======================================================================================
+cells.append(md(r"""## Demo 1 — MABUC: watch the belief split by context
+
+A hidden mood drives both the lucky arm **and** the agent's gut *intuition* `I`. The one line
+of theory: the two arms are identical under intervention,
+$\mathbb{E}[Y\mid do(X{=}0)]=\mathbb{E}[Y\mid do(X{=}1)]=0.5$, so choosing well is *impossible*
+without reading `I`.
+
+- **Causal** agent: one Beta belief per **(intuition, arm)** cell → it can learn "in mood 0, arm 0 is lucky".
+- **Naive** agent: one Beta belief per **arm** → it averages the moods together and both arms sit at 0.5.
+
+You will literally watch the causal beliefs *pull apart* by context while the naive ones stay glued."""))
 
 cells.append(code("""from causalrl.agents.bandits import CausalThompsonSampling, NaiveThompsonSampling
 from causalrl.envs.suite.mabuc import MABUCEnv
 
-causal = run_bandit(CausalThompsonSampling(n_arms=2, n_contexts=2, seed=0), MABUCEnv(seed=1))
-naive = run_bandit(NaiveThompsonSampling(n_arms=2, seed=0), MABUCEnv(seed=1))
-print(f"Causal TS avg reward: {causal.mean():.3f}")
-print(f"Naive  TS avg reward: {naive.mean():.3f}")"""))
+SNAP_STEPS = [0, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2000, 4000, 8000]
 
-cells.append(code("""opt = 0.75
-fig, (ax0, ax1, ax2) = plt.subplots(1, 3, figsize=(15, 4.2))
 
-ax0.bar(["do(X=0)", "do(X=1)"], [do0, do1], color=GREY, width=0.55)
-ax0.axhline(0.5, ls="--", c="k", lw=0.8); ax0.set_ylim(0, 1)
-ax0.set_ylabel("E[Y | do(X=a)]")
-ax0.set_title("L2 means are identical\\n(do()-agent is blind)")
+def train_snapshots(agent, seed=1, steps=8000, snap_at=SNAP_STEPS):
+    \"\"\"Train via the transparent loop; snapshot (alpha, beta) at the requested step counts.\"\"\"
+    env = MABUCEnv(seed=seed)
+    obs, _ = env.reset(seed=seed)
+    rng = np.random.default_rng(seed)
+    snaps, log = {}, []
+    for t in range(steps + 1):
+        if t in snap_at:
+            snaps[t] = (agent._alpha.copy(), agent._beta.copy())
+        if t == steps:
+            break
+        ctx, thetas, action, r = transparent_pull(agent, obs, env, rng)
+        if t < 6:
+            log.append((t, ctx, thetas.round(2).tolist(), action, r))
+        obs, _ = env.reset()
+    return snaps, log
 
-ax1.plot(running_mean(causal), color=BLUE, label="Causal TS (conditions on intuition)")
-ax1.plot(running_mean(naive), color=RED, label="Naive TS (ignores intuition)")
-ax1.axhline(opt, ls="--", c="k", lw=0.8, label="optimal = 0.75")
-ax1.set_ylim(0.45, 0.8); ax1.set_xlabel("step"); ax1.set_ylabel("running avg reward")
-ax1.set_title("Reward per step"); ax1.legend(loc="lower right", fontsize=8)
 
-cr_c, cr_n = np.cumsum(opt - causal), np.cumsum(opt - naive)
-ax2.plot(cr_c, color=BLUE, label=f"Causal (final {cr_c[-1]:.0f})")
-ax2.plot(cr_n, color=RED, label=f"Naive (final {cr_n[-1]:.0f})")
-ax2.set_xlabel("step"); ax2.set_ylabel("cumulative regret")
-ax2.set_title("Cumulative regret vs the 0.75 oracle"); ax2.legend(loc="upper left", fontsize=8)
+causal = CausalThompsonSampling(n_arms=2, n_contexts=2, seed=0)
+naive = NaiveThompsonSampling(n_arms=2, seed=0)
+causal_snaps, decision_log = train_snapshots(causal)
+naive_snaps, _ = train_snapshots(naive)
 
-fig.suptitle("Demo 1 — MABUC: equal do()-means, yet the confounder proxy decides", fontsize=13)
-fig.tight_layout(rect=(0, 0, 1, 0.95)); plt.show()"""))
+print("First decisions of the causal agent (intuition, sampled thetas, arm played, reward):")
+for t, ctx, thetas, action, r in decision_log:
+    print(f"  step {t}: intuition={ctx}  sampled={thetas}  -> pulled arm {action}  reward={r:.0f}")"""))
 
-# ---- Demo 2 ---------------------------------------------------------------------------
-cells.append(md(r"""## Demo 2 — POMIS: *where* to intervene ($L_2$, combinatorial)
+cells.append(code("""def draw_beliefs(step):
+    \"\"\"Beta densities at a training step: causal split by intuition, naive pooled.\"\"\"
+    xs = np.linspace(0, 1, 250)
+    ca, cb = causal_snaps[step]
+    na, nb = naive_snaps[step]
+    fig, axes = plt.subplots(1, 3, figsize=(13, 3.6), sharey=True)
 
-Now the lever is not "which value" but "which **variables** to set." With $n$ manipulable
-variables there are $2^n$ candidate intervention sets — exponential. **POMIS**
-(*Possibly-Optimal Minimal Intervention Sets*, Lee & Bareinboim 2018) uses the graph topology to
-prove that all but a handful can be discarded *without ever pulling them*.
+    for ctx, ax in zip((0, 1), axes[:2]):
+        for arm, color in zip((0, 1), (BLUE, GOLD)):
+            a, b = ca[ctx, arm], cb[ctx, arm]
+            ax.plot(xs, beta_dist.pdf(xs, a, b), color=color, label=f"arm {arm}")
+            ax.axvline(a / (a + b), color=color, ls=":", lw=1)
+        ax.set_title(f"CAUSAL · intuition={ctx}")
+        ax.set_xlabel("believed P(reward)")
+    axes[0].legend(loc="upper center", fontsize=8)
 
-We use the confounded chain $X_1\to X_2\to X_3\to Y$ with a back-door $X_1\leftrightarrow Y$.
-Enumerating arms (each variable $\in\{\text{idle},0,1\}$) gives **27 candidate arms**, but
-$$\textsf{POMIS}(\,\mathcal{G}, Y\,) = \{\,\varnothing,\ \{X_3\}\,\}.$$
-Two interpretations a math audience will appreciate: (i) intervening upstream ($X_1$ or $X_2$)
-*destroys* the very $X_3\to Y$ effect you want, so it cannot be optimal; (ii) the empty set
-$\varnothing$ — pure **observation** — is itself a candidate, and here it *wins* (the MABUC
-effect, lifted onto a chain). The POMIS agent searches 2 arms; brute force flails over 27."""))
+    ax = axes[2]
+    for arm, color in zip((0, 1), (BLUE, GOLD)):
+        a, b = na[arm], nb[arm]
+        ax.plot(xs, beta_dist.pdf(xs, a, b), color=color, label=f"arm {arm}")
+        ax.axvline(a / (a + b), color=color, ls=":", lw=1)
+    ax.axvline(0.5, color="k", ls="--", lw=0.8)
+    ax.set_title("NAIVE · (moods pooled)")
+    ax.set_xlabel("believed P(reward)")
+
+    fig.suptitle(f"Beliefs after {step} pulls — causal separates the arms per mood; naive stays at 0.5",
+                 fontsize=12)
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    plt.show()
+
+
+# ▦ static: the endpoint (also validates the drawing logic headlessly)
+draw_beliefs(8000)"""))
+
+cells.append(code("""# ▶ live: drag through training and watch the causal beliefs pull apart
+widgets.interact(draw_beliefs,
+                 step=widgets.SelectionSlider(options=SNAP_STEPS, value=10,
+                                              description="pulls", continuous_update=False));"""))
+
+cells.append(code("""# ▶ live: pull ONE more time and watch both agents decide on the same fresh mood
+_live_env = MABUCEnv(seed=99)
+_live_rng = np.random.default_rng(7)
+_tally = {"causal": 0, "naive": 0, "n": 0}
+_out = widgets.Output()
+
+
+def _pull_once(_btn=None):
+    obs, _ = _live_env.reset()
+    cctx, cth, ca, cr = transparent_pull(causal, obs, _live_env, _live_rng)
+    obs2 = {"intuition": cctx}
+    nctx, nth, na_, nr = transparent_pull(naive, obs2, _live_env, _live_rng)
+    _tally["causal"] += cr; _tally["naive"] += nr; _tally["n"] += 1
+    with _out:
+        print(f"mood→intuition={cctx} | "
+              f"CAUSAL sampled {cth.round(2)} → arm {ca} (r={cr:.0f})   "
+              f"NAIVE sampled {nth.round(2)} → arm {na_} (r={nr:.0f})   "
+              f"|| running reward  causal={_tally['causal']/_tally['n']:.2f} "
+              f"naive={_tally['naive']/_tally['n']:.2f}")
+
+
+_btn = widgets.Button(description="🎲 pull once", button_style="primary")
+_btn.on_click(_pull_once)
+display(_btn, _out)"""))
+
+# ======================================================================================
+# DEMO 2 — POMIS
+# ======================================================================================
+cells.append(md(r"""## Demo 2 — POMIS: touch the 27 levers, keep the 2 that matter
+
+Now the choice is *which variables to set*. The chain is $X_1\to X_2\to X_3\to Y$ with a hidden
+back-door $X_1\leftrightarrow Y$. Each of $X_1,X_2,X_3$ can be left alone or forced to 0/1 →
+**27 candidate arms**. One line of theory: setting an upstream variable destroys the very
+$X_3\to Y$ effect you want, so POMIS proves only two arms can be optimal,
+$\{\varnothing,\{X_3\}\}$.
+
+Below you can **poke any of the 27 arms** and read its true value — discover for yourself that
+plain *observing* ($\varnothing$) is the winner."""))
 
 cells.append(code("""from causalrl import pomis
 from causalrl.envs.suite.scbandit import make_confounded_chain_env
 
-env = make_confounded_chain_env(seed=1)
-print("candidate arms (brute force):", env.action_space.n)
-print("POMIS(graph, 'Y'):", pomis(env.graph, "Y"))
-print("optimal value:", round(env.optimal_value, 3))"""))
+chain_env = make_confounded_chain_env(seed=1)
+pomis_sets = pomis(chain_env.graph, "Y")
+pomis_keys = {frozenset(s) for s in pomis_sets}
 
-cells.append(code("""from causalrl.agents.scbandit import (
-    BruteForceInterventionTS,
-    FixedSetThompsonSampling,
-    POMISThompsonSampling,
+
+def arm_label(arm):
+    return "∅  (just observe)" if not arm else "do(" + ", ".join(f"{k}={v}" for k, v in arm.items()) + ")"
+
+
+def in_pomis(arm):
+    return frozenset(arm.keys()) in pomis_keys
+
+
+# ▦ static: the whole action space, value and POMIS membership (validates the helpers)
+print(f"{len(chain_env.arms)} candidate arms; POMIS keeps {len(pomis_sets)}: {pomis_sets}\\n")
+ranked = sorted(range(len(chain_env.arms)), key=lambda i: -chain_env.arm_values[i])
+print("  value  POMIS  arm")
+for i in ranked[:6]:
+    arm = chain_env.arms[i]
+    print(f"  {chain_env.arm_values[i]:.3f}   {'✓ ' if in_pomis(arm) else '· '}    {arm_label(arm)}")
+print("  ...")"""))
+
+cells.append(code("""# ▶ live: pick any lever and read its value + whether POMIS bothered to keep it
+def show_arm(idx):
+    arm = chain_env.arms[idx]
+    val = chain_env.arm_values[idx]
+    keep = in_pomis(arm)
+    bar = "█" * int(round(val * 30))
+    print(f"{arm_label(arm):>22}   value = {val:.3f}  {bar}")
+    print(f"{'':>22}   POMIS keeps this lever? {'YES ✓' if keep else 'no — provably not optimal'}")
+    if not arm:
+        print("\\n   ↑ doing nothing but *observing* is the best arm here (the MABUC effect on a chain).")
+
+
+widgets.interact(show_arm,
+                 idx=widgets.Dropdown(options=[(arm_label(a), i) for i, a in enumerate(chain_env.arms)],
+                                      value=0, description="lever"));"""))
+
+cells.append(code("""# ▶ live + ▦ scoreboard: POMIS agent searches 2 arms, brute force flails over 27
+from causalrl.agents.scbandit import (
+    BruteForceInterventionTS, FixedSetThompsonSampling, POMISThompsonSampling,
 )
 
 
-def run_sc(agent, steps=8000, seed=1):
-    obs, _ = env.reset(seed=seed)
+def tail_reward(agent, steps=8000, seed=1):
+    obs, _ = chain_env.reset(seed=seed)
     rewards = []
     for _ in range(steps):
         a = agent.act(obs)
-        nobs, r, _, _, _ = env.step(a)
+        nobs, r, _, _, _ = chain_env.step(a)
         agent.update(obs, a, r)
         rewards.append(r)
         obs = nobs
     return np.asarray(rewards, float)
 
 
-pomis_r = run_sc(POMISThompsonSampling(env.graph, env.reward, env.arms, seed=0,
-                                       manipulable=env.manipulable))
-brute_r = run_sc(BruteForceInterventionTS(env.arms, seed=0), seed=2)
-naive_r = run_sc(FixedSetThompsonSampling(env.arms, {"X3"}, seed=0), seed=3)
-print(f"POMIS {pomis_r[-2000:].mean():.3f} | brute {brute_r[-2000:].mean():.3f} | "
-      f"naive do(X3) {naive_r[-2000:].mean():.3f}")"""))
+pomis_r = tail_reward(POMISThompsonSampling(chain_env.graph, chain_env.reward, chain_env.arms,
+                                            seed=0, manipulable=chain_env.manipulable))
+brute_r = tail_reward(BruteForceInterventionTS(chain_env.arms, seed=0), seed=2)
+naive_r = tail_reward(FixedSetThompsonSampling(chain_env.arms, {"X3"}, seed=0), seed=3)
 
-cells.append(code("""fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(12, 4.4))
-n_arms, n_pomis = env.action_space.n, len(pomis(env.graph, "Y"))
+fig, ax = plt.subplots(figsize=(9, 3.6))
+ax.plot(np.cumsum(pomis_r) / (np.arange(8000) + 1), color=BLUE, label="POMIS  (2 arms)")
+ax.plot(np.cumsum(brute_r) / (np.arange(8000) + 1), color=GREY, label="brute force (27 arms)")
+ax.plot(np.cumsum(naive_r) / (np.arange(8000) + 1), color=RED, label="naive do(X3)")
+ax.axhline(chain_env.optimal_value, ls="--", c="k", lw=0.8, label="optimal")
+ax.set_xlabel("step"); ax.set_ylabel("running avg reward")
+ax.set_title("Knowing where to intervene = converge immediately"); ax.legend(fontsize=8)
+plt.show()"""))
 
-ax0.bar(["brute force\\n(all arms)", "POMIS\\n(provably optimal)"], [n_arms, n_pomis],
-        color=[GREY, BLUE], width=0.5)
-ax0.set_ylabel("# candidate interventions"); ax0.set_title("POMIS prunes the search space")
-for i, v in enumerate([n_arms, n_pomis]):
-    ax0.text(i, v + 0.4, str(v), ha="center", fontweight="bold")
+# ======================================================================================
+# DEMO 3 — Counterfactual
+# ======================================================================================
+cells.append(md(r"""## Demo 3 — Counterfactual policy: play one round at a time
 
-ax1.plot(running_mean(pomis_r), color=BLUE, label="POMIS TS  (∅, {X3})")
-ax1.plot(running_mean(brute_r), color=GREY, label="Brute force (27 arms)")
-ax1.plot(running_mean(naive_r), color=RED, label="Naive do(X3) only")
-ax1.axhline(env.optimal_value, ls="--", c="k", lw=0.8, label=f"optimal = {env.optimal_value:.2f}")
-ax1.set_xlabel("step"); ax1.set_ylabel("running avg reward")
-ax1.set_title("Observing (∅) beats every fixed intervention"); ax1.legend(loc="lower right", fontsize=8)
+A 3-arm bandit where the lucky arm *is* the hidden state $U$, and your intent $I=U$. One line of
+theory: every fixed intervention averages to chance,
+$\mathbb{E}[Y\mid do(X{=}a)]\approx0.37$ for all $a$, but the **counterfactual** value
+$\mathbb{E}[Y_{do(a)}\mid I{=}i]$ is sharp — it tells you to play the arm matching your intent.
 
-fig.suptitle("Demo 2 — POMIS on X1→X2→X3→Y, X1↔Y: the graph names the few levers worth pulling",
-             fontsize=13)
-fig.tight_layout(rect=(0, 0, 1, 0.93)); plt.show()"""))
-
-# ---- Demo 3 ---------------------------------------------------------------------------
-cells.append(md(r"""## Demo 3 — Counterfactual policy: act on $\mathbb{E}[Y_{do(a)}\mid \text{intent}]$ ($L_3$)
-
-Finally, the top rung. A 3-arm bandit with hidden $U\in\{0,1,2\}$: the lucky arm *is* $U$
-(reward 0.8 if played arm $=U$, else 0.15), and the agent's intent satisfies $I=U$. The
-behaviour policy plays $X=I$, so it is *implicitly optimal* — the observational mean is 0.8 —
-yet **every fixed intervention collapses to chance**:
-$$\mathbb{E}[Y\mid do(X{=}a)] = \tfrac13(0.8) + \tfrac23(0.15) \approx 0.37 \quad\forall a.$$
-The fix is a genuinely **counterfactual** ($L_3$) query — Bareinboim, Forney & Pearl's *Regret
-Decision Criterion*: "given that I am inclined toward $i$, what is the best action?"
-$$\pi^\star(i) = \arg\max_a\ \mathbb{E}\big[\,Y_{do(X=a)} \,\big|\, I = i\,\big].$$
-`CounterfactualOptimalPolicy` precomputes this table from the SCM. Its diagonal structure (below)
-says: **trust your intuition** — but only because the counterfactual confirms it."""))
+The agent precomputes that table from the model. Below you can **play single rounds** and watch
+the counterfactual policy follow its intent and win while the naive agent guesses."""))
 
 cells.append(code("""from causalrl import CounterfactualOptimalPolicy
+from causalrl.agents.bandits import NaiveThompsonSampling
 from causalrl.envs.suite.counterfactual_bandit import (
-    build_counterfactual_scm,
-    make_counterfactual_bandit_env,
+    build_counterfactual_scm, make_counterfactual_bandit_env,
 )
 
-scm3 = build_counterfactual_scm()
 cf_agent = CounterfactualOptimalPolicy(
-    scm3, outcome="Y", action_node="X", intent_node="I",
+    build_counterfactual_scm(), outcome="Y", action_node="X", intent_node="I",
     arms=[0, 1, 2], intents=[0, 1, 2], seed=0,
 )
-table = cf_agent.decision_table           # {intent: {arm: E[Y_do(arm) | intent]}}
+table = cf_agent.decision_table
 M = np.array([[table[i][a] for a in (0, 1, 2)] for i in (0, 1, 2)])
-print("E[Y | do(X=a)] marginal over intents:", M.mean(axis=0).round(3), " (all ~0.37)")"""))
 
-cells.append(code("""cf = run_bandit(cf_agent, make_counterfactual_bandit_env(seed=1))
-naive3 = run_bandit(NaiveThompsonSampling(n_arms=3, seed=0), make_counterfactual_bandit_env(seed=1))
-print(f"Counterfactual policy avg: {cf.mean():.3f}")
-print(f"Naive TS (best fixed arm): {naive3.mean():.3f}")"""))
-
-cells.append(code("""fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(12, 4.4))
-
-im = ax0.imshow(M, cmap="viridis", vmin=0.1, vmax=0.85)
-ax0.set_xticks([0, 1, 2], ["do(X=0)", "do(X=1)", "do(X=2)"])
-ax0.set_yticks([0, 1, 2], ["intent=0", "intent=1", "intent=2"])
+# ▦ static: the decision table the agent acts on (diagonal = "play your intuition")
+fig, ax = plt.subplots(figsize=(4.6, 4))
+im = ax.imshow(M, cmap="viridis", vmin=0.1, vmax=0.85)
+ax.set_xticks([0, 1, 2], ["do(X=0)", "do(X=1)", "do(X=2)"])
+ax.set_yticks([0, 1, 2], ["intent=0", "intent=1", "intent=2"])
 for i in range(3):
     for j in range(3):
-        ax0.text(j, i, f"{M[i, j]:.2f}", ha="center", va="center",
-                 color="white" if M[i, j] < 0.5 else "black", fontweight="bold")
-ax0.set_title("L3 table  E[Y_do(a) | intent]\\n(diagonal = play your intuition)")
-fig.colorbar(im, ax=ax0, fraction=0.046, pad=0.04)
+        ax.text(j, i, f"{M[i, j]:.2f}", ha="center", va="center",
+                color="white" if M[i, j] < 0.5 else "black", fontweight="bold")
+ax.set_title("E[Y_do(a) | intent]\\n(argmax per row = the policy)")
+fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+plt.show()
+print("marginal E[Y|do(X=a)] over intents:", M.mean(axis=0).round(3), " → every fixed arm ~0.37")"""))
 
-ax1.plot(running_mean(cf), color=BLUE, label=f"Counterfactual policy ({cf.mean():.2f})")
-ax1.plot(running_mean(naive3), color=RED, label=f"Naive TS / best fixed arm ({naive3.mean():.2f})")
-ax1.axhline(0.367, ls="--", c=GREY, lw=0.8, label="best fixed do(a) ≈ 0.37")
-ax1.axhline(0.8, ls="--", c="k", lw=0.8, label="optimal = 0.80")
-ax1.set_ylim(0.2, 0.9); ax1.set_xlabel("step"); ax1.set_ylabel("running avg reward")
-ax1.set_title("Conditioning on intent recovers the optimum"); ax1.legend(loc="center right", fontsize=8)
+cells.append(code("""# ▶ live: play one round; counterfactual policy follows intent, naive guesses
+_cf_env = make_counterfactual_bandit_env(seed=3)
+_cf_naive = NaiveThompsonSampling(n_arms=3, seed=0)
+_cf_tally = {"cf": 0, "naive": 0, "n": 0}
+_cf_out = widgets.Output()
 
-fig.suptitle("Demo 3 — every fixed arm averages 0.37; intent-conditioning gets 0.80", fontsize=13)
-fig.tight_layout(rect=(0, 0, 1, 0.93)); plt.show()"""))
 
-# ---- Wrap-up --------------------------------------------------------------------------
-cells.append(md(r"""## Takeaways
+def _play_round(_btn=None):
+    obs, _ = _cf_env.reset()
+    intent = obs["intuition"]
+    a_cf = cf_agent.act(obs)
+    _, r_cf, _, _, _ = _cf_env.step(a_cf)
+    a_nv = _cf_naive.act(obs)
+    obs2, _ = _cf_env.reset(); obs2 = {"intuition": intent}; _cf_env._u = intent
+    _, r_nv, _, _, _ = _cf_env.step(a_nv)
+    _cf_naive.update(obs, a_nv, r_nv)
+    _cf_tally["cf"] += r_cf; _cf_tally["naive"] += r_nv; _cf_tally["n"] += 1
+    with _cf_out:
+        print(f"intent={intent} | COUNTERFACTUAL → arm {a_cf} (table says {M[intent].round(2)}) "
+              f"r={r_cf:.0f}   NAIVE → arm {a_nv} r={r_nv:.0f}   "
+              f"|| avg  cf={_cf_tally['cf']/_cf_tally['n']:.2f} naive={_cf_tally['naive']/_cf_tally['n']:.2f}")
 
-1. **A causal model buys decisions correlation cannot.** In all three demos the $L_2$
-   ($do$) signal is degenerate — every arm looks equal — and the win comes from a strictly
-   higher rung: observing a confounder proxy ($L_1$ conditioning, Demos 1–2) or an explicit
-   counterfactual query ($L_3$, Demo 3).
-2. **The graph is an oracle for "where to act."** POMIS turns an exponential intervention
-   search into a 2-element set *before any data is collected* — pure structure.
-3. **"Trust your intuition" becomes a theorem.** The $L_3$ decision table makes the
-   confounder-as-signal argument precise and computable: $\arg\max_a \mathbb{E}[Y_{do(a)}\mid I]$.
 
-### Where to go next in `causalrl`
-- **Task 1 — offline→online** under confounding via Manski bounds (`UCDTR`, `DOVI`): see
-  `examples/offline_to_online.ipynb`.
-- **Identification layer**: `identify_effect` (complete Shpitser–Pearl ID), `manski_bounds`,
-  `certify_decision` — all *conservative by design* (they return `None`/raise outside their
-  supported class rather than guess).
-- The full **Tour by Task** covers transportability, causal discovery (PC/FCI), imitation,
-  curriculum, reward shaping and causal games.
+_cf_btn = widgets.Button(description="🎲 play a round", button_style="primary")
+_cf_btn.on_click(_play_round)
+display(_cf_btn, _cf_out)"""))
 
-*All figures are reproducible offline via* `uv run python examples/presentation/_build_figures.py`."""))
+# ======================================================================================
+# Wrap-up
+# ======================================================================================
+cells.append(md(r"""## What you just watched
 
+In all three games the **intervention** signal alone was useless — every arm looked identical
+under $do$. The causal agent won because it could *see and use* something extra, and you watched
+exactly where:
+
+1. **MABUC** — beliefs **split by context**: the causal agent kept a separate posterior per mood, so its arms pulled apart while the naive agent's stayed glued at 0.5.
+2. **POMIS** — the graph **pruned 27 levers to 2** before any data; you poked the rest and confirmed they're worse.
+3. **Counterfactual** — the agent **read its intent off a precomputed table** and played the matching arm, round after round.
+
+### Next stops in `causalrl`
+- `examples/offline_to_online.ipynb` — learning from confounded logs (Manski bounds).
+- `identify_effect`, `certify_decision`, `manski_bounds` — the conservative identification layer.
+- The **Tour by Task** in the docs covers transportability, discovery, imitation, curriculum, shaping and games.
+
+*Static figures for slides:* `uv run python examples/presentation/_build_figures.py`."""))
+
+nb = nbf.v4.new_notebook()
 nb["cells"] = cells
 nb["metadata"] = {
     "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
