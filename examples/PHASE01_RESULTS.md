@@ -399,3 +399,31 @@ schemes, recurrence/scratchpad iteration, or explicit graph-traversal inductive 
 ```
 uv run --extra torch python examples/causal_reasoning_curriculum.py
 ```
+
+---
+
+# Beyond correlations: interventions break the observational (MEC) ceiling
+
+Code: `causal_beyond_correlation.py`. Everything above was observational, capped at the MEC ceiling.
+The defining move of a *causal* model is using interventions. Same queries ("does X cause Y?"), two
+evidence types, same tiny model: OBSERVATIONAL (the CPDAG, only MEC-invariant orientations) vs
+INTERVENTIONAL (the fully-oriented DAG that do()-experiments reveal).
+
+| answer accuracy | observational | interventional |
+|---|---|---|
+| all queries | 0.817 | **0.994** |
+| **MEC-ambiguous (observation cannot decide)** | 0.703 | **1.000** |
+| MEC-determined | 1.000 | 0.984 |
+| ceiling | MEC = 0.835 | full orientation = 1.000 |
+
+The observational model sits exactly at its MEC ceiling, and on the **MEC-ambiguous** queries
+(direction unidentifiable from correlation) it cannot break ~0.70 — *correlation literally cannot
+orient those edges*. The interventional model resolves them (1.000), exceeding the observational
+ceiling. **This is "beyond correlations" made concrete**, and the architectural mandate for a causal
+LM: it must ingest/seek interventional evidence, not reason from correlation alone.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_beyond_correlation.py
+```
