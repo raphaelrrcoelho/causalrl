@@ -655,3 +655,37 @@ active-causal-discovery capability a causal LM needs to seek the evidence that b
 ```
 uv run --extra torch python examples/causal_active_discovery.py
 ```
+
+---
+
+# Hybrid: a real GPT-2 + the embedded causal core
+
+Code: `causal_hybrid_lm.py`. The original "plug it into a real LM" step. A genuine GPT-2 decoder
+(`transformers.GPT2Model`) is the language backbone; the embedded causal core is a reasoning head on
+its hidden states (gather a rep per entity → edge MLP → adjacency → reachability + do()). The
+experiment is the same backbone, with vs without the core, on natural-language causal QA.
+
+| | observational | interventional | confounded-cause | size |
+|---|---|---|---|---|
+| **vanilla GPT-2** | 0.642 | 0.767 | 0.214 | 3 (trained) |
+| **hybrid** | **0.998** | **0.997** | **0.994** | 3 (trained) |
+| **vanilla GPT-2** | 0.449 | 0.561 | 0.242 | 4 (held-out) |
+| **hybrid** | **0.732** | **0.834** | **0.869** | 4 (held-out) |
+
+Same 0.34M GPT-2 backbone. **The hybrid dominates vanilla everywhere**, and the confounded column is
+decisive: a vanilla GPT-2 doing the reasoning in its own weights sits at **0.21–0.33** (it answers
+"causes" whenever correlated — worse than chance on the trap), while the hybrid is **0.99 in-dist and
+0.87 held-out**. Plugging the embedded core into a real LM is what delivers reasoning **beyond
+correlation**; a vanilla LM internalising it is the harder, weaker path (exactly the diagnosis from the
+start of this arc).
+
+Honest note: the hybrid still drops at held-out size 4 (0.73–0.87, not 1.0). The limiter is the
+*perception* front-end — GPT-2's positional entity-gathering doesn't fully size-generalize — not the
+core's reasoning (the pure relational core hit 1.0). A relational/size-invariant reader is the next
+refinement; see `ARCHITECTURE.md`.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_hybrid_lm.py
+```

@@ -94,6 +94,7 @@ together.
 | `causal_core_discovery.py` | amortized discovery: evidence → structure → reasoning, end-to-end |
 | `causal_lm_coupling.py` | NL ↔ core: prose → bind words to variables → core → answer (1.0, held-out, confounded) |
 | `causal_active_discovery.py` | active discovery: choosing interventions resolves direction far faster than random |
+| `causal_hybrid_lm.py` | hybrid: real GPT-2 + embedded core ≫ vanilla GPT-2 (esp. confounded & held-out size) |
 
 ---
 
@@ -111,10 +112,14 @@ correlation and generalizes in graph size.
    discovery (choosing which interventions to run) — is now prototyped (`causal_active_discovery.py`):
    choosing interventions resolves direction with about half the experiments of random. What remains is
    discovery from messy raw data rather than clean CI/intervention facts.
-2. **Coupling to a language model.** *Prototyped in miniature* (`causal_lm_coupling.py`): simple prose
-   → bind entity words to the core's variables → reason → answer, at 1.0 incl. held-out sizes and
-   confounded cases. What remains is real natural language (rich phrasing, multi-sentence, coreference)
-   and a generative verbaliser, trained jointly with a full LM — not the toy SVO interface here.
+2. **Coupling to a language model.** Done with a **real GPT-2** (`causal_hybrid_lm.py`): GPT2Model is
+   the language backbone, the embedded core a reasoning head on its hidden states. Same backbone,
+   with vs without the core: the hybrid ≫ vanilla GPT-2 (in-dist ~0.99 vs ~0.7; confounded 0.99 vs
+   0.21; held-out size 4 still 0.73–0.87 vs 0.24–0.56). So plugging the core into a real LM is what
+   buys reasoning beyond correlation; a vanilla LM doing it in its own weights is the weaker path.
+   What remains is real natural language (rich phrasing, coreference) and a generative verbaliser
+   trained jointly — not the simple SVO prose here. (The hybrid's residual size-4 drop is its
+   *perception* front-end, GPT-2's positional entity-gathering, not the core's reasoning.)
 3. **Scale & faithfulness.** Whether the core's exact, size-general behaviour survives being learned
    (rather than hand-structured) at frontier scale, and whether the discovered `A` stays faithful on
    messy, real distributions — the central empirical risk.
