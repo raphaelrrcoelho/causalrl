@@ -469,3 +469,42 @@ this architecture already admits — zero a column to intervene).
 ```
 uv run --extra torch python examples/causal_core_architecture.py
 ```
+
+---
+
+# Embedded do() — observational + interventional reasoning in one core
+
+Code: `causal_core_do.py`. Adds the do() operator to the embedded core, unifying the two prior results.
+One learned adjacency A; the answer is read two ways and **do() is the architectural switch**:
+"are X,Y correlated?" reads reachability *with* the back-door (common-cause) term; "does X cause Y?"
+reads *directed* reachability only (intervention removes the back-door). 79K params, trained on
+2/3-variable graphs, tested on 4/5 held out by size.
+
+| size | corr (observational) | cause (interventional) | in training? |
+|---|---|---|---|
+| 2 / 3 | 1.000 | 1.000 | trained |
+| 4 | 0.741 | 0.890 | held-out |
+| 5 | 0.600 | 0.771 | held-out |
+
+**The decisive test — confounded pairs (correlated but X does NOT cause Y), asked as "does X cause Y?":**
+
+| size | embedded do()-core | a correlation-only reasoner |
+|---|---|---|
+| 3 | **1.000** | 0.000 |
+| 4 (held-out) | **0.973** | 0.000 |
+| 5 (held-out) | **0.939** | 0.000 |
+
+One architecture answers both query types; on the correlation≠causation trap the do()-routed core is
+0.94–1.0 even on graph sizes never trained on, while a correlation-only reasoner is 0.0 by definition.
+That is causal reasoning **beyond correlation, embedded in the weights** — and it size-generalizes.
+
+Honest limit: the *observational* read degrades faster at size 5 (0.60) than the causal read (0.77),
+because the correlation read aggregates a common-cause term over *all* Z and is thus more sensitive to
+edge-perception errors at larger sizes. The remaining bottleneck is the **discovery/perception
+front-end**, not the causal reasoning — the next brick.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_core_do.py
+```
