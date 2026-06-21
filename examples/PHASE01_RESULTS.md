@@ -542,3 +542,43 @@ embedded, working architecture.
 ```
 uv run --extra torch python examples/causal_core_perception.py
 ```
+
+---
+
+# Closing the loop: embedded discovery (evidence → structure → reasoning)
+
+Code: `causal_core_discovery.py`. The last brick: instead of being handed the edges, the model
+**discovers** the adjacency from *statistical evidence*, in the weights, then reasons + do() over it.
+Discovery is a relational cross-attention (each variable pair queries the evidence-fact set → edge
+logits). Two evidence regimes feed the same core; supervised toward the true DAG. Trained on 2/3-var
+graphs, tested on 4 held out.
+
+| size | evidence | edge recovery | answer acc | confounded-cause |
+|---|---|---|---|---|
+| 3 | interventional | 1.000 | 1.000 | 1.000 |
+| 3 | observational | 0.817 | 0.802 | 0.134 |
+| 4 (held-out) | interventional | **1.000** | **1.000** | **1.000** |
+| 4 (held-out) | observational | 0.793 | 0.663 | 0.070 |
+
+**The whole pipeline now runs in one embedded model: evidence → structure → causal answer.** And the
+identifiability ceiling emerges *inside the weights*:
+
+- **Interventional evidence** (direct effects do(i)→j) recovers the oriented DAG perfectly and answers
+  everything, including confounded pairs, even on the held-out size — the loop closes and generalizes.
+- **Observational evidence** (conditional-independence facts) recovers the *skeleton* (edge ≈ 0.80) but
+  not the unidentifiable orientations, so on **confounded** pairs (correlated but X does not cause Y) it
+  fails (0.13 → 0.07): without interventions it literally cannot decide direction. That is the
+  Markov-equivalence limit, learned and exhibited end-to-end.
+
+So "beyond correlations" holds at the **discovery** level too: only interventional evidence lets the
+embedded discoverer orient the graph and answer causal questions correctly. (Honest note: observational
+discovery is the genuinely hard learned half — it degrades at size 4, where the orientation logic is
+harder to generalize than the relational matching; this is the natural next target.)
+
+See `ARCHITECTURE.md` for how all the bricks compose into an embedded causal LM.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_core_discovery.py
+```
