@@ -625,3 +625,33 @@ multi-sentence), a generative verbaliser, and joint training with a full LM are 
 ```
 uv run --extra torch python examples/causal_lm_coupling.py
 ```
+
+---
+
+# Active discovery: choosing interventions to break the MEC ceiling efficiently
+
+Code: `causal_active_discovery.py`. Beyond correlation needs interventions — but experiments are
+expensive, so *which* you run matters. Observation gives the CPDAG (colliders oriented, the rest
+undirected); each `do(v)` orients the still-undirected edges incident to v; a policy picks the
+sequence. Causal-query accuracy vs intervention budget, on random 6-node DAGs (avg over 479 graphs
+with ≥2 undirected edges):
+
+| budget | random | active | learned |
+|---|---|---|---|
+| 0 (observation only) | 0.813 | 0.813 | 0.813 |
+| 1 | 0.880 | **0.942** | 0.945 |
+| 2 | 0.927 | **0.991** | 0.992 |
+| 3 | 0.967 | 0.999 | 0.999 |
+| 4 | 0.989 | 1.000 | 1.000 |
+
+Budget 0 is the **observation-only MEC floor (0.81)** — correlation cannot orient the undirected edges.
+**ACTIVE** (intervene where it resolves the most ambiguity) reaches ~0.99 in **2** interventions where
+**RANDOM** needs ~4–5, and a small **LEARNED** policy (trained to imitate the greedy oracle) recovers
+the active curve. Going beyond correlation *efficiently* is about **choosing** interventions — the
+active-causal-discovery capability a causal LM needs to seek the evidence that breaks the MEC.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_active_discovery.py
+```
