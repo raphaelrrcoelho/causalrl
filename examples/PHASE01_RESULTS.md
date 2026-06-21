@@ -508,3 +508,37 @@ front-end**, not the causal reasoning — the next brick.
 ```
 uv run --extra torch python examples/causal_core_do.py
 ```
+
+---
+
+# Size-robust perception — the last wall closed
+
+Code: `causal_core_perception.py`. The do()-core's only remaining weakness was *perception*: the
+position-indexed text encoder did not length-generalize (edge recovery 1.0→0.78). The fix is also
+architectural — represent the evidence as a **set of relational facts** (directed edges) and build the
+adjacency with a **permutation/count-invariant relational encoder** (each edge an item, each variable
+pair a query matched against the set; no absolute positions). Same propagation + do() core.
+
+| size | corr (obs) | cause (int) | edge recovery | confounded | in training? |
+|---|---|---|---|---|---|
+| 2 / 3 | 1.000 | 1.000 | 1.000 | 1.000 | trained |
+| 4 | **1.000** | **1.000** | **1.000** | **1.000** | held-out |
+| 5 | **1.000** | **1.000** | **1.000** | **1.000** | held-out |
+
+Everything is 1.000 — both query types, edge recovery, and the correlation≠causation trap — on graph
+sizes never trained on. **The embedded causal core is now fully size-robust: perception, reasoning, and
+do() all generalize.**
+
+**Honest scope.** This closes the size wall *given the structure as relational facts* (edges). The
+relational matcher is content-based and size-invariant by construction, so the perception task (bind
+variables, match the edge set) is exactly what it is built for. The remaining real-world gap is the one
+deferred earlier: obtaining those facts from **raw data / correlations** (discovery), and coupling the
+core to a language model. Those are the next bricks toward a large causal language model — but the
+*causal computation* itself (structure + reachability + do, beyond correlation, size-general) is now an
+embedded, working architecture.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_core_perception.py
+```
