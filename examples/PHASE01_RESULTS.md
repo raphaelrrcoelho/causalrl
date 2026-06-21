@@ -723,3 +723,37 @@ single-seed headlines were the good mode — now confirmed to be the typical mod
 ```
 uv run --extra torch python examples/causal_robustness.py
 ```
+
+---
+
+# Discovery from RAW DATA — structure inferred from SCM samples, not oracle facts
+
+Code: `causal_data_discovery.py`. Every prior discovery experiment fed pre-digested facts (edges, CI
+results). Here the model sees only **raw samples** from a binary SCM and must infer the adjacency
+(then reason). The front-end is permutation-invariant over samples: per ordered pair it embeds the raw
+tuple `[x_u, x_v, do-on-u?, do-on-v?]` and averages over samples. Judged against trivial baselines so
+the result is not a degenerate artefact (size-4 test graphs):
+
+| data regime | edge-recovery (all-no-edge base) | answer-acc (majority base) | confounded-cause |
+|---|---|---|---|
+| observational | 0.794 (0.750) | 0.715 (0.509) | **0.283** |
+| interventional | **0.924** (0.755) | **0.873** (0.509) | **0.845** |
+
+Both beat the trivial baselines (it is learning structure from data, not collapsing). The pattern is
+the expected one, now **from raw data**:
+
+- **Interventional** samples → recovers the oriented DAG (edge 0.92) and resolves confounded pairs
+  (0.85): beyond correlation, end-to-end from data.
+- **Observational** samples → reads dependence (answer 0.72 > majority) but **cannot orient** → on
+  confounded pairs it fails (0.28): the Markov-equivalence limit, exhibited from raw data.
+
+Honest note: this is the hard regime (the AVICI/CSIvA amortized-discovery problem). A first attempt
+with a 1K-param aggregator **collapsed** (answer at chance, a no-bias artefact that faked confounded
+~1.0); a non-tiny encoder + baselines were needed to get a real, non-degenerate result. Strong
+discovery from genuinely raw, messy data at scale remains open.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_data_discovery.py
+```
