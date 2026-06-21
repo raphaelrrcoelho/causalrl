@@ -92,6 +92,7 @@ together.
 | `causal_core_do.py` | embedded `do()`: one core answers obs + int; confounded 0.94–1.0 held-out |
 | `causal_core_perception.py` | relational perception → fully size-robust (all 1.0 on held-out 4/5) |
 | `causal_core_discovery.py` | amortized discovery: evidence → structure → reasoning, end-to-end |
+| `causal_lm_coupling.py` | NL ↔ core: prose → bind words to variables → core → answer (1.0, held-out, confounded) |
 
 ---
 
@@ -107,9 +108,10 @@ correlation and generalizes in graph size.
 1. **Discovery from raw data / natural text**, not idealised CI/intervention facts — the hardest real
    step, and information-theoretically capped without interventions (so the model must also *seek*
    interventions: active causal discovery).
-2. **Coupling to a language model.** The core is a reasoning module; a causal LM needs the LM to (a)
-   extract the relational facts from natural language and (b) verbalise the core's answers — a
-   bidirectional NL ↔ latent-SCM interface, trained jointly.
+2. **Coupling to a language model.** *Prototyped in miniature* (`causal_lm_coupling.py`): simple prose
+   → bind entity words to the core's variables → reason → answer, at 1.0 incl. held-out sizes and
+   confounded cases. What remains is real natural language (rich phrasing, multi-sentence, coreference)
+   and a generative verbaliser, trained jointly with a full LM — not the toy SVO interface here.
 3. **Scale & faithfulness.** Whether the core's exact, size-general behaviour survives being learned
    (rather than hand-structured) at frontier scale, and whether the discovered `A` stays faithful on
    messy, real distributions — the central empirical risk.

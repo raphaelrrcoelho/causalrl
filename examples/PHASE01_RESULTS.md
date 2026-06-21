@@ -582,3 +582,46 @@ See `ARCHITECTURE.md` for how all the bricks compose into an embedded causal LM.
 ```
 uv run --extra torch python examples/causal_core_discovery.py
 ```
+
+---
+
+# A tiny causal *language* model: prose → embedded core → answer
+
+Code: `causal_lm_coupling.py`. Couples the embedded core to language. Input is now PROSE about named
+entities; a language front-end binds entity **words** to the core's variables (content-addressed) and
+reads causal **verbs** as edges; the core reasons (reachability + do()); the answer is read out.
+
+```
+input : "smoking causes tar . tar causes cancer . does smoking cause cancer ?"  -> yes
+```
+
+22K parameters. Trained on 2/3-entity prose, tested on 4-entity prose held out by size.
+
+| size | observational | interventional | confounded-cause | in training? |
+|---|---|---|---|---|
+| 2 / 3 | 1.000 | 1.000 | 1.000 | trained |
+| 4 | **1.000** | **1.000** | **1.000** | held-out |
+
+Worked held-out examples (4 entities, the model reading sentences):
+
+```
+"slippery triggers smoking . tar triggers stress . are smoking and tar correlated?"  -> no   ✓
+"... fitness causes stress . exercise increases tar . are exercise and stress correlated?" -> yes ✓ (common cause: fitness)
+```
+
+**Language in → embedded causal reasoning → answer out.** From prose it builds the structure, reasons
+with the do() switch, and distinguishes correlation from causation — recognising common-cause
+confounding in the text and answering "correlated but not causal" where a correlation reader cannot. It
+holds on 4-entity prose never trained on. A causal language model, in miniature.
+
+**Scope (honest).** This is simple subject-verb-object prose with a small entity vocabulary, and the
+question's type and entities are parsed for the model; what is *learned* is reading the scenario prose
+into causal structure and reasoning over it. Real natural language (rich phrasing, coreference,
+multi-sentence), a generative verbaliser, and joint training with a full LM are the next steps — see
+`ARCHITECTURE.md`.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_lm_coupling.py
+```
