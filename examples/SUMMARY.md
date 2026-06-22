@@ -53,11 +53,27 @@ discovery 0.859 ± 0.222 vs observational 0.113 ± 0.097. Honest caveat surfaced
 under-training makes the embedded-core models **seed-fragile** (a reduced sweep was bimodal
 `[1,0,1]`); they are robust only with adequate budget.
 
+## Post-audit correction (important — read before the claims above)
+
+An independent adversarial audit (`AUDIT.md`) found no fraud, no answer-label leakage, and correct
+labels — but one decisive caveat: in the "embedded core" scripts the reachability + do() + back-door
+computation is a **hard-coded differentiable formula**, so those models only *learned edge perception*;
+the size-generalization (e.g. "held-out 0.88", "all 1.0 on held-out 4/5") was **by construction, not
+learned**. Several scripts are also *fed the true structure*. And the expensive claims (hybrid,
+data-discovery) are seed/budget-fragile. The corrected experiment `causal_core_learned_reasoning.py`
+makes the reasoning *learned*: a learned reasoner does causal reasoning in-distribution (GNN 1.0, MLP
+0.99 at size 3) but only *partially* size-extrapolates (down to ~0.8–0.9 at size 5; a GNN's algorithmic
+alignment helps but does not close the gap to the hand-coded 1.0). So read the headlines below as: the
+causal *algorithm* is a correct inductive bias we wired in; what is genuinely *learned* (perception,
+observational discovery, in-dist reasoning) works, but learned size-general causal reasoning does not.
+
 ## What is solved vs open
 
-**Solved (small scale, validated, multi-seed):** the causal *computation* — explicit structure,
-routing, size-general iterative reasoning, the do() operator, relational perception, amortized discovery
-(from facts and from raw samples), active discovery, and coupling to a real GPT-2 as a hybrid.
+**Solved (small scale, validated, multi-seed):** the causal *computation* as an explicit hand-wired
+inductive bias (structure → routing → reachability/do() formula); learned edge *perception*; in-dist
+learned reasoning; the do() switch; active discovery; observational discovery (fragile); and coupling
+to a real GPT-2 as a hybrid. NOTE (per audit): the reachability/do() computation is hand-coded, not
+learned; learned size-general causal reasoning is NOT solved (only partial).
 
 **Open (the path to a *large* causal LM):**
 1. **Real natural language** — rich phrasing, multi-sentence, coreference, implicit causality — and a

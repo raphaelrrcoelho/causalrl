@@ -6,6 +6,14 @@ deficit* of a vanilla transformer demanded it; each was prototyped and validated
 ground-truth tasks (see `PHASE01_RESULTS.md`). This document is the design that ties those bricks
 together.
 
+> **Audit correction (`AUDIT.md`):** in the prototypes the *reachability + iterative propagation +
+> do()* computation is a **hard-coded differentiable inductive bias** — correct by construction, not
+> learned. So its "size-generalization" is by construction; the genuinely *learned* parts are
+> perception and observational discovery. A corrected experiment
+> (`causal_core_learned_reasoning.py`) shows a *learned* reasoner does causal reasoning in-distribution
+> but only *partially* size-extrapolates (GNN > MLP, neither matches the hand-wired algorithm). Read
+> "iterative propagation → size-general" below as a property of the wired-in algorithm, not of learning.
+
 > Thesis: causal reasoning does not emerge from correlational next-token training (we reproduced the
 > Corr2Cause failure). It must be **identified, installed, and routed through** — and going beyond
 > correlation requires an explicit **do()** operator and **interventional** evidence. The pieces that

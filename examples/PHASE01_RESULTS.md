@@ -789,3 +789,43 @@ with a real LM and multiple seeds.
 ```
 uv run --extra torch python examples/causal_pure_lm.py
 ```
+
+---
+
+# Corrected (post-audit): is the causal REASONING learnable, or only hand-coded?
+
+Code: `causal_core_learned_reasoning.py`. The independent audit (`AUDIT.md`) found the decisive caveat:
+in the earlier "embedded core" scripts the reachability + do() + back-door computation is a **hard-coded
+differentiable formula** — the models only learned edge perception, so the size-generalization was *by
+construction*, not learned. This experiment fixes that: it gives the model the **true structure** (so
+perception is not the variable) and makes the **reasoning itself learned**, then tests size-extrapolation
+honestly (random variable slots; trained on 2/3-var, tested on 3/4/5).
+
+| reasoner | size 3 (in-dist) | size 4 (held-out) | size 5 (held-out) |
+|---|---|---|---|
+| | corr / cause / conf | corr / cause / conf | corr / cause / conf |
+| **HARDWIRED** (not learned — reference) | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
+| **MLP** (learned) | 0.99 / 0.99 / 0.96 | 0.84 / 0.91 / 0.88 | 0.77 / 0.83 / 0.82 |
+| **GNN** (learned message passing) | 1.00 / 1.00 / 1.00 | 0.88 / 0.97 / 0.92 | 0.80 / 0.91 / 0.80 |
+
+Honest conclusions:
+
+1. **Causal reasoning IS learnable in-distribution** — a learned GNN matches the hand-coded core at
+   size 3 (1.0 incl. confounded), MLP ~0.99. So it is not *only* hand-codable.
+2. **It does NOT fully size-extrapolate.** Both learned reasoners degrade out of size (down to 0.77–0.91
+   at size 5), where the hardwired formula stays 1.0 *because it is the algorithm, not learning*.
+3. **Architectural alignment helps:** the GNN (message passing, aligned to reachability) generalizes
+   noticeably better than the MLP (cause 0.97 vs 0.91 at size 4; 0.91 vs 0.83 at size 5) — but does not
+   close the gap.
+
+**So the earlier "size-general embedded causal core" headline was the hand-coded formula doing the
+work, not learning** (per the audit). The corrected, honest result: a *learned* causal reasoner does the
+reasoning in-distribution and generalizes *partially* in size (better with algorithmic alignment),
+consistent with the broader length/size-generalization literature — it does not match the by-construction
+extrapolation of the hardwired algorithm.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_core_learned_reasoning.py
+```
