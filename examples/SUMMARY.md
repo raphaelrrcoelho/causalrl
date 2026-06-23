@@ -63,9 +63,14 @@ learned**. Several scripts are also *fed the true structure*. And the expensive 
 data-discovery) are seed/budget-fragile. The corrected experiment `causal_core_learned_reasoning.py`
 makes the reasoning *learned*: a learned reasoner does causal reasoning in-distribution (GNN 1.0, MLP
 0.99 at size 3) but only *partially* size-extrapolates (down to ~0.8–0.9 at size 5; a GNN's algorithmic
-alignment helps but does not close the gap to the hand-coded 1.0). So read the headlines below as: the
-causal *algorithm* is a correct inductive bias we wired in; what is genuinely *learned* (perception,
-observational discovery, in-dist reasoning) works, but learned size-general causal reasoning does not.
+alignment helps but does not close the gap to the hand-coded 1.0). And the **fully-learned hybrid**
+(`causal_hybrid_learned.py`, GPT-2 perception + learned GNN reasoner, nothing wired in) **learns the
+general causation query (1.0 in-dist / 0.90 held-out) but FAILS the confounding trap (0.43, below
+chance)** — so the strong "beyond correlation" numbers came from the hand-coded back-door formula, not
+from learning. Read the headlines below as: the causal *algorithm* is a correct inductive bias we wired
+in; what is genuinely *learned* (perception, observational discovery, general in-dist reasoning) works,
+but a fully-learned system does **not** robustly distinguish correlation from causation on confounded
+cases, and learned size-general causal reasoning is only partial.
 
 ## What is solved vs open
 

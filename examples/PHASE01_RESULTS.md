@@ -829,3 +829,48 @@ extrapolation of the hardwired algorithm.
 ```
 uv run --extra torch python examples/causal_core_learned_reasoning.py
 ```
+
+---
+
+# The fully-learned hybrid — the honest end-state (nothing hand-coded)
+
+Code: `causal_hybrid_learned.py`. The final correction: a real GPT-2 reads the prose (learned
+perception → entity reps → soft adjacency) **and** a **learned GNN reasoner** (init from the GPT-2 reps,
+message-passing over the learned adjacency) produces the answer. The reachability / do() / back-door
+logic is **not** wired in — both halves are learned. Multi-seed, confounded-cause vs vanilla, with the
+hand-coded hybrid and given-structure GNN as cited references.
+
+| metric (mean ± std, 2 seeds) | value |
+|---|---|
+| vanilla confounded (size 3 / 4) | 0.155 / 0.150 |
+| **learned-hybrid confounded (size 3)** | **0.430 ± 0.024** |
+| **learned-hybrid confounded (size 4, held-out)** | **0.390 ± 0.068** |
+| learned-hybrid **cause** query, balanced (size 3) | **1.000 ± 0.000** |
+| learned-hybrid **cause** query, balanced (size 4) | **0.901 ± 0.060** |
+| *ref:* hand-coded hybrid confounded | ~1.000 / ~0.914 |
+| *ref:* GNN reasoner given true structure, confounded | ~1.0 / ~0.8–0.9 |
+
+**This deflates the headline, honestly:**
+
+1. **The general causation query IS learned** — `cause` = 1.000 in-dist, 0.901 held-out, with nothing
+   hand-coded, beating vanilla everywhere. (The balanced `cause` column rules out a constant-"no"
+   artifact.)
+2. **But it FAILS the confounding trap** — confounded 0.43 / 0.39, i.e. *below chance*: with nothing
+   wired in, the end-to-end-learned system does **not** robustly distinguish correlation from causation
+   on the hard (common-cause / reverse) cases. It beats vanilla (~0.15) but is far below the hand-coded
+   hybrid (~1.0).
+3. **Diagnosis:** the confounded distinction is the most structure-sensitive query; a GNN *given the
+   true structure* gets it (~0.9), but with *learned* (imperfect) perception the signal collapses, and a
+   learned reasoner is less robust than the wired-in back-door formula.
+
+**So the "beyond correlation" results that looked strongest came from the hand-coded formula.** A
+genuinely end-to-end-learned causal LM learns *general* causation but does **not** reliably go beyond
+correlation on confounded cases — exactly the boundary the audit exposed. That is the honest conclusion
+of the exercise: causal reasoning is partly learnable, the do()/back-door distinction is (so far) only
+reliable when wired in or given clean structure.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_hybrid_learned.py
+```
