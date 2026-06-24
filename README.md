@@ -11,11 +11,11 @@ Causal intervention-selection and causal-RL research tools.
 
 `causalrl` provides graph algorithms for causal bandits, demonstration environments and agents,
 and explicit-latent structural causal models with `see` (L1), `do` (L2), and `counterfactual`
-(L3) queries — organised around the [9-task taxonomy of causal RL](https://crl.causalai.net/).
+(L3) queries, organised around the [9-task taxonomy of causal RL](https://crl.causalai.net/).
 
-What sets it apart is **honesty about scope**: identification routines return `None` — or raise
-with a witnessing hedge — outside their supported class rather than guessing, and learning agents
-are labelled benchmark/demo, not production. See
+Scope is explicit and enforced in code: out-of-class identification queries raise
+`NotIdentifiableError` with the witnessing hedge (or return `None` for the conservative helpers)
+rather than guessing a formula, and learning agents are tabular/demo-scale, not production RL. See
 [Guarantees & Scope](https://raphaelrrcoelho.github.io/causalrl/guarantees/).
 
 ## Install
@@ -55,7 +55,8 @@ for _ in range(8000):
     _, reward, _, _, _ = env.step(action)
     agent.update(obs, action, reward)
     obs, _ = env.reset()
-# CausalThompsonSampling -> ~0.75 reward/step; a confounding-naive baseline is stuck near 0.50.
+# CausalThompsonSampling -> ~0.75 reward/step; any confounding-naive policy is capped near 0.50,
+# since both arms share an interventional mean.
 ```
 
 ## What it does
@@ -83,13 +84,13 @@ A runnable example for every row is in the
 `causalrl` is **causal-RL-first**, where the established causal libraries are estimation-first:
 
 - **DoWhy / EconML / CausalML** target treatment-effect estimation and the
-  identify→estimate→refute workflow on i.i.d. data — deep, mature, production-grade. `causalrl`
-  instead targets *sequential decision-making*: intervention-set selection (POMIS), confounded
-  offline-to-online RL, counterfactual policies, and causal curricula / shaping / games — the
-  parts of the Bareinboim taxonomy those libraries do not cover.
-- For pure graph identification it overlaps with **Ananke / pgmpy / Y0**; for offline RL at real
-  scale it *defers to* [`d3rlpy`](https://github.com/takuseno/d3rlpy) as the designated backbone
-  rather than reimplementing it.
+  identify→estimate→refute workflow on i.i.d. data. They are mature, production-grade tools.
+  `causalrl` instead targets *sequential decision-making*: intervention-set selection (POMIS),
+  confounded offline-to-online RL, counterfactual policies, and causal curricula / shaping /
+  games. Those are the parts of the Bareinboim taxonomy these libraries do not cover.
+- For pure graph identification it overlaps with **Ananke / pgmpy / Y0**. It deliberately does
+  **not** reimplement offline RL at scale; pair it with a dedicated library such as
+  [`d3rlpy`](https://github.com/takuseno/d3rlpy) for that.
 
 Use `causalrl` when your problem is a causal *decision* over time; use DoWhy/EconML when it is a
 treatment-effect *estimate*.
