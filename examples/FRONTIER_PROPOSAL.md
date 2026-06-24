@@ -1,3 +1,5 @@
+> **ARCHIVED — superseded by [`CAUSAL_LLM.md`](CAUSAL_LLM.md).** Kept for history; the canonical program doc is `CAUSAL_LLM.md`.
+
 # Frontier proposal — Certified Causal Discovery: a verifier-guided engine that knows the unknowable
 
 > "AlphaProof for causal inference." Use a formal causal verifier (`causalrl`, extended into a

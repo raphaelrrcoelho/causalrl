@@ -1,3 +1,4 @@
+# STATUS: fragile · Act 3 Learnability — discovery from raw data; observational collapses to MEC (0.28)  ·  map: CAUSAL_LLM.md
 """Discovery from RAW DATA: structure + causal answers inferred from SCM samples, not oracle facts.
 
 Every discovery experiment so far fed the model pre-digested facts (edges, CI results). The honest

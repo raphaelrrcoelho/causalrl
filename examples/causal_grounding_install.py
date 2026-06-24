@@ -1,3 +1,4 @@
+# STATUS: canonical · Act 1 Diagnosis — presence != mediation; routing through structure (0.66->0.81)  ·  map: CAUSAL_LLM.md
 """Does *installing* the causal structure improve reasoning?  (closing the extraction gap)
 
 The scaffold experiment (``causal_reasoning_scaffold.py``) localized the bottleneck: the model can

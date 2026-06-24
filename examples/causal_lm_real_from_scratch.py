@@ -1,3 +1,4 @@
+# STATUS: canonical (from-scratch sub-thread) · Act 4 Coupling — real GPT-2 trained from scratch (BPE)  ·  map: CAUSAL_LLM.md
 """A *real* small LLM, trained from scratch to be causal — same usage as Qwen / GPT-OSS.
 
 This is the "nivel B" build: unlike the 6-token toy in ``causal_lm_from_scratch.py``, here we

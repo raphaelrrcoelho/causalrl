@@ -1,3 +1,4 @@
+# STATUS: canonical-negative · Act 4 Coupling — a real GPT-2 does NOT internalise the computation  ·  map: CAUSAL_LLM.md
 """The PURE path: can a real GPT-2 internalise the causal computation in its own weights?
 
 The hybrid bolts an explicit causal core onto GPT-2. The "pure" alternative is a real LM that does

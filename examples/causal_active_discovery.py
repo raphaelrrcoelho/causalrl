@@ -1,3 +1,4 @@
+# STATUS: oracle-fed · Act 3 Learnability — uses true adjacency; policy imitates the greedy oracle  ·  map: CAUSAL_LLM.md
 """Active causal discovery: choosing interventions to break the Markov-equivalence ceiling.
 
 Observation identifies the graph only up to the Markov-equivalence class: colliders (v-structures)

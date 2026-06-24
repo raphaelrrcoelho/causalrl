@@ -1,3 +1,4 @@
+# STATUS: by-construction · L3 counterfactual — fixed-SCM twin network (8-state lookup)  ·  map: CAUSAL_LLM.md
 """L3 layer: a twin-network counterfactual head — abduction-action-prediction inside the network.
 
 L1 (seeing) and L2 (doing) are about populations; L3 (counterfactual) is about a *specific unit*:

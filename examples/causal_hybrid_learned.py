@@ -1,3 +1,4 @@
+# STATUS: canonical (end-state superseded by causal_hybrid_twostage.py) · Act 4 Coupling — fully-learned hybrid FAILS confounding (0.43)  ·  map: CAUSAL_LLM.md
 """Fully-learned hybrid: GPT-2 perception + a LEARNED reasoner -- nothing hand-coded.
 
 The audit (AUDIT.md) showed the earlier hybrid's reasoning was a hard-coded reachability/do() formula;

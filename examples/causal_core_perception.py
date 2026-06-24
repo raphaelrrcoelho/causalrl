@@ -1,3 +1,4 @@
+# STATUS: by-construction · oracle-fed · Act 2 Mechanism — given true structure; relational perception  ·  map: CAUSAL_LLM.md
 """Size-robust perception: a relational encoder closes the remaining size wall.
 
 The do()-core (``causal_core_do.py``) size-generalized its *reasoning* (propagation + do are exact by

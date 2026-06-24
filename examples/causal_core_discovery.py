@@ -1,3 +1,4 @@
+# STATUS: oracle-fed · Act 3 Learnability — embedded discovery (interventional facts are the true edges)  ·  map: CAUSAL_LLM.md
 """Closing the loop: embedded discovery -- statistical evidence -> structure -> causal reasoning.
 
 So far the embedded core was *given* the structure (a set of edges). The last brick is discovery:

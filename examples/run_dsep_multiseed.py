@@ -1,3 +1,4 @@
+# STATUS: support/infra · Act 1 Diagnosis — multi-seed d-separation harness  ·  map: CAUSAL_LLM.md
 """Multi-seed driver for the stratified d-separation experiment — mean ± std per difficulty stratum.
 
 The single-seed follow-up showed the causal graph transformer learns colliders and multi-hop paths

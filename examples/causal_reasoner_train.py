@@ -1,3 +1,4 @@
+# STATUS: support/infra · Act 4 Coupling — hardened, device-agnostic reasoner trainer  ·  map: CAUSAL_LLM.md
 """Robust, scalable trainer for the small causal reasoner — CPU smoke test or full GPU run.
 
 This is the hardened evolution of ``causal_reasoner_prototype.py`` (which stays as the minimal

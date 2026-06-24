@@ -1,3 +1,4 @@
+# STATUS: support · cross-cutting — multi-seed robustness of load-bearing claims  ·  map: CAUSAL_LLM.md
 """Robustness: multi-seed mean +/- std for the load-bearing claims of the causal-LM arc.
 
 Every headline so far was a single seed. This re-runs the three most load-bearing (and most

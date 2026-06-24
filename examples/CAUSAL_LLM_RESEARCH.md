@@ -1,3 +1,5 @@
+> **ARCHIVED — superseded by [`CAUSAL_LLM.md`](CAUSAL_LLM.md).** Kept for history; the canonical program doc is `CAUSAL_LLM.md`.
+
 # Building a small causal LLM — grounded research synthesis
 
 > Local research note (not part of the published library docs). Method caveat: the underlying

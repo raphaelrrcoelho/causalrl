@@ -1,3 +1,4 @@
+# STATUS: support · Act 1 Diagnosis — diagnostic for causal_graph_transformer.py  ·  map: CAUSAL_LLM.md
 """Honest audit of the causal graph transformer's d-separation accuracy.
 
 A single headline number on a class-balanced set can hide that the model only solves the easy cases.

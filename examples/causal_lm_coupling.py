@@ -1,3 +1,4 @@
+# STATUS: superseded by causal_hybrid_lm.py · Act 4 Coupling — first bespoke prose->core->answer  ·  map: CAUSAL_LLM.md
 """A tiny causal *language* model: natural-language prose -> embedded causal core -> answer.
 
 The embedded core (structure + iterative reachability + do(), size-general) reasons over a graph.

@@ -1,3 +1,4 @@
+# STATUS: oracle-fed · fragile · Act 2 Mechanism — IIT on frozen carriers (delicate)  ·  map: CAUSAL_LLM.md
 """Causal Grounding (Phase 3) — install disentangled carriers *and* the grounded interaction.
 
 Phase 2 found the honest limit: when two causal variables interact (here the treatment's effect on

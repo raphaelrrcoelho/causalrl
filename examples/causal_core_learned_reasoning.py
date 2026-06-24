@@ -1,3 +1,4 @@
+# STATUS: canonical · Act 3 Learnability — learned reasoner (GNN 1.0 in-dist; partial size-extrap)  ·  map: CAUSAL_LLM.md
 """Corrected experiment: is the causal REASONING actually learnable, or only hand-coded?
 
 The independent audit (AUDIT.md) found the decisive caveat: in the earlier "embedded core" scripts

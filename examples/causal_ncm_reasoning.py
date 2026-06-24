@@ -1,3 +1,4 @@
+# STATUS: canonical · Act 2 Mechanism — NCM recovers P(Y|do X) from observation via graph surgery  ·  map: CAUSAL_LLM.md
 """Causal reasoning *inside the architecture*: a Neural Causal Model (NCM) head.
 
 Examples 1-2 made a vanilla decoder *look* causal by feeding it ``<see>`` / ``<do>`` data. That

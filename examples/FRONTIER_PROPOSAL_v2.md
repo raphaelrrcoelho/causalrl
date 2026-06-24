@@ -1,3 +1,5 @@
+> **ARCHIVED — superseded by [`CAUSAL_LLM.md`](CAUSAL_LLM.md).** Kept for history; the canonical program doc is `CAUSAL_LLM.md`.
+
 # Frontier proposal v2 — Causal Grounding of LLM Cognition
 
 > Overcome the root cognitive limitation of LLMs — **reasoning over surface correlations instead of a

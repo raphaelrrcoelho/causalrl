@@ -1,3 +1,4 @@
+# STATUS: foundational (imported) · by-construction core · Act 4 Coupling — GPT-2 + hand-coded core; data/utils others reuse  ·  map: CAUSAL_LLM.md
 """Hybrid: a real GPT-2 + the embedded causal core (the original 'plug it into a real LM' step).
 
 Earlier couplings used a bespoke tiny module. This is the real thing: a genuine GPT-2 decoder

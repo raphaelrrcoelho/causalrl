@@ -1,3 +1,4 @@
+# STATUS: honest-negative · Act 1 Diagnosis — learns shortcuts, not d-separation (0.745 nat-dist)  ·  map: CAUSAL_LLM.md
 """Causal as core design: a graph transformer whose ATTENTION IS THE CAUSAL GRAPH.
 
 Every other example treats causality as something layered on top of a causally-naive transformer —

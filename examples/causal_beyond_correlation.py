@@ -1,3 +1,4 @@
+# STATUS: canonical · Act 2 Mechanism — interventions break the observational ceiling (0.82->0.99)  ·  map: CAUSAL_LLM.md
 """Beyond correlations: interventional evidence breaks the observational (MEC) ceiling.
 
 Everything so far was observational -- premises were correlations / conditional independencies, so the

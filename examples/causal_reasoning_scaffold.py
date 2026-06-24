@@ -1,3 +1,4 @@
+# STATUS: canonical · Act 1 Diagnosis — structure is the missing ingredient; CoT doesn't help  ·  map: CAUSAL_LLM.md
 """Does causal reasoning improve the model's reasoning?  A causal-scaffold (CoT) experiment.
 
 The transfer probe (``causal_transfer_corr2cause.py``) showed a from-scratch LM stuck at ~0.64 on a

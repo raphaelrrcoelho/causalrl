@@ -1,3 +1,4 @@
+# STATUS: superseded by causal_lm_real_from_scratch.py · Act 4 Coupling — 6-token toy (do vs see)  ·  map: CAUSAL_LLM.md
 """Train a tiny language model *from scratch* on data from a causalrl SCM — and show it
 learns to tell ``do(X)`` apart from ``see(X)``.
 

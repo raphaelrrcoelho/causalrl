@@ -1,3 +1,4 @@
+# STATUS: by-construction · Act 2 Mechanism — size-generalization is the hand-coded propagation, not learned  ·  map: CAUSAL_LLM.md
 """An *embedded* causal reasoning core -- the first architectural brick of a causal LM.
 
 Our results showed a vanilla transformer (a) encodes the causal structure but does not route the

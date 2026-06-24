@@ -1,3 +1,4 @@
+# STATUS: canonical · Act 4 Coupling — the FIX: decoupled two-stage -> 1.000 confounded in-dist  ·  map: CAUSAL_LLM.md
 """Two-stage fix: decoupled training closes the confounding gap the joint hybrid couldn't.
 
 causal_perception_bottleneck.py localized the fully-learned hybrid's confounding failure (~0.43) to

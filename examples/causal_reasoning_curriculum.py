@@ -1,3 +1,4 @@
+# STATUS: honest-negative · Act 1 Diagnosis — curriculum does NOT fix size-extrapolation  ·  map: CAUSAL_LLM.md
 """(2) Making causal-structure reasoning size-general with a multi-size curriculum.
 
 The scaffold/install results showed the model can reason over a *given* causal structure (CPDAG ->

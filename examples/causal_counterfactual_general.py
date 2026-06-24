@@ -1,3 +1,4 @@
+# STATUS: canonical · L3 counterfactual — random parameters; genuine abduction-action-prediction generalization  ·  map: CAUSAL_LLM.md
 """Generalising L3: a twin-network counterfactual head over *random-parameter* SCMs.
 
 `causal_counterfactual_twin.py` proved the twin-network architecture computes counterfactuals

@@ -1,3 +1,4 @@
+# STATUS: research · L3 counterfactual — random topologies; latest step (verify results before citing)  ·  map: CAUSAL_LLM.md
 """Generalising L3, next step: twin-network counterfactuals over random TOPOLOGIES *and* parameters.
 
 `causal_counterfactual_general.py` generalised over random parameters of a fixed chain. This removes

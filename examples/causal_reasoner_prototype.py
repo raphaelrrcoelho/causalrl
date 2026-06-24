@@ -1,3 +1,4 @@
+# STATUS: superseded by causal_reasoner_train.py · Act 4 Coupling — didactic axiomatic d-sep reasoner  ·  map: CAUSAL_LLM.md
 """Prototype 4: a small transformer that learns a causal *rule* from causalrl-generated traces.
 
 The earlier examples taught a model a specific distribution (do vs see) or hard-coded the causal

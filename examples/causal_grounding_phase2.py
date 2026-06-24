@@ -1,3 +1,4 @@
+# STATUS: oracle-fed · support · Act 2 Mechanism — orthonormal DAS disentangles carriers  ·  map: CAUSAL_LLM.md
 """Causal Grounding (Phase 2) — grounding *multiple* causal primitives in disentangled subspaces.
 
 Phases 0-1 (``causal_grounding_das_iit.py``) located, repaired, and installed a single causal

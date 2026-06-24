@@ -1,3 +1,4 @@
+# STATUS: refuted · Act 2 Mechanism — co-training reintroduces degenerate collapse  ·  map: CAUSAL_LLM.md
 """Causal Grounding (Phase 3b) — *co-trained* carriers to close the interaction.
 
 Phase 3 grounded the regime/treatment interaction only *partially* with two FROZEN 1-D carriers:

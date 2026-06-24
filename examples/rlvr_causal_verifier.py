@@ -1,3 +1,4 @@
+# STATUS: exploratory (orthogonal) · Act 5 — RL with a causal-verifier reward (honest abstention); not wired into the LM arc  ·  map: CAUSAL_LLM.md
 """Candidate 2, complete pipeline: RLVR with a formal causal verifier — and honest abstention.
 
 This is the Anthropic-shaped experiment in runnable miniature. The thesis: use a *formal causal

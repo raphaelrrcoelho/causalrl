@@ -1,3 +1,4 @@
+# STATUS: canonical · Act 4 Coupling — diagnosis: the 0.43 failure is joint TRAINING, not perception  ·  map: CAUSAL_LLM.md
 """Ablation: is PERCEPTION (not reasoning) the bottleneck on the confounding trap?
 
 Two earlier results bracket the question:

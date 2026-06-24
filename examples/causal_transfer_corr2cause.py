@@ -1,3 +1,4 @@
+# STATUS: canonical · Act 1 Diagnosis — correlational training can't learn causal direction (Corr2Cause phenomenon)  ·  map: CAUSAL_LLM.md
 """Transfer step 1 — a Corr2Cause-style causal-discovery task, generated from causalrl.
 
 Phases 0-3 grounded causal variables inside a tiny LM on a single-mechanism see/do task. The open

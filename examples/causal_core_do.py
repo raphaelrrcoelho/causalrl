@@ -1,3 +1,4 @@
+# STATUS: by-construction · Act 2 Mechanism — do()/back-door is a hand-coded formula; only perception is learned  ·  map: CAUSAL_LLM.md
 """Embedded do() — one causal core that answers both observational and interventional queries.
 
 The previous core (``causal_core_architecture.py``) embedded an explicit adjacency + iterative

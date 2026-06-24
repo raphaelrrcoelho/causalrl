@@ -1,3 +1,4 @@
+# STATUS: oracle-fed · Act 2 Mechanism — DAS+IIT grounding in real activations (regime variable is known)  ·  map: CAUSAL_LLM.md
 """Causal Grounding (Phases 0-1) — locate, diagnose, install, and attribute a *regime* latent.
 
 This is the runnable companion to ``FRONTIER_PROPOSAL_v2.md``. It instantiates the first two phases
