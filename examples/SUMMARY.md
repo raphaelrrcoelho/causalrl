@@ -72,13 +72,30 @@ in; what is genuinely *learned* (perception, observational discovery, general in
 but a fully-learned system does **not** robustly distinguish correlation from causation on confounded
 cases, and learned size-general causal reasoning is only partial.
 
+**Update — the confounding failure was a *training* artifact, and is now fixed**
+(`causal_perception_bottleneck.py`, `causal_hybrid_twostage.py`). A perception-vs-reasoning-vs-training
+ablation localizes the fully-learned hybrid's 0.43: perception is fine (edge F1 0.86; the perceived
+graph drives the *exact* algorithm **and** a clean-trained GNN to ~1.0, soft or thresholded), and
+feeding the hybrid's own reasoner a thresholded graph does not help (0.51 → 0.51) — so the blocker is
+end-to-end **joint training**, not perception or the reasoner's capacity. A **two-stage** recipe (train
+perception on the edge loss; train a structure-only GNN reasoner on clean structure; compose) lifts a
+fully-learned, **nothing-hand-coded** system to **1.000 ± 0.000** confounded in-dist / **0.933 ± 0.003**
+held-out, end-to-end from prose — vs the joint hybrid's 0.506 / 0.586. So a fully-learned causal LM
+*does* go beyond correlation on confounded cases; naive joint training was the blocker. (Caveat: Stage
+B teacher-forces the true structure at train time — privileged info at train time, not a hand-coded
+reasoner; at inference it sees only the perceived graph.)
+
 ## What is solved vs open
 
 **Solved (small scale, validated, multi-seed):** the causal *computation* as an explicit hand-wired
 inductive bias (structure → routing → reachability/do() formula); learned edge *perception*; in-dist
 learned reasoning; the do() switch; active discovery; observational discovery (fragile); and coupling
-to a real GPT-2 as a hybrid. NOTE (per audit): the reachability/do() computation is hand-coded, not
-learned; learned size-general causal reasoning is NOT solved (only partial).
+to a real GPT-2 as a hybrid; and — via **decoupled (two-stage) training** — a fully-learned,
+nothing-hand-coded system that distinguishes correlation from causation on **confounded** cases
+end-to-end from prose (1.000 ± 0.000 in-dist / 0.933 ± 0.003 held-out). NOTE (per audit): the
+*hand-coded* reachability/do() formula is not learned, and the *jointly*-trained hybrid fails
+confounding (~0.43) — but that failure is a training artifact removed by decoupling (above); learned
+size-general reasoning is strong in-distribution but still only partial out of size.
 
 **Open (the path to a *large* causal LM):**
 1. **Real natural language** — rich phrasing, multi-sentence, coreference, implicit causality — and a
@@ -103,4 +120,5 @@ causal structure + routing + do() + (active) discovery into / alongside a real L
 goes beyond correlation and generalizes in graph size, where a vanilla LM fails. It is a strong,
 falsifiable proof of concept — **not** a frontier result. The wall between the two is scale, real
 language, and real-data discovery, not the causal mechanism, which is now a working embedded
-architecture.
+architecture — and, with decoupled (two-stage) training, a **fully-learned** one (no hand-coded
+reasoner) that goes beyond correlation on confounded cases in-distribution.

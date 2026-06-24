@@ -869,8 +869,77 @@ correlation on confounded cases — exactly the boundary the audit exposed. That
 of the exercise: causal reasoning is partly learnable, the do()/back-door distinction is (so far) only
 reliable when wired in or given clean structure.
 
+> **[Superseded — see "Localizing the failure (and the two-stage fix)" below.]** This conclusion was
+> correct for the *jointly-trained* hybrid, but premature as a statement about fully-learned systems.
+> The ablation below shows the ~0.43 failure is an end-to-end **training** artifact (not perception,
+> not the reasoner's capacity), and a **two-stage** recipe lifts a fully-learned, nothing-hand-coded
+> system to **1.000 ± 0.000** confounded in-dist.
+
 ### Reproduce
 
 ```
 uv run --extra torch python examples/causal_hybrid_learned.py
+```
+
+---
+
+# Localizing the failure (and the two-stage fix)
+
+Code: `causal_perception_bottleneck.py` (diagnosis), `causal_hybrid_twostage.py` (fix). The fully-learned
+hybrid's ~0.43 confounded number above invites the conclusion "fully-learned systems can't go beyond
+correlation." Two bracketing facts said otherwise: a GNN *given* clean structure reaches confounded
+~1.0 in-dist (learned reasoning is not the blocker), yet the end-to-end hybrid fails. The only thing
+that changed is perception — so we isolated it.
+
+**Diagnosis — perception is NOT the bottleneck; end-to-end *training* is.** We take the fully-learned
+hybrid's *perceived* soft adjacency, measure it, then feed TRUE vs PERCEIVED structure into reasoners
+whose causal logic is known-good (the exact hand-coded formula; a GNN trained on clean structure).
+Multi-seed, on confounded-cause:
+
+| | edge F1 | confounded, TRUE adj | confounded, PERCEIVED adj |
+|---|---|---|---|
+| perceived adjacency quality | **0.863 ± 0.008** | — | — |
+| HARDWIRED formula (exact algo) | — | 1.000 / 1.000 (s3/s4) | **1.000 / 0.976** |
+| GNN trained on clean structure | — | 1.000 / 0.908 | **1.000 / 0.917** |
+| end-to-end hybrid (joint-trained) | — | — | 0.43–0.51 |
+
+The perceived graph (F1 0.86), fed to the *correct* algorithm — soft **or** thresholded — yields ~1.0
+confounded. A GNN trained on clean structure transfers to the perceived graph at ~1.0. Only the
+end-to-end jointly-trained reasoner fails. **Disambiguation:** feeding the hybrid's *own* trained
+reasoner a thresholded graph leaves it unchanged (soft 0.506 → thresholded 0.506) — so it is not the
+soft input, it is the *jointly-trained weights*. The `cause` query survives the same edge noise
+(~0.89 held-out): confounding is the structure-sensitive query, and joint training simply never learns
+its back-door computation.
+
+**The fix — decoupled (two-stage) training.** Stage A trains GPT-2 + an edge MLP on the edge-recovery
+loss only (→ a perceived adjacency). Stage B trains a structure-only GNN reasoner on clean
+(teacher-forced) structure + the answer loss. At inference, prose → frozen Stage-A perception →
+thresholded adjacency → Stage-B reasoner → answer. **Nothing is hand-coded**; the two halves are simply
+trained apart. Same data/seeds, end-to-end from prose:
+
+| system (fully learned, nothing hand-coded) | confounded s3 (in-dist) | confounded s4 (held-out) |
+|---|---|---|
+| JOINT hybrid (baseline) | 0.506 ± 0.084 | 0.586 ± 0.367 |
+| **TWO-STAGE (fix)** | **1.000 ± 0.000** | **0.933 ± 0.003** |
+
+Decoupling fixes both the **accuracy** (1.0 vs 0.51 in-dist) and the **fragility** (±0.003 vs ±0.367
+held-out). The balanced `cause` query stays 1.000 / 0.862, ruling out a constant-"no" artifact.
+
+**Corrected conclusion.** A fully-learned causal LM (learned perception + learned reasoner, nothing
+wired in) **does** go beyond correlation on confounded cases — the earlier ~0.43 was an
+optimization / credit-assignment artifact of naive joint training, removed by decoupling. Honest
+scope: (1) Stage B teacher-forces the *true* structure at train time — a privileged-information
+training device (like the edge aux-loss), not a hand-coded reasoner; at inference the reasoner sees
+only the perceived graph. (2) The result is exact in-distribution (1.0) and strong but not perfect
+out of size (0.93), consistent with the partial size-extrapolation of learned reasoners. (3) This is
+still the *bolt-on* path (perception + a separate reasoner); the **pure** path — a single LM
+internalising the computation in its own weights — remains negative (see above). (4) Small-scale,
+synthetic, CPU. The wall to a *large* causal LM is still scale, real language, and real-data
+discovery — not the causal mechanism, and now not naive trainability either.
+
+### Reproduce
+
+```
+uv run --extra torch python examples/causal_perception_bottleneck.py   # diagnosis (the 2x2)
+uv run --extra torch python examples/causal_hybrid_twostage.py         # the two-stage fix
 ```
