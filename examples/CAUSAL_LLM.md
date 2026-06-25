@@ -87,15 +87,26 @@ traces): `causal_reasoner_prototype.py` → hardened trainer `causal_reasoner_tr
 oracle) + an honesty penalty → the model learns to **abstain** on non-identifiable estimands. Today
 this is **orthogonal** to the LM arc (not wired into it) — see the roadmap for the obvious bridge.
 
-### Act 6 — Frontier: real-benchmark contact (Phase 1 done)
+### Act 6 — Frontier: real-benchmark contact (Phase 1 + Phase 2 done)
 The real benchmark (Corr2Cause) — long cited, never run — has now been tackled. Its premises are
 complete d-separation patterns and its hypotheses are causal claims, mapping onto our pipeline
-exactly. An exact parse→MEC→necessity solver (`causal_corr2cause_solver.py`, dogfooding
+exactly. **Phase 1:** an exact parse→MEC→necessity solver (`causal_corr2cause_solver.py`, dogfooding
 `causalrl`'s d-separation) scores **F1 0.923 on the full 1162-example test set** vs lexical 0.365 and
-GPT-4 ~0.29 — proving the benchmark is structure-decidable and the thesis transfers off synthetic
-data. This is the *symbolic ceiling*. **Phase 2** — the learned decoupling test on Corr2Cause (does a
-decoupled parse→structure→learned-reasoner beat an end-to-end LM and approach the ceiling?) — is the
-remaining piece and the paper's keystone. See **Roadmap**.
+GPT-4 ~0.29 — the *symbolic ceiling*. **Phase 2** turned the thesis into a learned test:
+
+- A decoupled **parse→GNN reasoner** (`causal_corr2cause_learned.py`) reaches **F1 0.927** on the full
+  test — *matching the symbolic oracle* (0.923), ~3× GPT-4; it is **exactly relabel-invariant**, but
+  the regex front-end collapses under paraphrase (→0).
+- A **learned perception** (`causal_corr2cause_perception.py`) feeding the *same* reasoner **recovers
+  paraphrase (0 → 0.728)** — decoupling localizes robustness to a cheap, retrainable front-end.
+- On a controlled `causalrl`-generated benchmark (`causal_mec_scaling.py`) the size-agnostic GNN
+  **extrapolates** to graph sizes never trained on (N4–5 → N9: **0.93**) where a fixed-size MLP
+  collapses (0.41).
+
+Decisive caveat: the end-to-end LM here is tiny (F1 0.33); a *strong* LM ties in-distribution (~0.95,
+Jin et al.), so the decoupling win is **OOD-only** — and "decouple to generalize on Corr2Cause" is
+already published as a *prompted* method (arXiv 2505.18034). The open, differentiated claim is the
+**training-schedule mechanism**. This is **workshop-grade** today; see **Roadmap** for the conference path.
 
 ---
 
@@ -104,6 +115,10 @@ remaining piece and the paper's keystone. See **Roadmap**.
 **Strong (genuinely learned, multi-seed, defensible):**
 - **Real-benchmark keystone** — exact structure-routing solves Corr2Cause at **F1 0.92** (full test)
   vs GPT-4 0.29; the thesis transfers off synthetic data (`causal_corr2cause_solver.py`).
+- **Phase-2 learned decoupling (real data)** — a trained parse→GNN reasoner *matches the symbolic
+  oracle* (**0.927** vs 0.923); the size-agnostic reasoner **extrapolates N4→N9 (0.93)** where a
+  fixed-size model collapses; a learned perception **recovers paraphrase** robustness. All dogfood
+  `causalrl` (`causal_corr2cause_learned.py`, `_perception.py`, `causal_mec_scaling.py`).
 - The **two-stage fix** — fully-learned, 1.0 / 0.93 confounded, stable (`causal_hybrid_twostage.py`).
 - **Learned reasoning is real** in-distribution (`causal_core_learned_reasoning.py`).
 - The **pure-path negative** — clean, multi-seed (`causal_pure_lm.py`).
@@ -117,25 +132,56 @@ remaining piece and the paper's keystone. See **Roadmap**.
 - **Learned** size-extrapolation is unsolved (0.8–0.9, not 1.0).
 - Grounding (DAS/IIT) is **oracle-fed**; `phase3b` collapses.
 - Active / structured discovery is **oracle-fed**; raw-data observational discovery is **fragile**.
-- The real-benchmark result so far is a **symbolic** solver (the ceiling), not a learned LM — the
-  *learned* Corr2Cause test (Phase 2) is still to come.
-- Tiny models, synthetic prose, CPU; held-out numbers drift run-to-run.
+- The Phase-2 decoupling win on Corr2Cause is **OOD-only**: a strong end-to-end LM ties
+  in-distribution (~0.95), so we don't win i.i.d.; the regex perception is paraphrase-fragile, and the
+  learned perception trades clean accuracy and isn't relabel-invariant unless augmented for it. The
+  item-2c size baseline (an MLP) is weak. The "decouple" idea is partly **occupied** by prompted prior
+  work (arXiv 2505.18034) — our open angle is the *training-schedule mechanism*, not "structure helps".
+- Tiny models, synthetic prose, CPU; held-out numbers drift run-to-run. GPU works for short bursts but
+  a *sustained* training run wedged the WSL2 driver — the LM trainer now checkpoints/resumes.
 
 ---
 
 ## Roadmap (the compass)
-1. **Real benchmark — Corr2Cause.** ✅ *Phase 1 done:* exact structure solver = **F1 0.92** (full
-   test) vs GPT-4 0.29 — the symbolic ceiling, on real data (`causal_corr2cause_solver.py`).
-   *Phase 2 (next):* the **learned** decoupling test — does a decoupled (parse→structure→learned
-   reasoner) system beat an end-to-end LM and approach the 0.92 ceiling? That learned result is what
-   makes the paper.
+1. **Real benchmark — Corr2Cause.** ✅ *Phase 1 + 2 done.* Symbolic ceiling 0.92; the learned parse→GNN
+   reasoner matches it (0.927); OOD robustness + learned perception + size extrapolation measured. The
+   conference path is the dedicated plan below.
 2. **Close learned size-extrapolation** (0.8–0.9 → ~1.0): scratchpad/recurrence, scheduled sampling
-   true→perceived, stronger algorithmic alignment.
-3. **Real-data perception** — discovery from messy text, not SVO templates (the recurring bottleneck).
-4. **Pick the paper spine.** Cleanest candidate: the **decoupling finding** ("causal reasoning in LMs
-   is gated by training schedule, not capacity or perception") — falsifiable, novel, half-done.
+   true→perceived, stronger algorithmic alignment. (Item-2c already shows clean N4→N9 extrapolation on
+   the *definite-ancestor* query.)
+3. **Real-data perception** — discovery from messy text, not SVO templates (the recurring bottleneck;
+   the Phase-2b learned perception is the first step).
+4. **Paper spine — chosen:** the **training-schedule decoupling** mechanism ("causal reasoning in LMs
+   is gated by training schedule, not capacity or perception") — synthetic two-stage + the Phase-2
+   real-data echo. The plan below hardens it.
 5. **Unify causal-RL × LLM:** use the RLVR causal verifier as the **reward signal** to train the LM's
    causal reasoning/honesty (today they are separate toys).
+
+### Phase 2 → conference-grade (the plan)
+Sequenced by leverage, with a **decision gate** so we don't over-invest before knowing it can clear the
+bar. (Today's Phase-2 result is a clean **workshop** contribution; the gate decides if conference is
+realistic.)
+- **A — Land what we have.** ✅ scripts + results + docs committed (workshop-ready artifact exists).
+- **B — Fair baselines (days; cheapest, highest leverage).**
+  - **B1** strong end-to-end LM (distilbert/RoBERTa): report i.i.d. **and** each OOD axis (concede
+    i.i.d.; the claim is OOD). *GPU here is flaky for sustained runs — the LM trainer now
+    checkpoints/resumes, so run it CPU-side or on a stable GPU box.*
+  - **B2** replace the item-2c strawman MLP with a fair size baseline (transformer over serialized
+    structure / Deep Sets).
+  - **B3** relabel-augment the learned perception (fixes its 0.328 relabel drop) → decoupling targets
+    *all* OOD axes from the front-end alone.
+- **C — Real OOD, de-circularized (days–1 wk).** Replace the rule-based paraphraser with
+  LLM-generated paraphrases and/or the original Corr2Cause robustness splits (Jin et al.).
+  Make-or-break for the paraphrase claim.
+- **🚪 GATE (after B+C):** does decoupled-learned *tie* a strong LM i.i.d. **and** *beat* it on real
+  OOD across ≥2 axes? **Yes →** push for conference. **No →** strong workshop / negative-results paper.
+  Don't spend D–E before this gate.
+- **D — Mechanism + positioning (days).** Lead with the training-schedule ablation (joint vs decoupled,
+  synthetic + real); run the *prompted* method (arXiv 2505.18034; Mistral/Qwen → JSON graph) as a
+  head-to-head baseline, positioning us as the *trained/mechanistic* counterpart.
+- **E — Scale & breadth (1–2 wk, compute).** Bigger models, multiple seeds + error bars, a 2nd real
+  benchmark.
+- **F — Write-up.** Workshop after A–B; conference draft after the gate passes.
 
 ---
 
@@ -210,6 +256,9 @@ true structure) · **honest-negative** (a kept negative result) · **fragile** (
 | Script | Shows | Status |
 |---|---|---|
 | `causal_corr2cause_solver.py` | exact structure solver on REAL Corr2Cause: F1 0.92 (full test) vs GPT-4 0.29 | canonical · keystone (symbolic ceiling) |
+| `causal_corr2cause_learned.py` | Phase 2: end-to-end LM (2a) vs decoupled parse→GNN (2b, F1 0.927=oracle) + OOD relabel/paraphrase; GPU-checkpointed LM | canonical · Phase-2 main |
+| `causal_corr2cause_perception.py` | Phase 2b: learned text→structure perception recovers paraphrase (0→0.73) into the same reasoner | canonical · learned-perception |
+| `causal_mec_scaling.py` | Phase 2c: size extrapolation N4→N9 (GNN 0.93 vs MLP 0.41); dogfoods causalrl Meek + d-sep | canonical · size leg |
 
 ---
 

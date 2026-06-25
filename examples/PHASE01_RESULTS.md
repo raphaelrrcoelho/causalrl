@@ -987,3 +987,122 @@ ceiling? That learned result is the paper's keystone (see `CAUSAL_LLM.md` roadma
 ```
 uv run --with datasets --with scikit-learn python examples/causal_corr2cause_solver.py
 ```
+
+---
+
+# Phase 2 — learned decoupling, OOD robustness, size extrapolation (the real test)
+
+Phase 1 was a *symbolic* oracle. Phase 2 asks the branch's actual thesis on real data: does
+**decoupling** perception from reasoning beat an end-to-end model, and where does each break? Three
+new scripts (all CPU-sized, single seed unless noted):
+
+- `causal_corr2cause_learned.py` — end-to-end LM (2a) vs decoupled parse→GNN reasoner (2b) vs the
+  symbolic ceiling, each scored on clean **and** two synthesized OOD test variants.
+- `causal_corr2cause_perception.py` — replaces the regex perception with a *learned* text→structure
+  extractor (Phase 2b), feeding the **same** GNN reasoner.
+- `causal_mec_scaling.py` — a controlled `causalrl`-generated benchmark testing size extrapolation
+  (Phase 2c); dogfoods causalrl's Meek rules + d-separation for ground truth.
+
+## 2a vs 2b vs the ceiling (full 1162-example test, clean)
+
+| system | P | R | F1 |
+|---|---|---|---|
+| majority-class | 0.000 | 0.000 | 0.000 |
+| lexical TF-IDF+LogReg | 0.265 | 0.583 | 0.365 |
+| end-to-end LM (2a), bert-tiny `L-2_H-128` | 0.286 | 0.383 | **0.328** |
+| **decoupled GNN (2b)** | 0.901 | 0.956 | **0.927** |
+| symbolic ceiling (Phase 1) | 0.918 | 0.928 | 0.923 |
+
+**The learned decoupled reasoner essentially reaches the symbolic oracle (0.927 vs 0.923)** and ~3×
+GPT-4 — a small GNN fed parsed structure matches an exact MEC-entailment solver on the full test.
+
+Per-template (2b): non-child-descendant 0.957 · has_collider 0.939 · parent 0.935 · non-parent-ancestor
+0.905 · has_confounder 0.857 · child n/a (no positives).
+
+## OOD robustness — F1 under input perturbation (full test)
+
+Two synthesized OOD variants: **relabel** (permute variable letters A–F consistently) and
+**paraphrase** (reword the premise's relation phrasing).
+
+| system | clean | relabel | paraphrase |
+|---|---|---|---|
+| lexical TF-IDF+LogReg | 0.365 | 0.365 | 0.321 |
+| end-to-end LM (2a) | 0.328 | 0.303 | 0.234 |
+| decoupled GNN (2b), regex perception | 0.927 | **0.927** | **0.000** |
+| symbolic ceiling | 0.923 | 0.923 | 0.000 |
+
+The parse→GNN path (and the symbolic oracle) are **exactly relabel-invariant** (isomorphic graph) but
+**collapse under paraphrase** — the *regex* perception misses the reworded relations. That collapse is
+the motivation for a learned perception.
+
+## Phase 2b — learned perception recovers paraphrase (same reasoner, swapped front-end)
+
+A small encoder (`bert-tiny`, `bert-base-uncased` tokenizer for fast offsets) learns to map premise
+text → the structure (skeleton S + v-structure evidence D), trained on regex-derived targets with
+paraphrase augmentation. It feeds the **identical** GNN reasoner.
+
+| front-end (shared GNN reasoner) | clean | relabel | paraphrase |
+|---|---|---|---|
+| regex perception | 0.927 | 0.927 | 0.000 |
+| **learned perception** | 0.708 | 0.328 | **0.728** |
+
+The learned front-end **recovers paraphrase (0.00 → 0.728)** — the rescue works. Honest nuances: it
+costs clean accuracy (perception edge-recovery is imperfect, S-acc 0.85) **and** it is *not*
+relabel-invariant (0.328), because it was paraphrase-augmented but not relabel-augmented. The lesson:
+decoupling lets you buy robustness on whichever axis you augment for — cheaply, in the front-end alone
+— but you must augment per axis. (Relabel-augmenting the perception is the obvious fix; see roadmap.)
+
+## Phase 2c — size extrapolation (causalrl-generated, dogfooded)
+
+Corr2Cause stops at 6 variables (a complete-CI premise is exponential). To test breadth, we generate
+random DAGs at N=4..9 with `causalrl`, feed the reasoner the PC-style structure (S, D), and label a
+Markov-equivalence-**invariant** query — "is X a *definite* ancestor of Y?" — via causalrl's own Meek
+orientation (`causalrl.discovery`). Trained ONLY on N∈{4,5}; the rest is extrapolation.
+
+| reasoner | N=4 | N=5 | N=6* | N=7* | N=8* | N=9* |
+|---|---|---|---|---|---|---|
+| **size-agnostic GNN** | 1.00 | 1.00 | 0.99 | 0.98 | 0.95 | 0.93 |
+| fixed-size MLP (control) | 0.99 | 0.94 | 0.72 | 0.55 | 0.46 | 0.41 |
+
+(* = a graph size never seen in training.) The message-passing reasoner extrapolates gracefully; the
+fixed-size control collapses. Dogfood check: causalrl `d_separated` == networkx on 40 random DAGs ✓.
+
+## LLM baseline — Mistral (local, open-weight)
+
+A current open LLM (Mistral-7B-Instruct, run **locally** — no API key), prompted for entailment
+(Yes/No), few-shot. _Number pending a stable run: the llama-cpp 7B path loads and infers but is slow on
+CPU and the machine rebooted mid-run twice (see env note); being collected via a local Ollama Mistral.
+Wired two ways — `RUN=mistral MISTRAL_BACKEND=local` (llama-cpp GGUF), or `MISTRAL_BACKEND=api
+MISTRAL_API_BASE=http://localhost:11434/v1 MISTRAL_API_KEY=ollama MISTRAL_MODELS=mistral` (Ollama)._
+
+## Honest reading
+
+- **Strong:** the decoupled learned reasoner matches the oracle (0.927); it is relabel-invariant; the
+  learned perception recovers paraphrase; the GNN extrapolates across sizes. All dogfood causalrl.
+- **By construction / discount:** relabel-invariance of the regex path is definitional; the item-2c
+  MLP control is a weak baseline (a fair size baseline is a transformer over serialized structure).
+- **The decisive caveat:** the LM baseline here is a tiny 4M model (0.328). A *strong* fine-tuned LM
+  (RoBERTa-large) reaches ~0.95 on the i.i.d. Corr2Cause test (Jin et al.) — so decoupling does **not**
+  win in-distribution; the entire case is OOD (relabel/paraphrase/size). A fair strong-LM comparison is
+  the top open item (roadmap B1). The distilbert-on-GPU run for this crashed: GPU works for short
+  bursts here but the sustained training run wedged the WSL2 GPU driver, so it must run on CPU or a
+  stable GPU box.
+- **Novelty:** "decouple perception/reasoning to improve Corr2Cause generalization" is already
+  published as a *prompted* method (Structured Thinking Matters, arXiv 2505.18034). The differentiated,
+  still-open contribution is the **training-schedule mechanism** + a *trained* (not prompted) reasoner.
+
+This is a clean **workshop-grade** result, and the empirical core of a possible conference paper after
+the fair-baseline + real-paraphrase work in the roadmap (`CAUSAL_LLM.md`).
+
+### Reproduce
+
+```
+# item 1 (2a/2b/ceiling + OOD):
+uv run --extra torch --with datasets --with scikit-learn python examples/causal_corr2cause_learned.py
+# item 2b (learned perception):
+uv run --extra torch --with datasets --with scikit-learn python examples/causal_corr2cause_perception.py
+# item 2c (size extrapolation):
+uv run --extra torch --with scikit-learn python examples/causal_mec_scaling.py
+# Mistral baseline: add  --with llama-cpp-python --with huggingface-hub  and  RUN=mistral MISTRAL_BACKEND=local
+# fast smoke on any: prefix  SMOKE=1
+```
