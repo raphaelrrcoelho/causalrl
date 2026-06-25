@@ -1069,11 +1069,20 @@ fixed-size control collapses. Dogfood check: causalrl `d_separated` == networkx 
 
 ## LLM baseline — Mistral (local, open-weight)
 
-A current open LLM (Mistral-7B-Instruct, run **locally** — no API key), prompted for entailment
-(Yes/No), few-shot. _Number pending a stable run: the llama-cpp 7B path loads and infers but is slow on
-CPU and the machine rebooted mid-run twice (see env note); being collected via a local Ollama Mistral.
-Wired two ways — `RUN=mistral MISTRAL_BACKEND=local` (llama-cpp GGUF), or `MISTRAL_BACKEND=api
-MISTRAL_API_BASE=http://localhost:11434/v1 MISTRAL_API_KEY=ollama MISTRAL_MODELS=mistral` (Ollama)._
+A current open LLM (**Mistral-7B-Instruct**, run **locally** — no API key), prompted for entailment
+(Yes/No), 2-shot, on a 40-example sample:
+
+| system | P | R | F1 |
+|---|---|---|---|
+| Mistral-7B-Instruct (local, 2-shot, n=40) | 0.212 | 1.000 | **0.350** |
+
+It defaults to answering "Yes" (perfect recall, poor precision) — a 7B LLM **barely beats trivial** on
+this formal task: ~lexical (0.365) and the paper's GPT-4 reference (0.29), and **far below the decoupled
+GNN (0.927)**. This corroborates the Corr2Cause finding (LLMs struggle to *infer* causation from
+correlation) and underlines that the structure-routing — not LLM scale — is doing the work. Wired two
+ways: `RUN=mistral MISTRAL_BACKEND=local` (llama-cpp GGUF), or — robust on a flaky GPU box —
+`MISTRAL_BACKEND=api MISTRAL_API_BASE=http://localhost:11434/v1 MISTRAL_API_KEY=ollama
+MISTRAL_MODELS=mistral:7b` (local Ollama, GPU-managed).
 
 ## Honest reading
 

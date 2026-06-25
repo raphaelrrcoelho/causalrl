@@ -103,10 +103,12 @@ GPT-4 ~0.29 — the *symbolic ceiling*. **Phase 2** turned the thesis into a lea
   **extrapolates** to graph sizes never trained on (N4–5 → N9: **0.93**) where a fixed-size MLP
   collapses (0.41).
 
-Decisive caveat: the end-to-end LM here is tiny (F1 0.33); a *strong* LM ties in-distribution (~0.95,
-Jin et al.), so the decoupling win is **OOD-only** — and "decouple to generalize on Corr2Cause" is
-already published as a *prompted* method (arXiv 2505.18034). The open, differentiated claim is the
-**training-schedule mechanism**. This is **workshop-grade** today; see **Roadmap** for the conference path.
+A live local **Mistral-7B** (prompted, 2-shot) manages only **0.35** — ~lexical, ≈ the paper's GPT-4
+(0.29) — i.e. LLM scale doesn't help; the structure-routing does. Decisive caveat: the *fine-tuned*
+end-to-end LM here is tiny (F1 0.33); a *strong* fine-tuned LM ties in-distribution (~0.95, Jin et al.),
+so the decoupling win is **OOD-only** — and "decouple to generalize on Corr2Cause" is already published
+as a *prompted* method (arXiv 2505.18034). The open, differentiated claim is the **training-schedule
+mechanism**. This is **workshop-grade** today; see **Roadmap** for the conference path.
 
 ---
 
