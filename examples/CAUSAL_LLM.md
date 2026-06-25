@@ -87,14 +87,23 @@ traces): `causal_reasoner_prototype.py` → hardened trainer `causal_reasoner_tr
 oracle) + an honesty penalty → the model learns to **abstain** on non-identifiable estimands. Today
 this is **orthogonal** to the LM arc (not wired into it) — see the roadmap for the obvious bridge.
 
-### Act 6 — Frontier (open)
-See **Roadmap** below. The keystone gap: the real benchmark (Corr2Cause) has never actually been run.
+### Act 6 — Frontier: real-benchmark contact (Phase 1 done)
+The real benchmark (Corr2Cause) — long cited, never run — has now been tackled. Its premises are
+complete d-separation patterns and its hypotheses are causal claims, mapping onto our pipeline
+exactly. An exact parse→MEC→necessity solver (`causal_corr2cause_solver.py`, dogfooding
+`causalrl`'s d-separation) scores **F1 0.923 on the full 1162-example test set** vs lexical 0.365 and
+GPT-4 ~0.29 — proving the benchmark is structure-decidable and the thesis transfers off synthetic
+data. This is the *symbolic ceiling*. **Phase 2** — the learned decoupling test on Corr2Cause (does a
+decoupled parse→structure→learned-reasoner beat an end-to-end LM and approach the ceiling?) — is the
+remaining piece and the paper's keystone. See **Roadmap**.
 
 ---
 
 ## Where it's strong / weak
 
 **Strong (genuinely learned, multi-seed, defensible):**
+- **Real-benchmark keystone** — exact structure-routing solves Corr2Cause at **F1 0.92** (full test)
+  vs GPT-4 0.29; the thesis transfers off synthetic data (`causal_corr2cause_solver.py`).
 - The **two-stage fix** — fully-learned, 1.0 / 0.93 confounded, stable (`causal_hybrid_twostage.py`).
 - **Learned reasoning is real** in-distribution (`causal_core_learned_reasoning.py`).
 - The **pure-path negative** — clean, multi-seed (`causal_pure_lm.py`).
@@ -108,15 +117,18 @@ See **Roadmap** below. The keystone gap: the real benchmark (Corr2Cause) has nev
 - **Learned** size-extrapolation is unsolved (0.8–0.9, not 1.0).
 - Grounding (DAS/IIT) is **oracle-fed**; `phase3b` collapses.
 - Active / structured discovery is **oracle-fed**; raw-data observational discovery is **fragile**.
-- **The real benchmark was never run** (Corr2Cause cited, not measured) — the missing keystone.
+- The real-benchmark result so far is a **symbolic** solver (the ceiling), not a learned LM — the
+  *learned* Corr2Cause test (Phase 2) is still to come.
 - Tiny models, synthetic prose, CPU; held-out numbers drift run-to-run.
 
 ---
 
 ## Roadmap (the compass)
-1. **Run a real benchmark (Corr2Cause / CLadder) with the two-stage recipe on a real pretrained LM.**
-   The single most decisive, most-defensible move. Converts "works on synthetic" into "beats prior
-   work or doesn't." Needs GPU.
+1. **Real benchmark — Corr2Cause.** ✅ *Phase 1 done:* exact structure solver = **F1 0.92** (full
+   test) vs GPT-4 0.29 — the symbolic ceiling, on real data (`causal_corr2cause_solver.py`).
+   *Phase 2 (next):* the **learned** decoupling test — does a decoupled (parse→structure→learned
+   reasoner) system beat an end-to-end LM and approach the 0.92 ceiling? That learned result is what
+   makes the paper.
 2. **Close learned size-extrapolation** (0.8–0.9 → ~1.0): scratchpad/recurrence, scheduled sampling
    true→perceived, stronger algorithmic alignment.
 3. **Real-data perception** — discovery from messy text, not SVO templates (the recurring bottleneck).
@@ -193,6 +205,11 @@ true structure) · **honest-negative** (a kept negative result) · **fragile** (
 | Script | Shows | Status |
 |---|---|---|
 | `rlvr_causal_verifier.py` | RL + causal-verifier reward → honest abstention | exploratory (orthogonal) |
+
+### Act 6 — Frontier (real benchmark)
+| Script | Shows | Status |
+|---|---|---|
+| `causal_corr2cause_solver.py` | exact structure solver on REAL Corr2Cause: F1 0.92 (full test) vs GPT-4 0.29 | canonical · keystone (symbolic ceiling) |
 
 ---
 

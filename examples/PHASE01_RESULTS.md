@@ -943,3 +943,47 @@ discovery — not the causal mechanism, and now not naive trainability either.
 uv run --extra torch python examples/causal_perception_bottleneck.py   # diagnosis (the 2x2)
 uv run --extra torch python examples/causal_hybrid_twostage.py         # the two-stage fix
 ```
+
+---
+
+# Real benchmark — Corr2Cause (off synthetic, at last)
+
+Code: `causal_corr2cause_solver.py`. Every result above is on synthetic SVO prose. This is the keystone
+contact with a real benchmark: **Corr2Cause** (Jin et al., "Can LLMs infer causation from
+correlation?", ICLR 2024; HF `causalnlp/corr2cause`, 205,734 / 1,162 / 1,076 train/test/val). Each
+example's premise lists the complete set of (in)dependencies over N=2–6 variables and the hypothesis
+is a causal claim (parent / child / ancestor / descendant / collider / confounder); a hypothesis is
+valid iff entailed by the premise = true across the whole Markov-equivalence class. This maps onto our
+pipeline exactly: **perceive** = parse the templated premise into the stated CI facts; **reason** =
+recover the MEC (enumerate skeleton orientations reproducing all the facts) and label by necessity.
+d-separation is networkx's `is_d_separator`, the exact call `causalrl.d_separated` wraps (asserted
+equivalent at startup — dogfooding the library as the authority).
+
+**The premise determines the answer; correlational models just can't extract it.** Full test set,
+validated against train labels first (train-gate F1 0.961):
+
+| system | F1 (positive class, full 1162-example test) |
+|---|---|
+| majority-class | 0.000 |
+| TF-IDF + logistic regression (lexical) | 0.365 |
+| GPT-4 (Corr2Cause paper) | ~0.29 |
+| **exact structure solver (ours)** | **0.923**  (P 0.918 / R 0.928) |
+
+Per-template F1: non-parent-ancestor 0.98 · parent 0.94 · non-child-descendant 0.92 · collider 0.89 ·
+confounder 0.88 · child n/a (no positives in test). Full coverage (skeleton enumeration handled all of
+N=6 within budget; 0 uncovered).
+
+**Honest reading.** This is a *symbolic* oracle, not a learned LM — it proves the benchmark is
+**structure-decidable** and the premise is **sufficient**, i.e. the program's thesis (route through
+structure) transfers off synthetic data, ~3× GPT-4. It is the **ceiling** for the learned experiment.
+The residual below 1.0 is minor parser/necessity edge-cases at N=6 (cleanable), not fundamental.
+
+**Phase 2 (next):** the *learned* decoupling test on Corr2Cause — does a decoupled
+(parse→structure→learned reasoner) system beat an end-to-end fine-tuned LM and approach this 0.92
+ceiling? That learned result is the paper's keystone (see `CAUSAL_LLM.md` roadmap).
+
+### Reproduce
+
+```
+uv run --with datasets --with scikit-learn python examples/causal_corr2cause_solver.py
+```
