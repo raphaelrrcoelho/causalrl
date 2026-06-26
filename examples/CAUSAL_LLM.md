@@ -98,7 +98,9 @@ GPT-4 ~0.29 — the *symbolic ceiling*. **Phase 2** turned the thesis into a lea
   test — *matching the symbolic oracle* (0.923), ~3× GPT-4; it is **exactly relabel-invariant**, but
   the regex front-end collapses under paraphrase (→0).
 - A **learned perception** (`causal_corr2cause_perception.py`) feeding the *same* reasoner **recovers
-  paraphrase (0 → 0.728)** — decoupling localizes robustness to a cheap, retrainable front-end.
+  paraphrase (0 → 0.73)**, and with **relabel augmentation (B3) is robust on BOTH OOD axes** (clean
+  0.68 / relabel 0.64 / paraphrase 0.66) — decoupling localizes robustness to a cheap, retrainable
+  front-end you augment per-axis.
 - On a controlled `causalrl`-generated benchmark (`causal_mec_scaling.py`) the size-agnostic GNN
   **extrapolates** to graph sizes never trained on (N4–5 → N9: **0.93**) where a fixed-size MLP
   collapses (0.41).
@@ -123,8 +125,9 @@ see **Roadmap**.
   vs GPT-4 0.29; the thesis transfers off synthetic data (`causal_corr2cause_solver.py`).
 - **Phase-2 learned decoupling (real data)** — a trained parse→GNN reasoner *matches the symbolic
   oracle* (**0.927** vs 0.923); the size-agnostic reasoner **extrapolates N4→N9 (0.93)** where a
-  fixed-size model collapses; a learned perception **recovers paraphrase** robustness. All dogfood
-  `causalrl` (`causal_corr2cause_learned.py`, `_perception.py`, `causal_mec_scaling.py`).
+  fixed-size model collapses; a learned perception is **robust on both OOD axes** (B3:
+  relabel+paraphrase aug). All dogfood `causalrl` (`causal_corr2cause_learned.py`, `_perception.py`,
+  `causal_mec_scaling.py`).
 - **Strong-LM baseline beaten on both axes (B1)** — a *converged* distilbert reaches only **0.523
   i.i.d.** (vs GNN 0.927) and **collapses on relabel** (0.154, worsening with training) — it learns
   lexical shortcuts, not structure. Backed by data, not prose: `examples/results/b1_distilbert_*`
@@ -143,8 +146,9 @@ see **Roadmap**.
 - Grounding (DAS/IIT) is **oracle-fed**; `phase3b` collapses.
 - Active / structured discovery is **oracle-fed**; raw-data observational discovery is **fragile**.
 - The win is **not OOD-only** anymore (B1 retired that fear — see Strong), but real caveats remain: the
-  regex perception is paraphrase-fragile; the learned perception trades clean accuracy and isn't
-  relabel-invariant unless augmented; the item-2c size baseline (an MLP) is a strawman; and "decouple to
+  regex perception is paraphrase-fragile; the learned perception trades peak clean accuracy for
+  cross-axis robustness (B3 made it relabel-invariant too: 0.68/0.64/0.66); the item-2c size baseline
+  (an MLP) is a strawman; and "decouple to
   generalize on Corr2Cause" is partly **occupied** by prompted prior work (arXiv 2505.18034) — our open
   angle is the *training-schedule mechanism* + a trained reasoner, not "structure helps". **Scale
   caveat:** a much larger fine-tuned LM (RoBERTa-large ~0.8 i.i.d., Jin et al.) would narrow the i.i.d.
@@ -183,8 +187,10 @@ realistic.)
     learning-exact at ~3 GB.)
   - **B2** replace the item-2c strawman MLP with a fair size baseline (transformer over serialized
     structure / Deep Sets).
-  - **B3** relabel-augment the learned perception (fixes its 0.328 relabel drop) → decoupling targets
-    *all* OOD axes from the front-end alone.
+  - **B3** ✅ *done* — relabel-augmented the learned perception (relabel the premise + re-parse its
+    target): relabel **0.328 → 0.637**, now robust on both axes (clean 0.68 / relabel 0.64 /
+    paraphrase 0.66). Decoupling targets *all* OOD axes from the cheap front-end alone.
+    (`causal_corr2cause_perception.py`; evidence `results/b3_perception_run.log`.)
 - **C — Real OOD, de-circularized (days–1 wk).** Replace the rule-based paraphraser with
   LLM-generated paraphrases and/or the original Corr2Cause robustness splits (Jin et al.).
   Make-or-break for the paraphrase claim.
@@ -272,7 +278,7 @@ true structure) · **honest-negative** (a kept negative result) · **fragile** (
 |---|---|---|
 | `causal_corr2cause_solver.py` | exact structure solver on REAL Corr2Cause: F1 0.92 (full test) vs GPT-4 0.29 | canonical · keystone (symbolic ceiling) |
 | `causal_corr2cause_learned.py` | Phase 2: end-to-end LM (2a) vs decoupled parse→GNN (2b, F1 0.927=oracle) + OOD relabel/paraphrase; GPU-checkpointed LM | canonical · Phase-2 main |
-| `causal_corr2cause_perception.py` | Phase 2b: learned text→structure perception recovers paraphrase (0→0.73) into the same reasoner | canonical · learned-perception |
+| `causal_corr2cause_perception.py` | Phase 2b/B3: learned text→structure perception, relabel+para aug → robust on BOTH OOD axes (clean 0.68/relabel 0.64/para 0.66) into the same reasoner; evidence in `results/` | canonical · learned-perception |
 | `causal_mec_scaling.py` | Phase 2c: size extrapolation N4→N9 (GNN 0.93 vs MLP 0.41); dogfoods causalrl Meek + d-sep | canonical · size leg |
 | `causal_corr2cause_b1_lm.py` | Phase B1: CONVERGED strong distilbert end-to-end LM (clean 0.523 / relabel 0.154 / paraphrase 0.546) — GNN wins i.i.d. too; mem-minimal learning-exact (grad-ckpt + accum). Evidence in `results/` | canonical · fair-baseline |
 

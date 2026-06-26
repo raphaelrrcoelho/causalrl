@@ -1,4 +1,4 @@
-# STATUS: canonical · Act 6 Frontier — Phase 2b LEARNED perception on Corr2Cause: a trained text->structure extractor replaces the regex parser, recovering paraphrase robustness the regex (and the symbolic oracle) lack  ·  map: CAUSAL_LLM.md
+# STATUS: canonical · Act 6 Frontier — Phase 2b/B3 LEARNED perception on Corr2Cause: a trained text->structure extractor replaces the regex parser; with paraphrase+relabel augmentation it is robust on BOTH OOD axes (clean 0.68 / relabel 0.64 / paraphrase 0.66) feeding the same GNN, where the regex front-end collapses on paraphrase (0.000)  ·  map: CAUSAL_LLM.md
 """Phase 2b — make the *perception* learned, so decoupling isn't "free regex".
 
 ``causal_corr2cause_learned.py`` showed the decoupled parse->GNN reasoner is exactly invariant to
@@ -9,15 +9,20 @@ NLP. This script answers that objection by *learning* the perception:
     PERCEPTION (learned):  a small encoder (bert-tiny) reads the premise text and predicts the same
                            structural inputs the regex produced -- the skeleton S and v-structure
                            evidence D over the N variables. Supervised for free by the regex parser on
-                           CLEAN premises, trained with paraphrase augmentation.
+                           CLEAN premises, trained with paraphrase augmentation AND (B3) relabel
+                           augmentation -- for relabel the premise is permuted *and* its structure
+                           target re-parsed, so the two permute together, giving the relabel-invariance
+                           the paraphrase-only version lacked.
     REASONING (shared):    the SAME GNN reasoner from Phase 2 (trained once on regex structure).
 
 So regex-perception and learned-perception feed the *identical* reasoner; the only thing that changes
 is the front-end. We then measure both, plus the end-to-end LM, under clean / relabel / paraphrase.
 
-Hypothesis (the decoupling pay-off): learned perception keeps the reasoner's accuracy under paraphrase,
-where the regex front-end (and the symbolic oracle, which is also regex) drop to chance -- and the
-end-to-end LM degrades on both axes.
+Result (the decoupling pay-off): the learned perception keeps the reasoner's accuracy on whichever axis
+it is augmented for. Paraphrase-aug alone -> clean 0.71 / relabel 0.33 / paraphrase 0.73; adding
+relabel-aug (B3) -> clean 0.68 / relabel 0.64 / paraphrase 0.66 (robust on BOTH), where the regex
+front-end (and the symbolic oracle, also regex) drop to 0.000 on paraphrase. Evidence:
+`results/b3_perception_run.log`.
 
 Honest scope: the paraphraser is rule-based (a finite synonym set), so this is a proof-of-concept that
 decoupling *localizes* the robustness problem to a cheaply-retrainable perception module -- not a claim
@@ -60,6 +65,7 @@ PERC_TOKENIZER = os.environ.get("PERC_TOKENIZER", "bert-base-uncased")
 N_TRAIN_PERC = int(os.environ.get("N_TRAIN_PERC", "6000"))
 EPOCHS_PERC = int(os.environ.get("EPOCHS_PERC", "4"))
 PARA_AUG = float(os.environ.get("PARA_AUG", "0.7"))  # prob. of paraphrasing a training premise
+RELABEL_AUG = float(os.environ.get("RELABEL_AUG", "0.5"))  # B3: prob. of relabeling (-> relabel-invariance)
 N_TRAIN_GNN = int(os.environ.get("N_TRAIN_GNN", "40000"))
 if SMOKE:
     N_TRAIN_PERC, EPOCHS_PERC, N_TRAIN_GNN = 1200, 2, 4000
@@ -156,21 +162,27 @@ def train_perception(model, rows, tok, device):
     bs, n = 32, len(rows)
     order = list(range(n))
     print(f"  [perc] train {PERC_MODEL} on {n} premises x {EPOCHS_PERC} ep "
-          f"(paraphrase-aug p={PARA_AUG})")
+          f"(paraphrase-aug p={PARA_AUG}, relabel-aug p={RELABEL_AUG})")
     for ep in range(EPOCHS_PERC):
         rng.shuffle(order)
         model.train()
         tot = 0.0
         for i in range(0, n, bs):
             batch = [rows[j] for j in order[i : i + bs]]
-            St, Dt, Pt = _targets(batch)  # clean-structure targets
-            St, Dt, Pt = St.to(device), Dt.to(device), Pt.to(device)
-            premises = []
-            for r in batch:  # input may be paraphrased; target stays clean
-                prem = premise_of(r["input"])
+            # B3 augmentation per example: relabel (permute variable letters) and/or paraphrase
+            # (reword the premise). For relabel the TARGET is re-parsed from the relabeled text, so the
+            # structure permutes consistently; paraphrase leaves structure unchanged. Both stay aligned
+            # with the model's per-variable pooling because all index by variables_of()'s sorted order.
+            src, premises = [], []
+            for r in batch:
+                rr = L.relabel_row(r, rng) if rng.random() < RELABEL_AUG else r
+                prem = premise_of(rr["input"])
                 if rng.random() < PARA_AUG:
-                    prem = premise_of(L.paraphrase_row(r, rng)["input"])
+                    prem = premise_of(L.paraphrase_row(rr, rng)["input"])
+                src.append(rr)
                 premises.append(prem)
+            St, Dt, Pt = _targets(src)  # targets from the (possibly relabeled) source rows
+            St, Dt, Pt = St.to(device), Dt.to(device), Pt.to(device)
             hv, present = model.pool(premises, tok, device)
             s, d, pm = model.edges(hv, present)
             eye = torch.eye(NMAX, device=device).bool()

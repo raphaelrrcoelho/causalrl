@@ -1039,18 +1039,26 @@ the motivation for a learned perception.
 
 A small encoder (`bert-tiny`, `bert-base-uncased` tokenizer for fast offsets) learns to map premise
 text → the structure (skeleton S + v-structure evidence D), trained on regex-derived targets with
-paraphrase augmentation. It feeds the **identical** GNN reasoner.
+augmentation. It feeds the **identical** GNN reasoner.
 
 | front-end (shared GNN reasoner) | clean | relabel | paraphrase |
 |---|---|---|---|
-| regex perception | 0.927 | 0.927 | 0.000 |
-| **learned perception** | 0.708 | 0.328 | **0.728** |
+| regex perception | 0.921 | 0.921 | 0.000 |
+| learned perception (paraphrase-aug only) | 0.708 | 0.328 | 0.728 |
+| **learned perception (B3: relabel + paraphrase aug)** | 0.680 | **0.637** | 0.658 |
 
-The learned front-end **recovers paraphrase (0.00 → 0.728)** — the rescue works. Honest nuances: it
-costs clean accuracy (perception edge-recovery is imperfect, S-acc 0.85) **and** it is *not*
-relabel-invariant (0.328), because it was paraphrase-augmented but not relabel-augmented. The lesson:
-decoupling lets you buy robustness on whichever axis you augment for — cheaply, in the front-end alone
-— but you must augment per axis. (Relabel-augmenting the perception is the obvious fix; see roadmap.)
+The paraphrase-aug front-end **recovers paraphrase (0.00 → 0.728)** but stays relabel-fragile (0.328).
+**B3 — relabel-augment the perception** (relabel the premise *and* re-parse its structure target so the
+two permute together) **recovers relabel too (0.328 → 0.637)**: the learned front-end is now robust on
+*both* OOD axes (clean 0.680 / relabel 0.637 / paraphrase 0.658), at a small cost to clean/paraphrase.
+This completes the decoupling lesson: **robustness is bought per-axis, cheaply, in the front-end alone —
+augment for an axis and the same shared reasoner inherits it.** Honest nuance: the learned front-end
+trails the regex one in absolute clean F1 (edge-recovery imperfect, S-acc 0.81) — it trades peak clean
+accuracy for cross-axis robustness, where the regex path collapses on paraphrase (0.000).
+
+**Evidence:** verbatim run + table in `results/b3_perception_run.log`. Reproduce (relabel-aug on by
+default; knobs `RELABEL_AUG`/`PARA_AUG`):
+`DEVICE=cpu uv run --extra torch --with datasets --with transformers --with scikit-learn python examples/causal_corr2cause_perception.py`
 
 ## Phase 2c — size extrapolation (causalrl-generated, dogfooded)
 

@@ -24,6 +24,6 @@ docs/frontier/
 docs/superpowers/
 experiments/
 
-# Causal-LLM side-track B1: local training checkpoints/logs (large, transient)
-.b1*
+# Causal-LLM side-track (B1/B3/…): local training checkpoints/logs (large, transient)
+.b[0-9]*
 examples/presentation/
