@@ -23,3 +23,7 @@ papers/*.pdf
 docs/frontier/
 docs/superpowers/
 experiments/
+
+# Causal-LLM side-track B1: local training checkpoints/logs (large, transient)
+.b1*
+examples/presentation/

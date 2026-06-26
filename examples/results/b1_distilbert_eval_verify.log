@@ -1,0 +1,27 @@
+[b1] device=cpu threads=6 mode=eval steps=5000 eff_batch=8 micro=8 accum=1 grad_ckpt=True maxlen=512
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/100 [00:00<?, ?it/s]Loading weights: 100%|██████████| 100/100 [00:00<00:00, 1216.03it/s]
+[transformers] [1mDistilBertForSequenceClassification LOAD REPORT[0m from: distilbert-base-uncased
+Key                     | Status     | 
+------------------------+------------+-
+vocab_projector.bias    | UNEXPECTED | 
+vocab_layer_norm.bias   | UNEXPECTED | 
+vocab_layer_norm.weight | UNEXPECTED | 
+vocab_transform.weight  | UNEXPECTED | 
+vocab_transform.bias    | UNEXPECTED | 
+classifier.weight       | MISSING    | 
+pre_classifier.weight   | MISSING    | 
+classifier.bias         | MISSING    | 
+pre_classifier.bias     | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[b1] resumed /mnt/c/Users/rapha/Documents/Code/causalrl/.b1_distilbert_2ep_final.pt: steps=5000 (~2.00 ep)
+
+=== EVAL @ steps=5000 (~2.00 ep)  device=cpu ===
+  variant            P      R     F1
+  clean          0.402  0.750  0.523
+  relabel        0.119  0.217  0.154
+  paraphrase     0.468  0.656  0.546
+  by size (clean): N=2:0.00  N=3:0.15  N=4:0.00  N=5:0.45  N=6:0.64

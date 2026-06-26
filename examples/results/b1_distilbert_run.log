@@ -1,0 +1,56 @@
+[burst] device=cpu threads=6 mode=train steps=2390 eff_batch=8 micro=4 accum=2 grad_ckpt=True cuda_avail=False
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/100 [00:00<?, ?it/s]Loading weights: 100%|██████████| 100/100 [00:00<00:00, 1144.58it/s]
+[transformers] [1mDistilBertForSequenceClassification LOAD REPORT[0m from: distilbert-base-uncased
+Key                     | Status     | 
+------------------------+------------+-
+vocab_layer_norm.weight | UNEXPECTED | 
+vocab_transform.bias    | UNEXPECTED | 
+vocab_layer_norm.bias   | UNEXPECTED | 
+vocab_transform.weight  | UNEXPECTED | 
+vocab_projector.bias    | UNEXPECTED | 
+classifier.bias         | MISSING    | 
+pre_classifier.weight   | MISSING    | 
+classifier.weight       | MISSING    | 
+pre_classifier.bias     | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[burst] resumed /mnt/c/Users/rapha/Documents/Code/causalrl/.b1_burst.pt: steps=2610 (~1.04 ep)
+[burst] loaded cached encoded subset (20000, 512)
+  step 100/2390 (total 2710)  loss 0.4298  618s
+  step 200/2390 (total 2810)  loss 0.4531  1222s
+  step 300/2390 (total 2910)  loss 0.4609  1811s
+  step 400/2390 (total 3010)  loss 0.4597  2397s
+  step 500/2390 (total 3110)  loss 0.4619  2988s
+  [ckpt @ 3110]
+  step 600/2390 (total 3210)  loss 0.4670  4092s
+  step 700/2390 (total 3310)  loss 0.4676  5265s
+  step 800/2390 (total 3410)  loss 0.4680  5964s
+  step 900/2390 (total 3510)  loss 0.4703  6614s
+  step 1000/2390 (total 3610)  loss 0.4681  7301s
+  [ckpt @ 3610]
+  step 1100/2390 (total 3710)  loss 0.4687  7916s
+  step 1200/2390 (total 3810)  loss 0.4674  8516s
+  step 1300/2390 (total 3910)  loss 0.4639  9101s
+  step 1400/2390 (total 4010)  loss 0.4639  9688s
+  step 1500/2390 (total 4110)  loss 0.4659  10278s
+  [ckpt @ 4110]
+  step 1600/2390 (total 4210)  loss 0.4638  10910s
+  step 1700/2390 (total 4310)  loss 0.4623  11724s
+  step 1800/2390 (total 4410)  loss 0.4622  12435s
+  step 1900/2390 (total 4510)  loss 0.4599  13042s
+  step 2000/2390 (total 4610)  loss 0.4590  13642s
+  [ckpt @ 4610]
+  step 2100/2390 (total 4710)  loss 0.4569  14233s
+  step 2200/2390 (total 4810)  loss 0.4575  14826s
+  step 2300/2390 (total 4910)  loss 0.4599  15419s
+[burst] DONE +2390 -> total 5000 (~2.00 ep)  meanloss 0.4610  15959s  saved -> /mnt/c/Users/rapha/Documents/Code/causalrl/.b1_burst.pt
+
+=== EVAL @ steps=5000 (~2.00 ep)  device=cpu ===
+  variant            P      R     F1
+  clean          0.402  0.750  0.523
+  relabel        0.119  0.217  0.154
+  paraphrase     0.468  0.656  0.546
+  by size (clean): N=2:0.00  N=3:0.15  N=4:0.00  N=5:0.45  N=6:0.64

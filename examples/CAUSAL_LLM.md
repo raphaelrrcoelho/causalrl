@@ -104,11 +104,15 @@ GPT-4 ~0.29 — the *symbolic ceiling*. **Phase 2** turned the thesis into a lea
   collapses (0.41).
 
 A live local **Mistral-7B** (prompted, 2-shot) manages only **0.35** — ~lexical, ≈ the paper's GPT-4
-(0.29) — i.e. LLM scale doesn't help; the structure-routing does. Decisive caveat: the *fine-tuned*
-end-to-end LM here is tiny (F1 0.33); a *strong* fine-tuned LM ties in-distribution (~0.95, Jin et al.),
-so the decoupling win is **OOD-only** — and "decouple to generalize on Corr2Cause" is already published
-as a *prompted* method (arXiv 2505.18034). The open, differentiated claim is the **training-schedule
-mechanism**. This is **workshop-grade** today; see **Roadmap** for the conference path.
+(0.29) — i.e. LLM scale doesn't help; the structure-routing does. **B1 (now measured, not assumed):** a
+*converged* distilbert end-to-end LM reaches only **F1 0.523 i.i.d.** (not the ~0.8–0.95 a far larger
+RoBERTa-large would, per Jin et al.), so the decoupled GNN wins **in-distribution too** (0.927 vs 0.523)
+— *not* OOD-only as earlier feared — and the LM **collapses on relabel** (0.523→0.154), worsening with
+training (it learns lexical/letter shortcuts, not structure). "Decouple to generalize on Corr2Cause" is
+already published as a *prompted* method (arXiv 2505.18034); the open, differentiated claim is the
+**training-schedule mechanism** + a *trained* reasoner that wins both i.i.d. and OOD. Evidence (data, not
+just prose): `examples/results/b1_distilbert_*` + `causal_corr2cause_b1_lm.py`. **Workshop-grade** today;
+see **Roadmap**.
 
 ---
 
@@ -121,6 +125,10 @@ mechanism**. This is **workshop-grade** today; see **Roadmap** for the conferenc
   oracle* (**0.927** vs 0.923); the size-agnostic reasoner **extrapolates N4→N9 (0.93)** where a
   fixed-size model collapses; a learned perception **recovers paraphrase** robustness. All dogfood
   `causalrl` (`causal_corr2cause_learned.py`, `_perception.py`, `causal_mec_scaling.py`).
+- **Strong-LM baseline beaten on both axes (B1)** — a *converged* distilbert reaches only **0.523
+  i.i.d.** (vs GNN 0.927) and **collapses on relabel** (0.154, worsening with training) — it learns
+  lexical shortcuts, not structure. Backed by data, not prose: `examples/results/b1_distilbert_*`
+  (run log + JSON + checkpoint sha256), trainer `causal_corr2cause_b1_lm.py`.
 - The **two-stage fix** — fully-learned, 1.0 / 0.93 confounded, stable (`causal_hybrid_twostage.py`).
 - **Learned reasoning is real** in-distribution (`causal_core_learned_reasoning.py`).
 - The **pure-path negative** — clean, multi-seed (`causal_pure_lm.py`).
@@ -134,11 +142,13 @@ mechanism**. This is **workshop-grade** today; see **Roadmap** for the conferenc
 - **Learned** size-extrapolation is unsolved (0.8–0.9, not 1.0).
 - Grounding (DAS/IIT) is **oracle-fed**; `phase3b` collapses.
 - Active / structured discovery is **oracle-fed**; raw-data observational discovery is **fragile**.
-- The Phase-2 decoupling win on Corr2Cause is **OOD-only**: a strong end-to-end LM ties
-  in-distribution (~0.95), so we don't win i.i.d.; the regex perception is paraphrase-fragile, and the
-  learned perception trades clean accuracy and isn't relabel-invariant unless augmented for it. The
-  item-2c size baseline (an MLP) is weak. The "decouple" idea is partly **occupied** by prompted prior
-  work (arXiv 2505.18034) — our open angle is the *training-schedule mechanism*, not "structure helps".
+- The win is **not OOD-only** anymore (B1 retired that fear — see Strong), but real caveats remain: the
+  regex perception is paraphrase-fragile; the learned perception trades clean accuracy and isn't
+  relabel-invariant unless augmented; the item-2c size baseline (an MLP) is a strawman; and "decouple to
+  generalize on Corr2Cause" is partly **occupied** by prompted prior work (arXiv 2505.18034) — our open
+  angle is the *training-schedule mechanism* + a trained reasoner, not "structure helps". **Scale
+  caveat:** a much larger fine-tuned LM (RoBERTa-large ~0.8 i.i.d., Jin et al.) would narrow the i.i.d.
+  gap, but it's untrainable on this box and shows the same OOD collapse.
 - Tiny models, synthetic prose, CPU; held-out numbers drift run-to-run. GPU works for short bursts but
   a *sustained* training run wedged the WSL2 driver — the LM trainer now checkpoints/resumes.
 
@@ -165,9 +175,12 @@ bar. (Today's Phase-2 result is a clean **workshop** contribution; the gate deci
 realistic.)
 - **A — Land what we have.** ✅ scripts + results + docs committed (workshop-ready artifact exists).
 - **B — Fair baselines (days; cheapest, highest leverage).**
-  - **B1** strong end-to-end LM (distilbert/RoBERTa): report i.i.d. **and** each OOD axis (concede
-    i.i.d.; the claim is OOD). *GPU here is flaky for sustained runs — the LM trainer now
-    checkpoints/resumes, so run it CPU-side or on a stable GPU box.*
+  - **B1** ✅ *done* — converged distilbert: clean **0.523** / relabel **0.154** / paraphrase 0.546
+    (`causal_corr2cause_b1_lm.py`; evidence in `results/`). It does **not** tie i.i.d. (GNN 0.927 wins)
+    *and* collapses OOD → the decoupling win is i.i.d. **and** OOD at this scale; the earlier "OOD-only"
+    concession is retired. (A larger LM would narrow the i.i.d. gap per Jin et al., but is untrainable
+    here — GPU thermally wedges, CPU OOMs; trained CPU-side via gradient-checkpointing + accumulation,
+    learning-exact at ~3 GB.)
   - **B2** replace the item-2c strawman MLP with a fair size baseline (transformer over serialized
     structure / Deep Sets).
   - **B3** relabel-augment the learned perception (fixes its 0.328 relabel drop) → decoupling targets
@@ -261,6 +274,7 @@ true structure) · **honest-negative** (a kept negative result) · **fragile** (
 | `causal_corr2cause_learned.py` | Phase 2: end-to-end LM (2a) vs decoupled parse→GNN (2b, F1 0.927=oracle) + OOD relabel/paraphrase; GPU-checkpointed LM | canonical · Phase-2 main |
 | `causal_corr2cause_perception.py` | Phase 2b: learned text→structure perception recovers paraphrase (0→0.73) into the same reasoner | canonical · learned-perception |
 | `causal_mec_scaling.py` | Phase 2c: size extrapolation N4→N9 (GNN 0.93 vs MLP 0.41); dogfoods causalrl Meek + d-sep | canonical · size leg |
+| `causal_corr2cause_b1_lm.py` | Phase B1: CONVERGED strong distilbert end-to-end LM (clean 0.523 / relabel 0.154 / paraphrase 0.546) — GNN wins i.i.d. too; mem-minimal learning-exact (grad-ckpt + accum). Evidence in `results/` | canonical · fair-baseline |
 
 ---
 

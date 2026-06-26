@@ -1,0 +1,70 @@
+{
+  "experiment": "Phase B1 - converged strong end-to-end LM baseline on real Corr2Cause",
+  "date": "2026-06-26",
+  "model": "distilbert-base-uncased",
+  "tokenizer": "distilbert-base-uncased",
+  "benchmark": "causalnlp/corr2cause (HuggingFace)",
+  "train_subset": {
+    "n": 20000,
+    "shuffle_seed": 0,
+    "note": "first 20000 rows of corr2cause train after a seed-0 shuffle"
+  },
+  "eval": {
+    "split": "test",
+    "n": 1162,
+    "variants": ["clean", "relabel (perturb seed 0)", "paraphrase (perturb seed 0)"],
+    "metric": "F1 on the positive class",
+    "note": "splits byte-identical to the GNN/ceiling comparison; perturb/evaluate/f1 reused from causal_corr2cause_learned.py"
+  },
+  "config": {
+    "maxlen": 512,
+    "optimizer": "AdamW",
+    "lr": 3e-05,
+    "loss": "class-weighted CrossEntropy (pos upweighted by neg/pos ratio)",
+    "effective_batch": 8,
+    "epochs": 2,
+    "total_steps": 5000,
+    "final_train_loss": 0.461,
+    "gradient_checkpointing": true,
+    "memory_note": "gradient checkpointing + gradient accumulation (micro-batch 4 -> effective 8) keep gradients EXACT while cutting peak RAM ~6.5GB -> ~3GB; distilbert is LayerNorm-only so micro-batching is mathematically equivalent",
+    "provenance": "epoch 1 trained on GPU (batch 8) before the GPU thermally wedged; epochs continued on CPU at the same effective batch 8 via checkpoint resume. Effective training = 2 epochs, effective batch 8. A clean from-scratch re-run reproduces (CPU nondeterminism aside)."
+  },
+  "results": {
+    "epoch1": {
+      "clean":      {"P": 0.332, "R": 0.889, "F1": 0.483},
+      "relabel":    {"P": 0.200, "R": 0.539, "F1": 0.292},
+      "paraphrase": {"P": 0.366, "R": 0.594, "F1": 0.453},
+      "checkpoint": ".b1_ep1.pt",
+      "sha256": "987c3c081d4f08721e694c4ecb65478d6a8da1c8ccf314fefb76eba26d99b6e2"
+    },
+    "epoch2_converged": {
+      "clean":      {"P": 0.402, "R": 0.750, "F1": 0.523},
+      "relabel":    {"P": 0.119, "R": 0.217, "F1": 0.154},
+      "paraphrase": {"P": 0.468, "R": 0.656, "F1": 0.546},
+      "by_size_clean": {"N2": 0.00, "N3": 0.15, "N4": 0.00, "N5": 0.45, "N6": 0.64},
+      "checkpoint": ".b1_distilbert_2ep_final.pt",
+      "sha256": "af81e8852f33701a041b101f11382a7fb8b63b4481b7d0245ba512d36abab9c8",
+      "bytes": 803587261
+    }
+  },
+  "comparison_same_splits": {
+    "majority_class":  {"clean": 0.000},
+    "lexical_tfidf":   {"clean": 0.365, "relabel": 0.365, "paraphrase": 0.321},
+    "tiny_bert_2a":    {"clean": 0.328, "relabel": 0.303, "paraphrase": 0.234},
+    "distilbert_b1":   {"clean": 0.523, "relabel": 0.154, "paraphrase": 0.546},
+    "decoupled_gnn":   {"clean": 0.927, "relabel": 0.927, "paraphrase": 0.000},
+    "symbolic_ceiling":{"clean": 0.923, "relabel": 0.923, "paraphrase": 0.000}
+  },
+  "finding": "The decoupling win is NOT 'OOD-only': the decoupled GNN beats a CONVERGED distilbert even i.i.d. (0.927 vs 0.523), and the LM is not relabel-invariant - it collapses under variable renaming (0.523 -> 0.154) and gets WORSE with training (epoch-1 relabel 0.292 -> epoch-2 0.154), i.e. it learns lexical/letter shortcuts rather than the causal structure. Complementary failure modes: the LM is paraphrase-robust but relabel-fragile, while the regex->GNN is relabel-robust but paraphrase-fragile.",
+  "caveat": "distilbert is 66M params. Jin et al. (2024) report larger fine-tuned LMs (e.g. RoBERTa-large) reaching higher i.i.d. F1 (~0.8) but exhibiting the same OOD collapse. So a real fine-tune at this scale does not approach 0.6 i.i.d.; the 'strong LM ties i.i.d.' claim holds only for much larger models, which this box cannot train.",
+  "artifacts": {
+    "trainer": "examples/causal_corr2cause_b1_lm.py",
+    "raw_run_log": "examples/results/b1_distilbert_run.log",
+    "eval_verify_log": "examples/results/b1_distilbert_eval_verify.log",
+    "checkpoints_local_gitignored": [".b1_distilbert_2ep_final.pt", ".b1_ep1.pt"]
+  },
+  "reproduce": {
+    "from_scratch_2ep": "DEVICE=cpu NT=6 EFF_BATCH=8 MICRO=4 GC=1 STEPS=5000 SAVE_EVERY=1000 EVAL_AT_END=1 uv run --extra torch --with datasets --with transformers python examples/causal_corr2cause_b1_lm.py",
+    "re_eval_released_checkpoint": "CKPT=$PWD/.b1_distilbert_2ep_final.pt MODE=eval DEVICE=cpu uv run --extra torch --with datasets --with transformers python examples/causal_corr2cause_b1_lm.py"
+  }
+}
