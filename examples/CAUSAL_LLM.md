@@ -134,6 +134,10 @@ see **Roadmap**.
   i.i.d.** (vs GNN 0.927) and **collapses on relabel** (0.154, worsening with training) — it learns
   lexical shortcuts, not structure. Backed by data, not prose: `examples/results/b1_distilbert_*`
   (run log + JSON + checkpoint sha256), trainer `causal_corr2cause_b1_lm.py`.
+- **Real, non-circular OOD (C)** — on Jin et al.'s *published* `perturbation_by_refactorization` split,
+  the decoupled reasoner is **refactor-invariant** (0.923 → 0.920, full coverage) while distilbert
+  **collapses** (0.523 → 0.195) — replicating Jin et al.'s headline finding on our model and validating
+  the synthetic relabel as a faithful proxy (`causal_corr2cause_realood.py`, evidence in `results/`).
 - The **two-stage fix** — fully-learned, 1.0 / 0.93 confounded, stable (`causal_hybrid_twostage.py`).
 - **Learned reasoning is real** in-distribution (`causal_core_learned_reasoning.py`).
 - The **pure-path negative** — clean, multi-seed (`causal_pure_lm.py`).
@@ -196,12 +200,19 @@ realistic.)
     target): relabel **0.328 → 0.637**, now robust on both axes (clean 0.68 / relabel 0.64 /
     paraphrase 0.66). Decoupling targets *all* OOD axes from the cheap front-end alone.
     (`causal_corr2cause_perception.py`; evidence `results/b3_perception_run.log`.)
-- **C — Real OOD, de-circularized (days–1 wk).** Replace the rule-based paraphraser with
-  LLM-generated paraphrases and/or the original Corr2Cause robustness splits (Jin et al.).
-  Make-or-break for the paraphrase claim.
-- **🚪 GATE (after B+C):** does decoupled-learned *tie* a strong LM i.i.d. **and** *beat* it on real
-  OOD across ≥2 axes? **Yes →** push for conference. **No →** strong workshop / negative-results paper.
-  Don't spend D–E before this gate.
+- **C — Real OOD, de-circularized.** ✅ *refactor axis done* — evaluated on **Jin et al.'s published
+  `perturbation_by_refactorization`** (variables renamed to arbitrary letters): the decoupled symbolic
+  reasoner is **refactor-invariant** (0.923 → 0.920, full coverage) while distilbert **collapses**
+  (0.523 → 0.195), replicating Jin et al. on our model AND validating the synthetic relabel as a proxy
+  (synthetic 0.154 ≈ real 0.195). (`causal_corr2cause_realood.py`; evidence `results/c_realood_run.log`.)
+  *Remaining:* the **paraphrase** axis — Jin's `perturbation_by_paraphrasing` is 3-class NLI + paraphrases
+  the *hypothesis*, so the regex query-parser can't consume it; needs a learned query parser /
+  premise-only LLM paraphrases.
+- **🚪 GATE (B done; C refactor ✅, paraphrase pending):** on REAL data the structure reasoner already
+  **beats the LM on the refactor axis** (invariant vs collapse) and wins i.i.d. at distilbert scale
+  (0.93 vs 0.52). Two open items before a confident conference call: a **non-circular paraphrase axis**
+  (the 2nd real OOD axis) and a **strong-LM i.i.d. point** (RoBERTa-large — does it tie i.i.d.?).
+  **Leaning workshop-strong / conference-plausible**; don't spend D–E before closing those two.
 - **D — Mechanism + positioning (days).** Lead with the training-schedule ablation (joint vs decoupled,
   synthetic + real); run the *prompted* method (arXiv 2505.18034; Mistral/Qwen → JSON graph) as a
   head-to-head baseline, positioning us as the *trained/mechanistic* counterpart.
@@ -281,11 +292,12 @@ true structure) · **honest-negative** (a kept negative result) · **fragile** (
 ### Act 6 — Frontier (real benchmark)
 | Script | Shows | Status |
 |---|---|---|
-| `causal_corr2cause_solver.py` | exact structure solver on REAL Corr2Cause: F1 0.92 (full test) vs GPT-4 0.29 | canonical · keystone (symbolic ceiling) |
+| `causal_corr2cause_solver.py` | exact structure solver on REAL Corr2Cause: F1 0.92 (full test) vs GPT-4 0.29; parser [A-Z]-generalized so it handles Jin's refactorization | canonical · keystone (symbolic ceiling) |
 | `causal_corr2cause_learned.py` | Phase 2: end-to-end LM (2a) vs decoupled parse→GNN (2b, F1 0.927=oracle) + OOD relabel/paraphrase; GPU-checkpointed LM | canonical · Phase-2 main |
 | `causal_corr2cause_perception.py` | Phase 2b/B3: learned text→structure perception, relabel+para aug → robust on BOTH OOD axes (clean 0.68/relabel 0.64/para 0.66) into the same reasoner; evidence in `results/` | canonical · learned-perception |
 | `causal_mec_scaling.py` | Phase 2c/B2: size extrapolation N4→N9 — GNN 0.93 > fair graph transformer 0.86 (B2) > MLP strawman 0.41; dogfoods causalrl Meek + d-sep | canonical · size leg |
 | `causal_corr2cause_b1_lm.py` | Phase B1: CONVERGED strong distilbert end-to-end LM (clean 0.523 / relabel 0.154 / paraphrase 0.546) — GNN wins i.i.d. too; mem-minimal learning-exact (grad-ckpt + accum). Evidence in `results/` | canonical · fair-baseline |
+| `causal_corr2cause_realood.py` | Phase C: REAL de-circularized OOD on Jin et al.'s published perturbation_by_refactorization — decoupled symbolic refactor-INVARIANT (0.92→0.92) vs distilbert COLLAPSE (0.52→0.20); validates the synthetic relabel proxy. Evidence in `results/` | canonical · real-OOD |
 
 ---
 

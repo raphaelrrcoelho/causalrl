@@ -1,0 +1,28 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+clean n=1162  Jin-refactorization n=2246
+  [validate] symbolic w/ INFERRED template on clean: F1=0.923 (true-template ceiling ~0.92 -> inference is sound)
+
+Loading weights:   0%|          | 0/100 [00:00<?, ?it/s]Loading weights: 100%|██████████| 100/100 [00:00<00:00, 1284.40it/s]
+[transformers] [1mDistilBertForSequenceClassification LOAD REPORT[0m from: distilbert-base-uncased
+Key                     | Status     | 
+------------------------+------------+-
+vocab_layer_norm.bias   | UNEXPECTED | 
+vocab_transform.weight  | UNEXPECTED | 
+vocab_projector.bias    | UNEXPECTED | 
+vocab_layer_norm.weight | UNEXPECTED | 
+vocab_transform.bias    | UNEXPECTED | 
+classifier.bias         | MISSING    | 
+classifier.weight       | MISSING    | 
+pre_classifier.bias     | MISSING    | 
+pre_classifier.weight   | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  system                                       clean (A-F)  Jin refactor (renamed)
+  symbolic ceiling (decoupled)            0.923 (cov 1.00)        0.920 (cov 1.00)
+  end-to-end distilbert (B1)                         0.523                   0.195
+
+  Reading: structure-parsing is refactor-INVARIANT on Jin's REAL renamed-variable split,
+  while the end-to-end LM collapses -- replicating Jin et al. on our own model, on published
+  non-circular data, and validating the synthetic relabel as a faithful proxy.

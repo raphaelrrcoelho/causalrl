@@ -1146,6 +1146,35 @@ CKPT=$PWD/.b1_distilbert_2ep_final.pt MODE=eval DEVICE=cpu \
   uv run --extra torch --with datasets --with transformers python examples/causal_corr2cause_b1_lm.py
 ```
 
+## Phase C — real, de-circularized OOD (Jin et al.'s published refactorization split)
+
+The Phase-2 OOD splits were *mine* (synthetic relabel + a rule-based paraphraser), so a reviewer can
+call them circular. Corr2Cause (Jin et al., ICLR 2024) released its own robustness perturbations on HF;
+we evaluate on **`perturbation_by_refactorization`** — their headline probe (variables renamed to
+arbitrary letters; n=2246, binary, directly comparable to the main test). The parser is generalized to
+`[A-Z]` (backward-compatible); Jin's split has no `template` column, so we infer it from the hypothesis
+and **validate that inference reproduces the known clean ceiling** (F1 **0.923**, == true-template 0.923).
+
+| system | clean (A–F) | Jin refactor (renamed vars) |
+|---|---|---|
+| symbolic ceiling (decoupled structure) | 0.923 (cov 1.00) | **0.920** (cov 1.00) |
+| end-to-end distilbert (B1) | 0.523 | **0.195** |
+
+**The decoupling win holds on Jin et al.'s REAL, published, non-circular data:** the structure-based
+reasoner is **refactor-invariant** (0.923 → 0.920, full parse coverage) while the end-to-end LM
+**collapses** (0.523 → 0.195) — replicating Jin et al.'s headline finding ("fine-tuned LMs collapse when
+the variables are renamed") on our own model. It also **validates the synthetic relabel as a faithful
+proxy**: my synthetic relabel took distilbert 0.523 → 0.154; Jin's real refactoring takes it 0.523 →
+0.195 (same collapse). The relabel/refactor axis is now de-circularized.
+
+*Honest scope:* Jin's `perturbation_by_paraphrasing` is a reformulated **3-class NLI** task that also
+paraphrases the **hypothesis** (the query); our binary, regex-query pipeline can't consume it fairly, so
+the *premise-paraphrase* axis stays on the synthetic paraphraser (B3). De-circularizing paraphrase needs
+a learned query parser or premise-only LLM paraphrases — the next rigor step.
+
+**Evidence:** `results/c_realood_run.log`. Reproduce:
+`DEVICE=cpu uv run --extra torch --with datasets --with transformers --with pandas python examples/causal_corr2cause_realood.py`
+
 ## Honest reading
 
 - **Strong:** the decoupled learned reasoner matches the oracle (0.927); it is relabel-invariant; the

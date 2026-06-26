@@ -43,26 +43,28 @@ SKEL_CAP = 22
 def parse(text: str):
     prem = text.split("Premise:")[1].split("Hypothesis:")[0]
     hyp = text.split("Hypothesis:")[1].strip()
-    variables = sorted(set(re.findall(r"\b([A-F])\b", prem)))
-    corr = {frozenset(m) for m in re.findall(r"([A-F]) correlates with ([A-F])", prem)}
+    # [A-Z] (not just A-F) so Jin et al.'s perturbation_by_refactorization (variables renamed to
+    # arbitrary letters, e.g. Z, Y) parses too; backward-compatible with the A-F default test.
+    variables = sorted(set(re.findall(r"\b([A-Z])\b", prem)))
+    corr = {frozenset(m) for m in re.findall(r"([A-Z]) correlates with ([A-Z])", prem)}
     indep = []  # (frozenset(pair), frozenset(conditioning_set))
-    for a, b in re.findall(r"([A-F]) is independent of ([A-F])", prem):
+    for a, b in re.findall(r"([A-Z]) is independent of ([A-Z])", prem):
         indep.append((frozenset([a, b]), frozenset()))
     for a, b, cond in re.findall(
-        r"([A-F]) and ([A-F]) are independent given ([A-F][A-F ,and]*)", prem
+        r"([A-Z]) and ([A-Z]) are independent given ([A-Z][A-Z ,and]*)", prem
     ):
-        indep.append((frozenset([a, b]), frozenset(re.findall(r"[A-F]", cond))))
+        indep.append((frozenset([a, b]), frozenset(re.findall(r"[A-Z]", cond))))
     return variables, corr, indep, hyp
 
 
 def parse_hyp(template: str, hyp: str):
     pats = {
-        "parent": r"([A-F]) directly causes ([A-F])",
-        "child": r"([A-F]) directly causes ([A-F])",
-        "has_collider": r"collider.*?of ([A-F]) and ([A-F])",
-        "has_confounder": r"confounder.*?of ([A-F]) and ([A-F])",
-        "non-parent ancestor": r"([A-F]) causes something else which causes ([A-F])",
-        "non-child descendant": r"([A-F]) is a cause for ([A-F])",
+        "parent": r"([A-Z]) directly causes ([A-Z])",
+        "child": r"([A-Z]) directly causes ([A-Z])",
+        "has_collider": r"collider.*?of ([A-Z]) and ([A-Z])",
+        "has_confounder": r"confounder.*?of ([A-Z]) and ([A-Z])",
+        "non-parent ancestor": r"([A-Z]) causes something else which causes ([A-Z])",
+        "non-child descendant": r"([A-Z]) is a cause for ([A-Z])",
     }
     m = re.search(pats[template], hyp)
     return (m.group(1), m.group(2)) if m else (None, None)
