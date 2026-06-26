@@ -1069,11 +1069,17 @@ orientation (`causalrl.discovery`). Trained ONLY on N∈{4,5}; the rest is extra
 
 | reasoner | N=4 | N=5 | N=6* | N=7* | N=8* | N=9* |
 |---|---|---|---|---|---|---|
-| **size-agnostic GNN** | 1.00 | 1.00 | 0.99 | 0.98 | 0.95 | 0.93 |
-| fixed-size MLP (control) | 0.99 | 0.94 | 0.72 | 0.55 | 0.46 | 0.41 |
+| **size-agnostic GNN** | 1.00 | 1.00 | 0.99 | 0.98 | 0.95 | **0.93** |
+| graph transformer (B2, fair size-agnostic) | 1.00 | 0.98 | 0.96 | 0.94 | 0.90 | **0.86** |
+| fixed-size MLP (strawman) | 0.99 | 0.94 | 0.72 | 0.55 | 0.46 | **0.41** |
 
-(* = a graph size never seen in training.) The message-passing reasoner extrapolates gracefully; the
-fixed-size control collapses. Dogfood check: causalrl `d_separated` == networkx on 40 random DAGs ✓.
+(* = a graph size never seen in training.) **B2 adds a fair, size-agnostic baseline** — a graph
+transformer (self-attention over variable tokens with the structure injected as attention bias), which
+*can* handle any N. It extrapolates far better than the MLP strawman (N9: 0.86 vs 0.41) — so the
+MLP-only comparison overstated the gap — **but the GNN's local message-passing still leads at every
+size, and the edge widens out of distribution** (N9: 0.93 vs 0.86). So the message-passing inductive
+bias genuinely helps extrapolation; it is *not* merely size-agnosticism. Dogfood check: causalrl
+`d_separated` == networkx on 40 random DAGs ✓. Evidence: `results/b2_size_extrapolation_run.log`.
 
 ## LLM baseline — Mistral (local, open-weight)
 

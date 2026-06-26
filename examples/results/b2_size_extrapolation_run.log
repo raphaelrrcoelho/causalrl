@@ -1,0 +1,12 @@
+MEC size-extrapolation (causalrl-generated)  seed=0  smoke=False  train sizes=[4, 5]  test=[4, 5, 6, 7, 8, 9]
+  dogfood: causalrl.d_separated == networkx on 40 DAGs ✓
+  train: 8852 (x,y) pairs over sizes [4, 5] (50/50 balanced)
+
+--- F1 (definite-ancestor) by graph size — TRAIN sizes {4,5}, the rest are EXTRAPOLATION ---
+  reasoner                        N=4  N=5  N=6  N=7  N=8  N=9
+  size-agnostic GNN               1.00  1.00  0.99*  0.98*  0.95*  0.93*
+  graph transformer (B2, fair)    1.00  0.98  0.96*  0.94*  0.90*  0.86*
+  fixed-size MLP (strawman)       0.99  0.94  0.72*  0.55*  0.46*  0.41*
+  (* = size NEVER seen in training. The GNN and the graph transformer are BOTH size-agnostic
+   — this tests whether message-passing extrapolates better than global attention. The
+   fixed-size MLP, tied to the train sizes/positions, is the strawman lower bound.)

@@ -1,4 +1,4 @@
-# STATUS: canonical · Act 6 Frontier — Phase 2c size-extrapolation on a causalrl-generated structure benchmark: the size-agnostic GNN reasoner trained on N<=5 extrapolates to N=6..9 where a fixed-size MLP cannot; dogfoods causalrl discovery (Meek rules + d-separation)  ·  map: CAUSAL_LLM.md
+# STATUS: canonical · Act 6 Frontier — Phase 2c/B2 size-extrapolation on a causalrl-generated benchmark: the size-agnostic GNN trained on N<=5 extrapolates to N=6..9, tested against a FAIR size-agnostic graph-transformer baseline (B2) and a fixed-size MLP strawman; dogfoods causalrl discovery (Meek rules + d-separation)  ·  map: CAUSAL_LLM.md
 """Phase 2c — a second, controlled testbed for the decoupling thesis: SIZE EXTRAPOLATION.
 
 Corr2Cause caps at 6 variables (a complete-CI premise is exponential, so the benchmark itself stops
@@ -13,12 +13,16 @@ we generate our own structures with ``causalrl`` and dogfood the library for gro
     causalrl's own Meek-rule orientation (``causalrl.discovery``); we also assert causalrl's
     ``d_separated`` matches networkx (dogfooding the library as the authority).
 
-Two reasoners, trained ONLY on N in {4,5}, evaluated per size 4..9:
+Three reasoners, trained ONLY on N in {4,5}, evaluated per size 4..9:
   * size-agnostic GNN (message passing -- the Phase-2 reasoner, ``make_gnn``);
-  * a fixed-size MLP on the padded (S,D,X,Y) tensor (the "entangled / size-tied" control).
+  * (B2) a FAIR size-agnostic graph transformer (``make_transformer``): self-attention over the
+    variable tokens with the structure injected as attention bias -- it also handles any N, so unlike
+    the MLP it *can* extrapolate; the honest baseline the earlier MLP-only comparison lacked;
+  * a fixed-size MLP on the padded (S,D,X,Y) tensor (the size-tied strawman lower bound).
 
-Thesis (the size leg of decoupling): the GNN extrapolates to larger graphs; the MLP, tied to the
-sizes/positions it trained on, does not. This complements the Corr2Cause size-shift (train 96% N=6).
+Thesis (the size leg of decoupling): the GNN's local message-passing extrapolates to larger graphs
+better than generic global attention, and far better than the size-tied MLP. This complements the
+Corr2Cause size-shift (train 96% N=6).
 
 Honest scope: synthetic structures, MEC-invariant query, small models, CPU. The point is the
 size-extrapolation *gap*, not an absolute SOTA number.
@@ -138,6 +142,54 @@ def make_mlp(d=128):
     return MLP()
 
 
+# --------------------------------------------------------------------------- B2: fair size-capable baseline (graph transformer)
+def make_transformer(d=64, layers=3, heads=4):
+    """A size-agnostic baseline that is NOT a GNN: self-attention over the variable tokens, with the
+    structure (S, D) injected as an additive per-head attention bias, and absent variables masked. It
+    handles any N (unlike the fixed-size MLP), so it *can* extrapolate — a fair test of whether the
+    GNN's local message-passing bias beats generic global attention out of distribution."""
+    import torch
+    from torch import nn
+
+    class GraphTransformer(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.dh = d // heads
+            self.in_proj = nn.Linear(2, d)          # node features: X / Y one-hot
+            self.edge_bias = nn.Linear(3, heads)    # [S_ij, D_ij, D_ji] -> per-head attention bias
+            self.q = nn.ModuleList(nn.Linear(d, d) for _ in range(layers))
+            self.k = nn.ModuleList(nn.Linear(d, d) for _ in range(layers))
+            self.v = nn.ModuleList(nn.Linear(d, d) for _ in range(layers))
+            self.o = nn.ModuleList(nn.Linear(d, d) for _ in range(layers))
+            self.ff = nn.ModuleList(
+                nn.Sequential(nn.Linear(d, d), nn.ReLU(), nn.Linear(d, d)) for _ in range(layers))
+            self.n1 = nn.ModuleList(nn.LayerNorm(d) for _ in range(layers))
+            self.n2 = nn.ModuleList(nn.LayerNorm(d) for _ in range(layers))
+            self.head = nn.Sequential(nn.Linear(2 * d, d), nn.ReLU(), nn.Linear(d, 1))
+
+        def forward(self, S, D, nf, present, tpl, xi, yi):
+            b, n = present.shape
+            h = self.in_proj(nf)                                    # (b,n,d)
+            ef = torch.stack([S, D, D.transpose(1, 2)], -1)         # (b,n,n,3): skel + both v-struct dirs
+            bias = self.edge_bias(ef).permute(0, 3, 1, 2)          # (b,heads,n,n)
+            kmask = (present[:, None, None, :] == 0)                # mask absent variables as keys
+            for li in range(layers):
+                hn = self.n1[li](h)
+                q = self.q[li](hn).view(b, n, heads, self.dh).transpose(1, 2)
+                k = self.k[li](hn).view(b, n, heads, self.dh).transpose(1, 2)
+                v = self.v[li](hn).view(b, n, heads, self.dh).transpose(1, 2)
+                att = (q @ k.transpose(-1, -2)) / (self.dh ** 0.5) + bias
+                att = att.masked_fill(kmask, float("-inf")).softmax(-1).nan_to_num(0.0)
+                out = (att @ v).transpose(1, 2).reshape(b, n, d)
+                h = h + self.o[li](out)
+                h = h + self.ff[li](self.n2[li](h))
+            ar = torch.arange(b)
+            hx, hy = h[ar, xi], h[ar, yi]                           # read out the X / Y node embeddings
+            return self.head(torch.cat([hx, hy], -1)).squeeze(-1)
+
+    return GraphTransformer()
+
+
 # --------------------------------------------------------------------------- train / eval
 def train(model, rows, labels):
     import torch
@@ -229,20 +281,24 @@ def main() -> None:
     import torch  # noqa: F401  (ensure torch present before building models)
 
     gnn = train(make_gnn(), tr_rows, tr_lab)
+    tfm = train(make_transformer(), tr_rows, tr_lab)  # B2: fair, size-capable, non-GNN baseline
     mlp = train(make_mlp(), tr_rows, tr_lab)
 
     print("\n--- F1 (definite-ancestor) by graph size — TRAIN sizes {4,5}, the rest are EXTRAPOLATION ---")
-    print(f"  {'reasoner':28s}  " + "  ".join(f"N={s}" for s in TEST_SIZES))
-    gnn_cells, mlp_cells = [], []
+    print(f"  {'reasoner':30s}  " + "  ".join(f"N={s}" for s in TEST_SIZES))
+    gnn_cells, tfm_cells, mlp_cells = [], [], []
     for s in TEST_SIZES:
         te_rows, te_lab = make_split([s], SEED + 100 + s, max(GRAPHS_PER_SIZE // 3, 60))
         gnn_cells.append(f"{evf1(gnn, te_rows, te_lab):.2f}")
+        tfm_cells.append(f"{evf1(tfm, te_rows, te_lab):.2f}")
         mlp_cells.append(f"{evf1(mlp, te_rows, te_lab):.2f}")
     star = ["" if s in TRAIN_SIZES else "*" for s in TEST_SIZES]
-    print(f"  {'size-agnostic GNN':28s}  " + "  ".join(f"{c}{x}" for c, x in zip(gnn_cells, star)))
-    print(f"  {'fixed-size MLP (control)':28s}  " + "  ".join(f"{c}{x}" for c, x in zip(mlp_cells, star)))
-    print("  (* = size NEVER seen in training. The message-passing reasoner should hold up; the")
-    print("   fixed-size MLP, tied to the train sizes/positions, should fall off.)")
+    print(f"  {'size-agnostic GNN':30s}  " + "  ".join(f"{c}{x}" for c, x in zip(gnn_cells, star)))
+    print(f"  {'graph transformer (B2, fair)':30s}  " + "  ".join(f"{c}{x}" for c, x in zip(tfm_cells, star)))
+    print(f"  {'fixed-size MLP (strawman)':30s}  " + "  ".join(f"{c}{x}" for c, x in zip(mlp_cells, star)))
+    print("  (* = size NEVER seen in training. The GNN and the graph transformer are BOTH size-agnostic")
+    print("   — this tests whether message-passing extrapolates better than global attention. The")
+    print("   fixed-size MLP, tied to the train sizes/positions, is the strawman lower bound.)")
 
 
 if __name__ == "__main__":
