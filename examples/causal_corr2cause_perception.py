@@ -178,7 +178,10 @@ def train_perception(model, rows, tok, device):
                 rr = L.relabel_row(r, rng) if rng.random() < RELABEL_AUG else r
                 prem = premise_of(rr["input"])
                 if rng.random() < PARA_AUG:
-                    prem = premise_of(L.paraphrase_row(rr, rng)["input"])
+                    # mix connective-swaps with diverse full-rewrite paraphrases (TRAIN bank, disjoint
+                    # from the held-out eval) so we can test generalization to unseen full rewrites.
+                    para_fn = L.paraphrase_train_row if rng.random() < 0.6 else L.paraphrase_row
+                    prem = premise_of(para_fn(rr, rng)["input"])
                 src.append(rr)
                 premises.append(prem)
             St, Dt, Pt = _targets(src)  # targets from the (possibly relabeled) source rows

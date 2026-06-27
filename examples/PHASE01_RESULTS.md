@@ -1044,24 +1044,25 @@ augmentation. It feeds the **identical** GNN reasoner.
 | front-end (shared GNN reasoner) | clean | relabel | paraphrase (train synonyms) | paraphrase **held-out** |
 |---|---|---|---|---|
 | regex perception | 0.921 | 0.921 | 0.000 | 0.000 |
-| learned perception (paraphrase-aug only) | 0.708 | 0.328 | 0.728 | — |
-| **learned perception (B3: relabel + paraphrase aug)** | 0.680 | **0.637** | 0.658 | **0.062** |
+| learned perception (B3: relabel + connective-swap paraphrase aug) | 0.680 | **0.637** | 0.658 | **0.062** |
+| **learned perception (+ diverse full-rewrite paraphrase aug)** | 0.609 | 0.586 | 0.611 | **0.478** |
 
-**Relabel robustness is genuine; paraphrase robustness was CIRCULAR — the held-out column exposes it.**
-B3's relabel-augmentation gives real relabel-invariance (0.328 → 0.637; confirmed *non-circular* on Jin
-et al.'s refactorization in Phase C). But the **`paraphrase held-out`** column — independent
-**full-sentence LLM rewrites** (Mistral-7B via Ollama, vetted meaning-preserving, *disjoint* from the
-training synonyms) — shows the learned perception **recovers paraphrase only for the phrasings it trained
-on** (0.658) and **collapses on novel ones** (0.062, ≈ the regex's 0.000). So "the learned front-end
-recovers paraphrase robustness" holds only *in-distribution*; it does **not** generalize to an
-independent paraphraser — the earlier 0.728/0.658 was an artifact of train/eval sharing my synonym set.
-Decoupling *does* localize the problem to a cheap, retrainable front-end, but a small bert-tiny trained
-on a narrow synonym set overfits it; genuine open-world paraphrase robustness (diverse/LLM-paraphrase
-training or a stronger perception) is **open**. *(The relabel axis has no such issue — a permutation is
-structural, so relabel-aug generalizes; Phase C confirms it on real data.)*
+**Relabel robustness is genuine; paraphrase robustness was circular — until trained for properly.** The
+`paraphrase held-out` column is the de-circularizing test: independent full-sentence LLM rewrites
+(Mistral-7B, vetted meaning-preserving, *disjoint* from training). **B3** (trained only on my narrow
+connective-swap synonyms) **collapses on held-out** (0.062 ≈ regex 0.000) — its earlier "paraphrase
+recovery 0.66" was an artifact of train/eval sharing the synonym set. **Retraining the perception on
+diverse LLM full-rewrites** (a 27-template TRAIN bank, *disjoint* from the 12-template held-out eval)
+lifts held-out **0.062 → 0.478** — genuine generalization to unseen paraphrases, far above the regex's
+0.000. So paraphrase robustness is **learnable, not fundamentally circular**; the per-axis lesson holds,
+but the paraphrase axis demands *diverse* augmentation (a narrow synonym set overfits). Honest residue: a
+small in-distribution cost (clean 0.68 → 0.61) and a remaining generalization gap (held-out 0.48 < clean
+0.61) — a stronger perception would likely close it. *(The relabel axis needs no such diversity — a
+permutation is structural, so relabel-aug generalizes exactly; Phase C confirms it on Jin's real data.)*
 
-**Evidence:** `results/b3_perception_run.log` (train-synonym eval) + `results/c_paraphrase_heldout_run.log`
-(held-out LLM-paraphrase eval — the 0.062 collapse). Reproduce (eval now includes the held-out column):
+**Evidence:** `results/b3_perception_run.log` (B3) + `results/c_paraphrase_heldout_run.log` (the 0.062
+collapse) + `results/c_paraphrase_diversetrain_run.log` (the 0.478 generalization). Reproduce (eval
+includes the held-out column; training now mixes connective-swaps + diverse full-rewrites):
 `DEVICE=cpu uv run --extra torch --with datasets --with transformers --with scikit-learn python examples/causal_corr2cause_perception.py`
 
 ## Phase 2c — size extrapolation (causalrl-generated, dogfooded)
@@ -1171,14 +1172,16 @@ the variables are renamed") on our own model. It also **validates the synthetic 
 proxy**: my synthetic relabel took distilbert 0.523 → 0.154; Jin's real refactoring takes it 0.523 →
 0.195 (same collapse). The relabel/refactor axis is now de-circularized.
 
-*Paraphrase axis — done, and it's an honest NEGATIVE.* Jin's `perturbation_by_paraphrasing` is a
-reformulated 3-class NLI task that also paraphrases the hypothesis, so we instead de-circularized with
-**premise-only held-out LLM paraphrases** (Mistral-7B; disjoint from the perception's training synonyms;
-see the Phase-2b "paraphrase held-out" column). Result: the learned perception's paraphrase recovery is
-**circular** — it holds on trained phrasings (0.658) but **collapses on independent paraphrases** (0.062).
-So, unlike the refactor axis, the **paraphrase axis is unsolved**: structure-routing fixes variable-name
-robustness (the LM's headline failure) but premise-paraphrase robustness needs a perception trained on
-diverse paraphrases / a stronger front-end. Reported honestly rather than hidden.
+*Paraphrase axis — circular under narrow training, then recovered.* Jin's `perturbation_by_paraphrasing`
+is a reformulated 3-class NLI task that also paraphrases the hypothesis, so we de-circularized with
+**premise-only held-out LLM paraphrases** (Mistral-7B; disjoint from training; see the Phase-2b
+"paraphrase held-out" column). The narrow connective-swap-trained perception (B3) is **circular** —
+0.658 on trained phrasings, **0.062 on held-out**. **Training on diverse full-rewrites recovers it:
+held-out 0.062 → 0.478** (genuine generalization to unseen paraphrases, vs regex 0.000). So premise
+paraphrase robustness is *learnable* with diverse augmentation — not a fundamental limit — leaving a
+residual gap (0.48 < 0.61 clean). With both axes de-circularized (refactor on Jin's real data; paraphrase
+via held-out generalization), the decoupling win covers **two genuine OOD axes**, with the honest caveat
+that paraphrase needs diverse training and is imperfect at bert-tiny scale.
 
 **Evidence:** `results/c_realood_run.log`. Reproduce:
 `DEVICE=cpu uv run --extra torch --with datasets --with transformers --with pandas python examples/causal_corr2cause_realood.py`

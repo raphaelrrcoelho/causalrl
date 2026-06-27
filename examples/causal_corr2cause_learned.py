@@ -181,28 +181,72 @@ _HELDOUT_COND = [
 ]
 
 
-def paraphrase_heldout_row(row, rng):
-    """Rewrite each premise (in)dependency statement with a held-out LLM phrasing (structure preserved,
-    surface form fully restructured). Hypothesis kept canonical so the query still parses."""
+# TRAIN bank of full-rewrite paraphrases (also Mistral-7B/Ollama, vetted, DISJOINT from _HELDOUT_*). Used
+# as perception TRAINING augmentation to ask the de-circularized question: does training on diverse full
+# rewrites make the perception generalize to the *held-out* full rewrites it never saw?
+_PARAPHRASE_TRAIN_CORR = [
+    "There exists a statistical relationship between {a} and {b}",
+    "{b} bears a significant correlation with {a}",
+    "The level of association between variables {a} and {b} is notable",
+    "Statistically, {a} is related to {b}",
+    "{a}'s variations directly correspond with those of {b}",
+    "{a} shows considerable statistical linkage with {b}",
+    "{b} varies in accordance with changes in {a} (statistically speaking)",
+    "In statistical analysis, {a} and {b} present a relationship",
+    "{a} and {b} exhibit statistically significant correlations",
+    "Research reveals that {a} is correlated to {b}",
+]
+_PARAPHRASE_TRAIN_INDEP = [
+    "{a} and {b} have no statistical correlation",
+    "{b} bears no significant association with {a}",
+    "There is no discernible linkage between variables {a} and {b}",
+    "Statistically, {a} is uncorrelated with {b}",
+    "The independence of variables {a} and {b} has been established through analysis",
+    "In the field of statistics, {a} exhibits no correlation with {b}",
+    "No meaningful relationship appears to exist between {a} and {b} (statistically speaking)",
+    "{a} and {b} do not demonstrate any correlation",
+    "The variables {a} and {b} show independence in a statistical context",
+]
+_PARAPHRASE_TRAIN_COND = [  # NB: none contain "is independent of" (would be re-matched below)
+    "assuming {z}, there is no association between {a} and {b}",
+    "in the presence of {z}, no correlation is observed between {a} and {b}",
+    "{a} and {b} are found to be uncorrelated given {z}",
+    "given a particular set of conditions ({z}), {a} is unrelated to {b}",
+    "assuming control factors represented by {z}, {a} does not correlate with {b}",
+    "the relationship between {a} and {b} ceases when considering {z}",
+    "given specific conditions {z}, {a} appears unrelated to {b}",
+    "considering {z}, {a}'s correlation with {b} vanishes",
+]
+
+
+def _full_rewrite(row, rng, corr_b, indep_b, cond_b):
+    """Replace each premise (in)dependency statement with a random full-sentence rewrite (structure
+    preserved). Order matters: conditional first, then independence, then correlation."""
     text = row["input"]
     if "Hypothesis:" not in text:
         return {**row, "input": text}
     prem, hyp = text.split("Hypothesis:", 1)
-    prem = re.sub(  # most specific first: conditional independence
-        r"([A-Z]) and ([A-Z]) are independent given ([A-Z][A-Z ,and]*)",
-        lambda m: rng.choice(_HELDOUT_COND).format(a=m.group(1), b=m.group(2), z=m.group(3).strip(" .")),
-        prem)
+    prem = re.sub(r"([A-Z]) and ([A-Z]) are independent given ([A-Z][A-Z ,and]*)",
+                  lambda m: rng.choice(cond_b).format(a=m.group(1), b=m.group(2), z=m.group(3).strip(" .")), prem)
     prem = re.sub(r"([A-Z]) is independent of ([A-Z])",
-                  lambda m: rng.choice(_HELDOUT_INDEP).format(a=m.group(1), b=m.group(2)), prem)
+                  lambda m: rng.choice(indep_b).format(a=m.group(1), b=m.group(2)), prem)
     prem = re.sub(r"([A-Z]) correlates with ([A-Z])",
-                  lambda m: rng.choice(_HELDOUT_CORR).format(a=m.group(1), b=m.group(2)), prem)
+                  lambda m: rng.choice(corr_b).format(a=m.group(1), b=m.group(2)), prem)
     return {**row, "input": prem + "Hypothesis:" + hyp}
+
+
+def paraphrase_heldout_row(row, rng):  # full rewrites the perception is NEVER trained on (eval only)
+    return _full_rewrite(row, rng, _HELDOUT_CORR, _HELDOUT_INDEP, _HELDOUT_COND)
+
+
+def paraphrase_train_row(row, rng):  # diverse full rewrites for perception TRAINING augmentation
+    return _full_rewrite(row, rng, _PARAPHRASE_TRAIN_CORR, _PARAPHRASE_TRAIN_INDEP, _PARAPHRASE_TRAIN_COND)
 
 
 def perturb(rows, kind, seed):
     rng = random.Random(seed)
     fn = {"relabel": relabel_row, "paraphrase": paraphrase_row,
-          "paraphrase_heldout": paraphrase_heldout_row}[kind]
+          "paraphrase_heldout": paraphrase_heldout_row, "paraphrase_train": paraphrase_train_row}[kind]
     return [fn(r, rng) for r in rows]
 
 

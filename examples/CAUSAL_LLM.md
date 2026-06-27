@@ -98,10 +98,11 @@ GPT-4 ~0.29 — the *symbolic ceiling*. **Phase 2** turned the thesis into a lea
   test — *matching the symbolic oracle* (0.923), ~3× GPT-4; it is **exactly relabel-invariant**, but
   the regex front-end collapses under paraphrase (→0).
 - A **learned perception** (`causal_corr2cause_perception.py`) feeding the *same* reasoner is
-  **genuinely relabel-robust** (B3: 0.637; confirmed non-circular on Jin's refactorization, Phase C) —
-  but its **paraphrase recovery is CIRCULAR**: it holds on trained phrasings (0.66) yet **collapses on
-  held-out LLM paraphrases (0.06)**. So decoupling localizes robustness to a cheap front-end and *buys
-  the structural (relabel) axis*, but premise-paraphrase robustness does not generalize (open).
+  **genuinely relabel-robust** (B3: 0.637; confirmed non-circular on Jin's refactorization, Phase C).
+  Its paraphrase recovery was *circular* under narrow training (held-out **0.06**), but **training on
+  diverse LLM full-rewrites recovers it: held-out 0.06 → 0.48** (generalizes to unseen paraphrases, vs
+  regex 0.000) — so both OOD axes are genuinely buyable in the cheap front-end, paraphrase just needs
+  diverse augmentation (residual gap: 0.48 < 0.61 clean).
 - On a controlled `causalrl`-generated benchmark (`causal_mec_scaling.py`) the size-agnostic GNN
   **extrapolates** to graph sizes never trained on (N4–5 → N9: **0.93**), beating a **fair**
   size-agnostic graph transformer (0.86, B2) and crushing the fixed-size MLP strawman (0.41) — the
@@ -128,8 +129,9 @@ see **Roadmap**.
 - **Phase-2 learned decoupling (real data)** — a trained parse→GNN reasoner *matches the symbolic
   oracle* (**0.927** vs 0.923); the size-agnostic reasoner **extrapolates N4→N9 (0.93)**, beating a
   fair size-agnostic graph transformer (0.86, B2) and the fixed-size MLP (0.41); a learned perception is
-  **genuinely relabel-robust** (B3: 0.637; non-circular per Phase C) — though its *paraphrase* recovery
-  is circular (see Weak). All dogfood `causalrl` (`causal_corr2cause_learned.py`, `_perception.py`,
+  **robust on both OOD axes** — relabel (B3: 0.637, non-circular per Phase C) and, with diverse
+  full-rewrite training, **paraphrase generalizes to held-out (0.06 → 0.48)**. All dogfood `causalrl`
+  (`causal_corr2cause_learned.py`, `_perception.py`,
   `causal_mec_scaling.py`).
 - **Strong-LM baseline beaten on both axes (B1)** — a *converged* distilbert reaches only **0.523
   i.i.d.** (vs GNN 0.927) and **collapses on relabel** (0.154, worsening with training) — it learns
@@ -153,9 +155,9 @@ see **Roadmap**.
 - Grounding (DAS/IIT) is **oracle-fed**; `phase3b` collapses.
 - Active / structured discovery is **oracle-fed**; raw-data observational discovery is **fragile**.
 - The win is **not OOD-only** anymore (B1 retired that fear — see Strong), but real caveats remain: the
-  regex perception is paraphrase-fragile; **the learned perception's paraphrase recovery is CIRCULAR** —
-  it holds on trained phrasings (0.66) but **collapses on held-out LLM paraphrases (0.06)**, so the
-  paraphrase axis is *unsolved* (only the structural relabel axis genuinely generalizes); the
+  regex perception is paraphrase-fragile; the learned perception's paraphrase robustness **requires
+  diverse augmentation** (a narrow synonym set is circular: held-out 0.06; diverse full-rewrites
+  generalize to 0.48, but with a residual gap to clean 0.61 — imperfect at bert-tiny scale); the
   size-extrapolation now has a fair baseline (B2: GNN 0.93 > graph transformer 0.86 > MLP strawman 0.41),
   retiring the strawman criticism; and "decouple to
   generalize on Corr2Cause" is partly **occupied** by prompted prior work (arXiv 2505.18034) — our open
@@ -198,26 +200,28 @@ realistic.)
     transformer **0.86** > MLP strawman **0.41** (gap widens out-of-distribution), so message-passing
     helps even vs a model that *can* handle any N. (`causal_mec_scaling.py`; evidence
     `results/b2_size_extrapolation_run.log`.)
-  - **B3** ✅ *done (mixed)* — relabel-augmented the learned perception: relabel **0.328 → 0.637**
-    (genuine; non-circular per Phase C). It *appears* paraphrase-robust on trained synonyms (0.66) but a
-    held-out LLM-paraphrase test (see C) shows that recovery is **circular** — it collapses to **0.06**
-    on unseen phrasings. So the front-end buys the **structural (relabel) axis** but not paraphrase.
-    (`causal_corr2cause_perception.py`; evidence `results/b3_perception_run.log` + `c_paraphrase_heldout_run.log`.)
+  - **B3** ✅ *done* — relabel-augmented the learned perception: relabel **0.328 → 0.637** (genuine;
+    non-circular per Phase C). A held-out LLM-paraphrase test exposed that the *narrow*-trained paraphrase
+    recovery was **circular** (held-out 0.06), but **retraining on diverse full-rewrites recovers it:
+    held-out 0.06 → 0.48** (see C) — so the cheap front-end buys **both** OOD axes (paraphrase needs
+    diverse augmentation; residual gap 0.48 < 0.61 clean). (`causal_corr2cause_perception.py`; evidence
+    `results/b3_perception_run.log`, `c_paraphrase_heldout_run.log`, `c_paraphrase_diversetrain_run.log`.)
 - **C — Real OOD, de-circularized.** ✅ *refactor axis done* — evaluated on **Jin et al.'s published
   `perturbation_by_refactorization`** (variables renamed to arbitrary letters): the decoupled symbolic
   reasoner is **refactor-invariant** (0.923 → 0.920, full coverage) while distilbert **collapses**
   (0.523 → 0.195), replicating Jin et al. on our model AND validating the synthetic relabel as a proxy
   (synthetic 0.154 ≈ real 0.195). (`causal_corr2cause_realood.py`; evidence `results/c_realood_run.log`.)
-  **Paraphrase axis — done, honest NEGATIVE:** Jin's paraphrasing split is 3-class NLI + paraphrases the
-  hypothesis (incompatible), so we de-circularized with **premise-only held-out LLM paraphrases**
-  (disjoint from training) → the learned perception's paraphrase recovery **collapses 0.66 → 0.06**, i.e.
-  it was circular. Premise-paraphrase robustness is **unsolved**; the *structural* (relabel/refactor)
-  robustness is the genuine, non-circular win.
-- **🚪 GATE (B done; C done):** on REAL data the structure reasoner **wins the variable-renaming axis**
-  (refactor-invariant vs LM collapse — the LM's headline failure per Jin et al.) and wins i.i.d. at
-  distilbert scale (0.93 vs 0.52). **But only ONE genuine OOD axis** holds (paraphrase is an honest
-  negative), and the i.i.d. tie vs a *big* LM (RoBERTa-large) is untested. **Read: a strong, honest
-  workshop / negative-results contribution; conference would need paraphrase solved or a sharper story.**
+  **Paraphrase axis — circular under narrow training, then RECOVERED:** Jin's paraphrasing split is
+  3-class NLI + paraphrases the hypothesis (incompatible), so we de-circularized with **premise-only
+  held-out LLM paraphrases** (disjoint from training). Narrow connective-swap training is circular (0.06);
+  **training on diverse full-rewrites recovers held-out 0.06 → 0.48** (generalizes to unseen paraphrases).
+  So both OOD axes are genuine, paraphrase just needs diverse augmentation (residual gap 0.48 < 0.61).
+- **🚪 GATE (B + C done):** on REAL/de-circularized data the structure reasoner now wins **two genuine OOD
+  axes** — variable-renaming (refactor-invariant 0.92 vs LM collapse 0.20, the LM's headline failure per
+  Jin et al.) and paraphrase (held-out 0.48 vs regex 0.00) — and wins i.i.d. at distilbert scale (0.93 vs
+  0.52). Remaining caveats: the paraphrase axis is imperfect (0.48 < 0.61) and the i.i.d. tie vs a *big*
+  LM (RoBERTa-large) is untested. **Read: solid contribution; conference-plausible if the paraphrase gap
+  is tightened + a RoBERTa-large i.i.d. point added; strong workshop as-is.**
   **Leaning workshop-strong / conference-plausible**; don't spend D–E before closing those two.
 - **D — Mechanism + positioning (days).** Lead with the training-schedule ablation (joint vs decoupled,
   synthetic + real); run the *prompted* method (arXiv 2505.18034; Mistral/Qwen → JSON graph) as a
@@ -300,7 +304,7 @@ true structure) · **honest-negative** (a kept negative result) · **fragile** (
 |---|---|---|
 | `causal_corr2cause_solver.py` | exact structure solver on REAL Corr2Cause: F1 0.92 (full test) vs GPT-4 0.29; parser [A-Z]-generalized so it handles Jin's refactorization | canonical · keystone (symbolic ceiling) |
 | `causal_corr2cause_learned.py` | Phase 2: end-to-end LM (2a) vs decoupled parse→GNN (2b, F1 0.927=oracle) + OOD relabel/paraphrase; GPU-checkpointed LM | canonical · Phase-2 main |
-| `causal_corr2cause_perception.py` | Phase 2b/B3: learned text→structure perception, relabel+para aug → GENUINE relabel-robustness (0.64) but paraphrase recovery is CIRCULAR (0.66 trained-synonyms → 0.06 held-out LLM paraphrases); evidence in `results/` | canonical · learned-perception |
+| `causal_corr2cause_perception.py` | Phase 2b/B3: learned text→structure perception → GENUINE relabel-robustness (0.64); paraphrase circular under narrow training (held-out 0.06) but RECOVERS to 0.48 with diverse full-rewrite aug; evidence in `results/` | canonical · learned-perception |
 | `causal_mec_scaling.py` | Phase 2c/B2: size extrapolation N4→N9 — GNN 0.93 > fair graph transformer 0.86 (B2) > MLP strawman 0.41; dogfoods causalrl Meek + d-sep | canonical · size leg |
 | `causal_corr2cause_b1_lm.py` | Phase B1: CONVERGED strong distilbert end-to-end LM (clean 0.523 / relabel 0.154 / paraphrase 0.546) — GNN wins i.i.d. too; mem-minimal learning-exact (grad-ckpt + accum). Evidence in `results/` | canonical · fair-baseline |
 | `causal_corr2cause_realood.py` | Phase C: REAL de-circularized OOD on Jin et al.'s published perturbation_by_refactorization — decoupled symbolic refactor-INVARIANT (0.92→0.92) vs distilbert COLLAPSE (0.52→0.20); validates the synthetic relabel proxy. Evidence in `results/` | canonical · real-OOD |
