@@ -261,7 +261,8 @@ def main() -> None:
     ds = load_dataset("causalnlp/corr2cause")
     train, test = list(ds["train"]), list(ds["test"])
     variants = {"clean": test, "relabel": perturb(test, "relabel", SEED),
-                "paraphrase": perturb(test, "paraphrase", SEED)}
+                "paraphrase": perturb(test, "paraphrase", SEED),
+                "paraphrase_heldout": perturb(test, "paraphrase_heldout", SEED)}
 
     rng = random.Random(SEED)
     sub = train[:]
@@ -281,7 +282,7 @@ def main() -> None:
     }
 
     print("\n--- ROBUSTNESS — F1 (positive class, full test) under input perturbation ---")
-    cols = ["clean", "relabel", "paraphrase"]
+    cols = ["clean", "relabel", "paraphrase", "paraphrase_heldout"]
     print(f"  {'front-end (shared GNN reasoner)':32s}  " + "  ".join(f"{c:>10s}" for c in cols))
     for name, fn in systems.items():
         cells = []

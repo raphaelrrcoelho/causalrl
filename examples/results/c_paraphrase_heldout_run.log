@@ -1,0 +1,39 @@
+Corr2Cause — Phase 2b (LEARNED perception)  seed=0  smoke=False  device=cpu
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+>>> shared reasoner: GNN on regex-parsed structure
+  [gnn] train on 40000 parsed rows (pos=7356), 30 epochs
+    epoch  1  loss=0.7038  train-gate F1=0.698
+    epoch 10  loss=0.2233  train-gate F1=0.874
+    epoch 20  loss=0.1362  train-gate F1=0.931
+    epoch 30  loss=0.1077  train-gate F1=0.928
+
+>>> learned perception (text -> structure)
+Loading weights:   0%|          | 0/39 [00:00<?, ?it/s]Loading weights: 100%|██████████| 39/39 [00:00<00:00, 542.22it/s]
+[transformers] [1mBertModel LOAD REPORT[0m from: google/bert_uncased_L-2_H-128_A-2
+Key                                        | Status     |  | 
+-------------------------------------------+------------+--+-
+cls.predictions.transform.LayerNorm.weight | UNEXPECTED |  | 
+cls.predictions.bias                       | UNEXPECTED |  | 
+cls.predictions.transform.LayerNorm.bias   | UNEXPECTED |  | 
+cls.predictions.transform.dense.bias       | UNEXPECTED |  | 
+cls.predictions.transform.dense.weight     | UNEXPECTED |  | 
+cls.seq_relationship.weight                | UNEXPECTED |  | 
+cls.seq_relationship.bias                  | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+  [perc] train google/bert_uncased_L-2_H-128_A-2 on 6000 premises x 4 ep (paraphrase-aug p=0.7, relabel-aug p=0.5)
+    epoch 1/4  loss=1.0611  clean edge-acc S=0.738 D=0.870
+    epoch 2/4  loss=0.8335  clean edge-acc S=0.756 D=0.907
+    epoch 3/4  loss=0.7447  clean edge-acc S=0.795 D=0.916
+    epoch 4/4  loss=0.6913  clean edge-acc S=0.808 D=0.917
+
+--- ROBUSTNESS — F1 (positive class, full test) under input perturbation ---
+  front-end (shared GNN reasoner)        clean     relabel  paraphrase  paraphrase_heldout
+  regex perception -> GNN                0.921       0.921       0.000       0.000
+  learned perception -> GNN              0.680       0.637       0.658       0.062
+
+  Reading: regex front-end is relabel-invariant but paraphrase-fragile (parser misses the
+  reworded relations); a LEARNED front-end feeding the SAME reasoner should hold up under
+  paraphrase — decoupling localizes the robustness fix to a cheap, retrainable module.
