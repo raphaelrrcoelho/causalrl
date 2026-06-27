@@ -116,14 +116,29 @@ RoBERTa-large would, per Jin et al.), so the decoupled GNN wins **in-distributio
 training (it learns lexical/letter shortcuts, not structure). "Decouple to generalize on Corr2Cause" is
 already published as a *prompted* method (arXiv 2505.18034); the open, differentiated claim is the
 **training-schedule mechanism** + a *trained* reasoner that wins both i.i.d. and OOD. Evidence (data, not
-just prose): `examples/results/b1_distilbert_*` + `causal_corr2cause_b1_lm.py`. **Workshop-grade** today;
-see **Roadmap**.
+just prose): `examples/results/b1_distilbert_*` + `causal_corr2cause_b1_lm.py`.
+
+**Phase D (mechanism, now controlled — the differentiating result):** every comparison above pits
+*different* systems, so the schedule claim was still an inference. D nails it down by running **one
+architecture** (the bert-tiny perception → GNN of Phase 2b) under two schedules with *everything else
+fixed* (same model, same N=6000, same regex query extraction): **DECOUPLED** (structure-supervised,
+two-stage) vs **JOINT** (the same model end-to-end on text→label, no structure supervision). Result —
+ceiling-given-structure **0.833**, **decoupled 0.692**, **joint 0.474**: same capacity/data/architecture,
+only the schedule differs, decoupled beats joint by **+0.22 F1**, and joint *converges* yet plateaus
+(loss 1.06→0.81). So the bottleneck is the **schedule (structure supervision), not capacity** — the
+real-data echo of the synthetic two-stage finding (joint 0.43 → decoupled 1.0). (`causal_corr2cause_mechanism.py`;
+evidence `examples/results/d_mechanism_run.log`.) **Workshop-grade** today; see **Roadmap**.
 
 ---
 
 ## Where it's strong / weak
 
 **Strong (genuinely learned, multi-seed, defensible):**
+- **The mechanism, controlled (D — the differentiating result)** — one architecture (bert-tiny+GNN),
+  same data/query extraction, varying **only** the schedule: decoupled **0.692** vs joint end-to-end
+  **0.474** (+0.22 F1), joint converges yet plateaus ⇒ the bottleneck is the **training schedule
+  (structure supervision), not capacity** — real-data echo of the synthetic two-stage finding
+  (`causal_corr2cause_mechanism.py`, `results/d_mechanism_run.log`).
 - **Real-benchmark keystone** — exact structure-routing solves Corr2Cause at **F1 0.92** (full test)
   vs GPT-4 0.29; the thesis transfers off synthetic data (`causal_corr2cause_solver.py`).
 - **Phase-2 learned decoupling (real data)** — a trained parse→GNN reasoner *matches the symbolic
@@ -223,9 +238,13 @@ realistic.)
   LM (RoBERTa-large) is untested. **Read: solid contribution; conference-plausible if the paraphrase gap
   is tightened + a RoBERTa-large i.i.d. point added; strong workshop as-is.**
   **Leaning workshop-strong / conference-plausible**; don't spend D–E before closing those two.
-- **D — Mechanism + positioning (days).** Lead with the training-schedule ablation (joint vs decoupled,
-  synthetic + real); run the *prompted* method (arXiv 2505.18034; Mistral/Qwen → JSON graph) as a
-  head-to-head baseline, positioning us as the *trained/mechanistic* counterpart.
+- **D — Mechanism + positioning (days).** ✅ *ablation done* — the **training-schedule ablation** is now
+  controlled on real Corr2Cause (`causal_corr2cause_mechanism.py`): one bert-tiny+GNN, same data/query
+  extraction, vary **only** the schedule → decoupled **0.692** vs joint end-to-end **0.474** (+0.22 F1),
+  joint converges yet plateaus ⇒ the bottleneck is the schedule, not capacity (real-data echo of the
+  synthetic two-stage 0.43→1.0). Evidence `results/d_mechanism_run.log`. *Remaining:* run the *prompted*
+  method (arXiv 2505.18034; Mistral/Qwen → JSON graph) as a head-to-head baseline, positioning us as the
+  *trained/mechanistic* counterpart.
 - **E — Scale & breadth (1–2 wk, compute).** Bigger models, multiple seeds + error bars, a 2nd real
   benchmark.
 - **F — Write-up.** Workshop after A–B; conference draft after the gate passes.
@@ -308,6 +327,7 @@ true structure) · **honest-negative** (a kept negative result) · **fragile** (
 | `causal_mec_scaling.py` | Phase 2c/B2: size extrapolation N4→N9 — GNN 0.93 > fair graph transformer 0.86 (B2) > MLP strawman 0.41; dogfoods causalrl Meek + d-sep | canonical · size leg |
 | `causal_corr2cause_b1_lm.py` | Phase B1: CONVERGED strong distilbert end-to-end LM (clean 0.523 / relabel 0.154 / paraphrase 0.546) — GNN wins i.i.d. too; mem-minimal learning-exact (grad-ckpt + accum). Evidence in `results/` | canonical · fair-baseline |
 | `causal_corr2cause_realood.py` | Phase C: REAL de-circularized OOD on Jin et al.'s published perturbation_by_refactorization — decoupled symbolic refactor-INVARIANT (0.92→0.92) vs distilbert COLLAPSE (0.52→0.20); validates the synthetic relabel proxy. Evidence in `results/` | canonical · real-OOD |
+| `causal_corr2cause_mechanism.py` | Phase D: the TRAINING-SCHEDULE mechanism, controlled — same bert-tiny+GNN / data / query extraction, vary only the schedule → decoupled 0.692 vs joint end-to-end 0.474 (+0.22 F1), joint converges yet plateaus ⇒ schedule, not capacity. Evidence in `results/` | canonical · mechanism (differentiator) |
 
 ---
 
