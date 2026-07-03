@@ -115,6 +115,34 @@ def test_frontdoor_estimand_renders_a_do_free_formula() -> None:
     assert "P(" in formula
 
 
+def test_estimate_effect_weights_absorbed_covariates_by_their_marginal() -> None:
+    """Regression (found by property-based testing, issue #16): when step 3 of the ID recursion
+    folds an extra pre-treatment covariate into the intervention set (Rule 3 of do-calculus --
+    the covariate has no effect on the outcome once the requested treatment is fixed, so treating
+    it as also intervened doesn't change the answer), that covariate is NOT part of the caller's
+    requested ``do`` and must be marginalized out weighted by its own marginal ``P(w)``, not
+    naively summed as if the evaluated factor were already a joint distribution over it. The
+    naive-sum bug made this exact unconfounded chain (irrelevant sibling B; A only relevant to D
+    via C) return a probability greater than 1.
+    """
+    graph = CausalGraph(directed_edges=[("A", "B"), ("A", "C"), ("C", "D")])
+    assert is_identifiable_effect(graph, {"C"}, {"D"})
+    mechanisms: dict[str, Mechanism] = {
+        "A": FunctionalMechanism([], lambda pa, u: _flip(u, 0.4)),
+        "B": FunctionalMechanism(["A"], lambda pa, u: (pa["A"] + _flip(u, 0.1)) % 2),
+        "C": FunctionalMechanism(["A"], lambda pa, u: (pa["A"] + _flip(u, 0.3)) % 2),
+        "D": FunctionalMechanism(["C"], lambda pa, u: (pa["C"] + _flip(u, 0.2)) % 2),
+    }
+    exogenous: dict[str, Distribution] = dict.fromkeys(["A", "B", "C", "D"], Uniform(0.0, 1.0))
+    scm = StructuralCausalModel(graph, mechanisms, exogenous)
+    obs = _columns(scm.see(_N, seed=0), ["A", "B", "C", "D"])
+
+    for value in (0, 1):
+        estimate = estimate_effect(graph, {"C"}, {"D"}, obs, do={"C": value})[(1,)]
+        assert 0.0 <= estimate <= 1.0  # the naive-sum bug produced values > 1
+        assert estimate == pytest.approx(_true_do(scm, "C", value, "D"), abs=0.03)
+
+
 def test_bow_arc_is_not_identifiable() -> None:
     graph = CausalGraph(directed_edges=[("X", "Y")], bidirected_edges=[("X", "Y")])
     assert not is_identifiable_effect(graph, {"X"}, {"Y"})

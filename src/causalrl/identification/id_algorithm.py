@@ -506,6 +506,26 @@ def _empirical_joint(data: Mapping[str, np.ndarray], variables: Iterable[str]) -
     return _Factor(names, {key: count / n for key, count in counts.items()})
 
 
+def _finish(
+    factor: _Factor, do: Mapping[str, int], targets: Sequence[str], reference: _Factor
+) -> _Factor:
+    """Condition on ``do``, then marginalize away every variable but ``targets``.
+
+    The ID recursion's step 3 can fold extra covariates into the intervention set purely to make
+    the recursion go through (Rule 3 of do-calculus: they have no effect on the outcome once the
+    requested treatment is fixed) -- they are not part of the caller's requested ``do``, so they
+    survive conditioning and must be marginalized out weighted by their OWN marginal from
+    ``reference`` (``sum_w P(y | do(x), w) * P(w)``), not naively summed as if the factor were
+    already a joint distribution over them.
+    """
+    factor = factor.condition(do)
+    extra = set(factor.variables) - set(targets)
+    for var in extra:
+        marginal = reference.marginalize(set(reference.variables) - {var})
+        factor = factor.product(marginal)
+    return factor.marginalize(extra).reorder(targets)
+
+
 def estimate_effect(
     graph: CausalGraph,
     treatment: Iterable[str],
@@ -522,10 +542,9 @@ def estimate_effect(
     in ``sorted(outcome)`` order.
     """
     estimand = identify_effect(graph, treatment, outcome)
-    factor = _eval_observational(estimand, _empirical_joint(data, graph.nodes))
-    factor = factor.condition(do)
-    targets = sorted(outcome)
-    factor = factor.marginalize(set(factor.variables) - set(targets)).reorder(targets)
+    joint = _empirical_joint(data, graph.nodes)
+    factor = _eval_observational(estimand, joint)
+    factor = _finish(factor, do, sorted(outcome), joint)
     return dict(factor.table)
 
 
@@ -551,9 +570,8 @@ def estimate_effect_with_experiments(
     experiments = {
         target: _empirical_joint(rows, graph.nodes) for target, rows in experiments_data.items()
     }
-    factor = _evaluate(estimand, _EvalContext(obs, experiments, {}, {})).condition(do)
-    targets = sorted(outcome)
-    factor = factor.marginalize(set(factor.variables) - set(targets)).reorder(targets)
+    factor = _evaluate(estimand, _EvalContext(obs, experiments, {}, {}))
+    factor = _finish(factor, do, sorted(outcome), obs)
     return dict(factor.table)
 
 
@@ -781,9 +799,8 @@ def estimate_transport_general(
     domains_f = {name: _empirical_joint(rows, nodes) for name, rows in domain_data.items()}
     exps_f = {key: _empirical_joint(rows, nodes) for key, rows in (experiment_data or {}).items()}
     ctx = _EvalContext(domains_f["target"], {}, domains_f, exps_f)
-    factor = _evaluate(estimand, ctx).condition(do)
-    targets = sorted(outcome)
-    factor = factor.marginalize(set(factor.variables) - set(targets)).reorder(targets)
+    factor = _evaluate(estimand, ctx)
+    factor = _finish(factor, do, sorted(outcome), domains_f["target"])
     return dict(factor.table)
 
 
@@ -810,7 +827,6 @@ def estimate_transported_effect(
         "target": _empirical_joint(target_data, graph.nodes),
     }
     context = _EvalContext(domains["target"], {}, domains, {})
-    factor = _evaluate(estimand, context).condition(do)
-    targets = sorted(outcome)
-    factor = factor.marginalize(set(factor.variables) - set(targets)).reorder(targets)
+    factor = _evaluate(estimand, context)
+    factor = _finish(factor, do, sorted(outcome), domains["target"])
     return dict(factor.table)
