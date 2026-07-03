@@ -76,7 +76,14 @@ class TransportFormula:
 
 def is_backdoor_admissible(graph: CausalGraph, treatment: str, outcome: str, z: set[str]) -> bool:
     """Back-door criterion: `z` has no descendant of `treatment` and blocks every back-door path
-    (``treatment ⊥ outcome | z`` in the graph with `treatment`'s outgoing edges removed)."""
+    (``treatment ⊥ outcome | z`` in the graph with `treatment`'s outgoing edges removed).
+
+    >>> graph = CausalGraph([("Z", "X"), ("Z", "Y"), ("X", "Y")])  # Z confounds X -> Y
+    >>> is_backdoor_admissible(graph, "X", "Y", {"Z"})
+    True
+    >>> is_backdoor_admissible(graph, "X", "Y", set())
+    False
+    """
     if z & graph.descendants(treatment):
         return False
     underline = CausalGraph(
@@ -95,7 +102,22 @@ def transport_formula(
     max_adjustment_size: int = 3,
 ) -> TransportFormula | None:
     """Return the transport formula for ``P*(outcome | do(treatment))``, or ``None`` if it is not
-    provably transportable within the supported class (direct / S-admissible adjustment)."""
+    provably transportable within the supported class (direct / S-admissible adjustment).
+
+    ``Z``'s marginal differs between domains (the selection variable) but the mechanisms
+    ``X -> Y`` and ``Z -> X`` are invariant, so conditioning on ``Z`` transports the effect:
+
+    >>> graph = CausalGraph([("Z", "X"), ("Z", "Y"), ("X", "Y")])
+    >>> diagram = SelectionDiagram(graph, frozenset({"Z"}))
+    >>> tf = transport_formula(diagram, treatment="X", outcome="Y")
+    >>> tf.kind, sorted(tf.adjustment_set)
+    ('adjustment', ['Z'])
+
+    No selection variables at all is always directly transportable:
+
+    >>> transport_formula(SelectionDiagram(graph, frozenset()), treatment="X", outcome="Y").kind
+    'direct'
+    """
     graph = diagram.graph
     for name in (treatment, outcome):
         if name not in graph.nodes:
@@ -130,7 +152,12 @@ def transport_formula(
 
 
 def is_transportable(diagram: SelectionDiagram, *, treatment: str, outcome: str) -> bool:
-    """Whether the target effect is provably transportable (see :func:`transport_formula`)."""
+    """Whether the target effect is provably transportable (see :func:`transport_formula`).
+
+    >>> graph = CausalGraph([("Z", "X"), ("Z", "Y"), ("X", "Y")])
+    >>> is_transportable(SelectionDiagram(graph, frozenset({"Z"})), treatment="X", outcome="Y")
+    True
+    """
     return transport_formula(diagram, treatment=treatment, outcome=outcome) is not None
 
 

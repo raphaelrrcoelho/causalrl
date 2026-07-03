@@ -66,6 +66,10 @@ def manski_bounds(
     ``m = E[outcome | treatment = action]`` the bounds are
     ``[m*p + y_min*(1-p), m*p + y_max*(1-p)]`` — sharp, collapsing to a point when every unit took
     ``action``. The observational counterpart of :func:`causal_q_bounds`.
+
+    >>> data = {"treatment": [0, 0, 1, 1], "outcome": [0.2, 0.4, 0.6, 0.8]}
+    >>> manski_bounds(data, treatment="treatment", outcome="outcome", action=1)
+    Interval(lower=0.35, upper=0.85)
     """
     x = np.asarray(data[treatment])
     y = np.asarray(data[outcome], dtype=float)
@@ -112,6 +116,10 @@ def ipw_sensitivity_bounds(
     Faithful to Z. Tan, *A Distributional Approach for Causal Inference Using Propensity Scores*
     (JASA 2006) and Q. Zhao, D. Small, B. Bhattacharya, *Sensitivity Analysis for Inverse
     Probability Weighting Estimators via the Percentile Bootstrap* (JRSS-B 2019). No code is ported.
+
+    >>> iv = ipw_sensitivity_bounds([0.2, 0.8], [0.5, 0.5], gamma=2.0)
+    >>> round(iv.lower, 3), round(iv.upper, 3)
+    (0.4, 0.6)
     """
     if gamma < 1.0:
         raise ValueError("gamma must be >= 1")

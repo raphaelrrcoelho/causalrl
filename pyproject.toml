@@ -99,8 +99,12 @@ strict = ["src"]
 pythonVersion = "3.11"
 
 [tool.pytest.ini_options]
-addopts = "-q --cov=causalrl --cov-report=term-missing"
-testpaths = ["tests"]
+addopts = "-q --cov=causalrl --cov-report=term-missing --doctest-modules"
+testpaths = [
+    "tests",
+    "src/causalrl/identification/bounds.py",
+    "src/causalrl/identification/transport.py",
+]
 
 [dependency-groups]
 dev = [
