@@ -10,6 +10,8 @@ test_msm_bounds.py).
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
 
@@ -124,3 +126,42 @@ class TestOrchestration:
         f = np.array([1, 1, 1])  # no control arm
         with pytest.raises(ValueError, match="both arms"):
             certify_decision(y, f, mi_cap=0.1)
+
+    @pytest.mark.parametrize("arg_name", ["confounder_bins", "propensities"])
+    def test_rejects_mismatched_array_length(self, arg_name):
+        y, f, z = _confounded_rows(200, 0.0)
+        kwargs = {arg_name: (z if arg_name == "confounder_bins" else np.full(len(f), 0.5))[:-1]}
+        with pytest.raises(ValueError, match=arg_name):
+            certify_decision(y, f, **kwargs)
+
+    def test_custom_labels(self):
+        y, f, z = _confounded_rows(8000, 0.0, seed=8)
+        cert = certify_decision(y, f, confounder_bins=z, labels=("new_policy", "baseline"))
+        assert cert.decision == "prefer new_policy"
+        assert "prefer new_policy" in cert.summary
+
+    def test_default_labels_match_prior_behavior(self):
+        y, f, z = _confounded_rows(8000, 0.0, seed=8)
+        cert = certify_decision(y, f, confounder_bins=z)
+        assert cert.decision == "prefer treated"
+
+    def test_to_dict_round_trips_through_json(self):
+        y, f, z = _confounded_rows(8000, 0.0, seed=6)
+        e0 = np.full(len(f), 0.5)
+        cert = certify_decision(y, f, confounder_bins=z, propensities=e0)
+        d = json.loads(json.dumps(cert.to_dict()))
+        assert d["decision"] == cert.decision
+        assert d["certified"] == cert.certified
+        assert d["pivotality"]["certified"] == cert.pivotality.certified
+        assert d["pivotality"]["bias_bound"] == pytest.approx(cert.pivotality.bias_bound)
+
+    def test_to_dict_pivotality_none_when_structural_layer_did_not_run(self):
+        rng = np.random.default_rng(4)
+        n = 4000
+        f = rng.integers(0, 2, size=n)
+        y = 0.5 * f + rng.uniform(0, 0.2, size=n)
+        e0 = np.full(n, 0.5)
+        cert = certify_decision(y, f, propensities=e0, gamma_max=20.0)
+        d = cert.to_dict()
+        assert d["pivotality"] is None
+        json.dumps(d)  # must not raise

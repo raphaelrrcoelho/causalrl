@@ -12,7 +12,7 @@ marginal-sensitivity-model tipping point (:func:`tipping_gamma` over
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
 
@@ -35,7 +35,7 @@ class DecisionCertificate(NamedTuple):
     The component fields and ``summary`` make the exact guarantee explicit.
     """
 
-    decision: str  # "prefer treated" | "prefer control" | "indifferent" (sign of naive_contrast)
+    decision: str  # "prefer <label>" | "indifferent" (sign of naive_contrast; label from `labels`)
     naive_contrast: float  # E[Y | F=1] - E[Y | F=0]
     certified: bool
     pivotality: PivotalityCertificate | None  # structural/measured sign-robustness layer, if run
@@ -46,6 +46,23 @@ class DecisionCertificate(NamedTuple):
     def __str__(self) -> str:
         return self.summary
 
+    def to_dict(self) -> dict[str, Any]:
+        """Flatten this certificate into a JSON-serializable ``dict`` (pure stdlib).
+
+        ``pivotality`` (a :class:`~causalrl.identification.bounds.PivotalityCertificate` or
+        ``None``) expands to a nested dict, or ``None`` when the structural layer did not run.
+        Handy for logging a verdict alongside a seed grid, e.g. ``json.dumps(cert.to_dict())``.
+        """
+        return {
+            "decision": self.decision,
+            "naive_contrast": self.naive_contrast,
+            "certified": self.certified,
+            "pivotality": (None if self.pivotality is None else self.pivotality._asdict()),
+            "tipping_gamma": self.tipping_gamma,
+            "msm_certified": self.msm_certified,
+            "summary": self.summary,
+        }
+
 
 def certify_decision(
     outcomes: Sequence[float],
@@ -55,6 +72,7 @@ def certify_decision(
     mi_cap: float | None = None,
     propensities: Sequence[float] | None = None,
     gamma_max: float = 10.0,
+    labels: tuple[str, str] = ("treated", "control"),
 ) -> DecisionCertificate:
     """Certify whether a binary decision from confounded logs is robust to hidden confounding.
 
@@ -75,6 +93,10 @@ def certify_decision(
 
     With informative propensities the MSM layer concerns the inverse-propensity-weighted
     off-policy contrast, which coincides with the raw logged contrast only under uniform logging.
+
+    ``labels`` names the two arms (treated, control) in ``decision`` and ``summary`` — e.g.
+    ``labels=("new_policy", "baseline")`` reports ``"prefer new_policy"`` / ``"prefer baseline"``
+    instead of the default ``"prefer treated"`` / ``"prefer control"``.
     """
     y = np.asarray(outcomes, dtype=float)
     f = np.asarray(treated)
@@ -86,9 +108,22 @@ def certify_decision(
             "supply at least one evidence source: confounder_bins (measured Z), "
             "mi_cap (structural channel cap), or propensities (MSM sensitivity)"
         )
+    for name, arr in (("confounder_bins", confounder_bins), ("propensities", propensities)):
+        if arr is not None and len(arr) != len(y):
+            raise ValueError(
+                f"`{name}` must have the same length as `outcomes`/`treated` "
+                f"(got len({name})={len(arr)}, len(outcomes)={len(y)})"
+            )
 
+    treated_label, control_label = labels
     naive = float(y[fb].mean() - y[~fb].mean())
-    decision = "prefer treated" if naive > 0 else "prefer control" if naive < 0 else "indifferent"
+    decision = (
+        f"prefer {treated_label}"
+        if naive > 0
+        else f"prefer {control_label}"
+        if naive < 0
+        else "indifferent"
+    )
 
     pivot: PivotalityCertificate | None = None
     if confounder_bins is not None or mi_cap is not None:
