@@ -66,6 +66,10 @@ dev = [
     "nbconvert>=7.16",
     "nbmake>=1.5",
 ]
+interop = [
+    "dowhy>=0.11",
+    "econml>=0.15",
+]
 
 [build-system]
 requires = ["hatchling"]
