@@ -45,6 +45,7 @@ nav:
   - Reproducing the Literature: classics.md
   - Reproducible Benchmarks: benchmarks.md
   - Interop (DoWhy / EconML): interop.md
+  - Scale (d3rlpy): scale.md
   - API Reference: api.md
   - Citing: citing.md
 

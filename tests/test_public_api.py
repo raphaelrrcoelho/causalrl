@@ -47,8 +47,8 @@ def test_key_symbols_are_exported():
 
 
 def test_front_door_symbols_exported():
-    # The v1.1 decision front door: certify_estimate + the PolicyValueContrast seam.
-    for name in ("certify_estimate", "PolicyValueContrast"):
+    # The v1.1 decision front door + the v1.2 scale path.
+    for name in ("certify_estimate", "PolicyValueContrast", "certify_policy"):
         assert name in causalrl.__all__
         assert hasattr(causalrl, name)
 
