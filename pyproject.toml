@@ -75,6 +75,13 @@ interop = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.uv]
+# econml (the [interop] extra) pins scikit-learn <1.7, which lacks py3.14 Windows wheels and would
+# force the dev lock to build scikit-learn from source (CI failure). Override to a wheel-available
+# version: the [interop] extra is never installed in CI, and pip ignores this override for end users
+# (`pip install causalrl[interop]` still respects econml's real constraint).
+override-dependencies = ["scikit-learn>=1.7,<1.9"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/causalrl"]
 
