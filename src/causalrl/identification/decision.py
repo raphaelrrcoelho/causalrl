@@ -23,6 +23,7 @@ from causalrl.identification.bounds import (
     pivotality_certificate,
     tipping_gamma,
 )
+from causalrl.identification.estimate import PolicyValueContrast
 
 
 class DecisionCertificate(NamedTuple):
@@ -45,6 +46,79 @@ class DecisionCertificate(NamedTuple):
 
     def __str__(self) -> str:
         return self.summary
+
+
+def certify_estimate(
+    estimate: PolicyValueContrast,
+    *,
+    gamma_max: float = 10.0,
+    labels: tuple[str, str] = ("pi_on", "pi_off"),
+) -> DecisionCertificate:
+    """Certify whether an off-policy value contrast's sign is robust to hidden confounding.
+
+    Runs the MSM tipping layer over the general ``V(pi_on) - V(pi_off)`` contribution bound when
+    ``estimate`` carries logging propensities, and the structural pivotality layer when it carries a
+    binary-arm reduction (``treated`` + ``confounder_bins`` / ``mi_cap``). Returns the same
+    :class:`DecisionCertificate` as :func:`certify_decision`; ``labels`` names the two policies in
+    the verdict (``labels[0]`` when the contrast is positive).
+
+    Honest scope: the MSM sensitivity is on the logging propensities (sharp when the two target
+    supports are disjoint, valid-but-conservative otherwise); the pivotality layer is defined only
+    for the binary-arm contrast. No sensitivity claim is made for arbitrary outcome-model
+    estimators.
+    """
+    y = np.asarray(estimate.outcomes, dtype=float)
+
+    treated = estimate.treated
+    pivot: PivotalityCertificate | None = None
+    if treated is not None and (
+        estimate.confounder_bins is not None or estimate.mi_cap is not None
+    ):
+        pivot = pivotality_certificate(
+            estimate.outcomes, treated, estimate.confounder_bins, mi_cap=estimate.mi_cap
+        )
+
+    if treated is not None:
+        fb = np.asarray(treated).astype(bool)
+        naive = float(y[fb].mean() - y[~fb].mean())
+    else:
+        naive = 0.0  # replaced from the MSM point below (a target-only contrast always has MSM)
+
+    g_tip: float | None = None
+    msm_certified: bool | None = None
+    logging_propensities = estimate.logging_propensities
+    if logging_propensities is not None:
+        on, off = estimate.target_on, estimate.target_off
+        assert on is not None and off is not None  # guaranteed by PolicyValueContrast.__post_init__
+        outcomes = estimate.outcomes
+        e0_l, on_l, off_l = list(logging_propensities), list(on), list(off)
+
+        def _band(g: float) -> Interval:
+            return msm_contribution_bounds(outcomes, e0_l, on_l, off_l, gamma=g)
+
+        if treated is None:
+            naive = float(_band(1.0).lower)
+        g_tip = tipping_gamma(_band, reference=0.0, gamma_max=gamma_max)
+        msm_certified = g_tip is None
+
+    decision = (
+        f"prefer {labels[0]}"
+        if naive > 0
+        else f"prefer {labels[1]}"
+        if naive < 0
+        else "indifferent"
+    )
+    certified = pivot.certified if pivot is not None else bool(msm_certified)
+    summary = _summarise(decision, naive, pivot, g_tip, msm_certified, gamma_max)
+    return DecisionCertificate(
+        decision=decision,
+        naive_contrast=naive,
+        certified=certified,
+        pivotality=pivot,
+        tipping_gamma=g_tip,
+        msm_certified=msm_certified,
+        summary=summary,
+    )
 
 
 def certify_decision(
