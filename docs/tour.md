@@ -49,7 +49,8 @@ returns = run_episodes(agent, DTREnv(seed=0), n_episodes=4000, seed=0)
 
 Manski *natural* bounds cannot strictly prune, so the headline is **causal-vs-naive** (not a
 regret win over from-scratch online learning). The deep agent is a lightweight net for the
-toy demo; `d3rlpy` is the designated backbone at real scale.
+toy demo; at real scale **d3rlpy trains and causalrl certifies** the learned policy against hidden
+confounding — see the [Scale guide](scale.md) and `certify_policy`.
 
 ## Where to intervene — POMIS (Task 2)
 

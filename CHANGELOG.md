@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-07-03
+
+The confounded-offline-RL scale path: d3rlpy trains, causalrl certifies. Learn a policy with any
+d3rlpy offline algorithm, then bound whether its improvement over the behaviour policy survives
+hidden confounding — causalrl supplies the causal layer, not a new trainer. Backward compatible.
+
+### Added
+- `causalrl.certify_policy` — certify a learned policy's off-policy value improvement
+  `V(pi) - V(behaviour)` against hidden confounding under Tan's marginal sensitivity model. The
+  learned policy is supplied as its chosen action per logged transition (e.g. a d3rlpy policy's
+  greedy prediction), so the certificate needs no trainer dependency; the nominal logging
+  propensities come from the dataset's empirical `behavior_propensity`. Returns a
+  `DecisionCertificate`.
+- `causalrl.scale.d3rlpy.to_mdp_dataset` — bridge a `ConfoundedTrajectoryDataset` into a d3rlpy
+  `MDPDataset` (tabular states one-hot encoded). New optional `scale` extra
+  (`pip install causalrl[scale]`); the d3rlpy import is lazy so causalrl core never depends on it.
+  Runnable example under `examples/scale_d3rlpy_certify.py` and a Scale guide in the docs.
+
+### Scope
+- One-step / terminal-return contrast; the per-step cumulative-reward extension uses
+  `msm_per_step_bounds`. The behaviour value is the logged empirical return (on-policy, unconfounded);
+  the MSM sensitivity is on the logging propensities. d3rlpy owns training.
+
 ## [1.1.0] - 2026-07-03
 
 The decision certificate becomes the ecosystem's confounding-robustness front door: any off-policy
