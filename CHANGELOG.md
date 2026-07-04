@@ -5,6 +5,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-07-03
+
+The decision certificate becomes the ecosystem's confounding-robustness front door: any off-policy
+value contrast — yours, DoWhy's, or EconML's — can now be certified against hidden confounding
+through one typed seam. Backward compatible: `certify_decision`'s existing signature and outputs are
+unchanged (its raw-logs path is byte-for-byte identical, pinned by a regression test).
+
+### Added
+- `causalrl.certify_estimate` + `causalrl.PolicyValueContrast` — the general decision front door.
+  `PolicyValueContrast` is the typed seam (per-unit outcomes, logging propensities, and two target
+  policies' action probabilities); `certify_estimate` runs the marginal-sensitivity-model tipping
+  layer over any `V(pi_on) - V(pi_off)` contrast, plus the structural pivotality layer when the
+  contrast carries a binary-arm reduction. `certify_decision` is now a thin wrapper over it and also
+  accepts a pre-built `estimate=` (mutually exclusive with raw `outcomes` / `treated`).
+- `causalrl.interop.dowhy.from_dowhy_estimate` and `causalrl.interop.econml.from_econml_cate` —
+  adapters that pack a fitted DoWhy propensity-based estimate / an EconML CATE-induced policy into a
+  `PolicyValueContrast`. New optional `interop` extra (`pip install causalrl[interop]`); the adapters
+  are duck-typed and never import the third-party library. Runnable examples under `examples/`.
+- `DecisionCertificate.recommendation` — a computed `"act"` / `"abstain"` verdict, so callers read
+  the confounding-robustness verdict rather than the (possibly confounded) naive `decision` field.
+- An interop guide in the docs and a certificate-headline section in the Tour.
+
+### Scope (unchanged honesty rule)
+- The MSM sensitivity is on the logging propensities: sharp when the two target supports are disjoint,
+  valid-but-conservative otherwise. It does not certify an arbitrary outcome-model / doubly-robust
+  point estimate. The EconML adapter is MSM-only — the CATE-induced policy is per-unit, not a fixed
+  binary arm, so the structural pivotality layer does not apply.
+
 ## [1.0.0] - 2026-06-08
 
 First stable release. The exported API converged over the 0.x line is now committed to under
