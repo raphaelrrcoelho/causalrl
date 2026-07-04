@@ -47,6 +47,17 @@ class DecisionCertificate(NamedTuple):
     def __str__(self) -> str:
         return self.summary
 
+    @property
+    def recommendation(self) -> str:
+        """Verdict-based action, resolving the naive-vs-adjusted footgun.
+
+        ``"act"`` iff the naive :attr:`decision` is certified robust to hidden confounding by the
+        strongest layer that ran; otherwise ``"abstain"``. Read THIS, not :attr:`decision`, to
+        decide whether to act — :attr:`decision` is the (possibly confounded) hypothesis under
+        test, not the recommendation.
+        """
+        return "act" if self.certified else "abstain"
+
 
 def certify_estimate(
     estimate: PolicyValueContrast,

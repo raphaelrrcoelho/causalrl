@@ -168,3 +168,21 @@ class TestEstimateDelegation:
     def test_missing_all_inputs_raises(self):
         with pytest.raises(ValueError, match="outcomes and treated"):
             certify_decision()
+
+
+class TestRecommendation:
+    def test_recommendation_abstains_when_not_certified(self):
+        # naive "prefer treated" but confounding can flip it -> abstain, not act
+        rng = np.random.default_rng(1)
+        n = 20000
+        z = rng.integers(0, 2, size=n)
+        f = (rng.random(n) < 0.3 + 0.4 * (z - 0.5)).astype(int)
+        y = 1.0 * z - 0.1 * f + rng.normal(0, 0.1, size=n)
+        cert = certify_decision(y, f, confounder_bins=z)
+        assert cert.decision == "prefer treated" and not cert.certified
+        assert cert.recommendation == "abstain"
+
+    def test_recommendation_acts_when_certified(self):
+        y, f, z = _confounded_rows(20000, 0.0, seed=1)
+        cert = certify_decision(y, f, confounder_bins=z)
+        assert cert.certified and cert.recommendation == "act"
