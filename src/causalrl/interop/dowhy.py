@@ -14,7 +14,7 @@ import numpy as np
 from causalrl.identification.estimate import PolicyValueContrast
 
 
-def _extract_propensities(estimate: Any) -> np.ndarray:
+def _extract_propensities(estimate: Any) -> list[float]:
     """Read per-unit nominal propensities from a fitted DoWhy propensity-based estimate.
 
     DoWhy stores the fitted scores on the underlying estimator (``estimate.estimator
@@ -24,7 +24,7 @@ def _extract_propensities(estimate: Any) -> np.ndarray:
     for owner in (getattr(estimate, "estimator", None), estimate):
         scores = getattr(owner, "propensity_scores", None)
         if scores is not None:
-            return np.asarray(scores, dtype=float).ravel()
+            return [float(v) for v in np.asarray(scores, dtype=float).ravel()]
     raise TypeError(
         "from_dowhy_estimate needs a propensity-based DoWhy estimate "
         "(e.g. PropensityScoreWeightingEstimator); no propensity_scores found"
@@ -51,7 +51,7 @@ def from_dowhy_estimate(
     return PolicyValueContrast.from_binary(
         outcomes,
         treated,
-        propensities=e0.tolist(),
+        propensities=e0,
         confounder_bins=confounder_bins,
         mi_cap=mi_cap,
     )
