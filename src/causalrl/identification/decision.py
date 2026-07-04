@@ -122,13 +122,14 @@ def certify_estimate(
 
 
 def certify_decision(
-    outcomes: Sequence[float],
-    treated: Sequence[int],
+    outcomes: Sequence[float] | None = None,
+    treated: Sequence[int] | None = None,
     *,
     confounder_bins: Sequence[int] | None = None,
     mi_cap: float | None = None,
     propensities: Sequence[float] | None = None,
     gamma_max: float = 10.0,
+    estimate: PolicyValueContrast | None = None,
 ) -> DecisionCertificate:
     """Certify whether a binary decision from confounded logs is robust to hidden confounding.
 
@@ -149,49 +150,25 @@ def certify_decision(
 
     With informative propensities the MSM layer concerns the inverse-propensity-weighted
     off-policy contrast, which coincides with the raw logged contrast only under uniform logging.
+
+    Alternatively pass a pre-built ``estimate`` (a :class:`PolicyValueContrast`, e.g. from an
+    interop adapter) instead of raw ``outcomes`` / ``treated``; the two forms are mutually
+    exclusive and ``certify_decision(estimate=c)`` is exactly ``certify_estimate(c)``.
     """
-    y = np.asarray(outcomes, dtype=float)
-    f = np.asarray(treated)
-    fb = f.astype(bool)
-    if not (fb.any() and (~fb).any()):
-        raise ValueError("both arms must be present in `treated`")
-    if confounder_bins is None and mi_cap is None and propensities is None:
-        raise ValueError(
-            "supply at least one evidence source: confounder_bins (measured Z), "
-            "mi_cap (structural channel cap), or propensities (MSM sensitivity)"
-        )
-
-    naive = float(y[fb].mean() - y[~fb].mean())
-    decision = "prefer treated" if naive > 0 else "prefer control" if naive < 0 else "indifferent"
-
-    pivot: PivotalityCertificate | None = None
-    if confounder_bins is not None or mi_cap is not None:
-        pivot = pivotality_certificate(outcomes, treated, confounder_bins, mi_cap=mi_cap)
-
-    g_tip: float | None = None
-    msm_certified: bool | None = None
-    if propensities is not None:
-        on = fb.astype(float).tolist()
-        off = (~fb).astype(float).tolist()
-        logging_props = list(propensities)  # concrete (non-Optional) capture for the closure
-
-        def _band(g: float) -> Interval:
-            return msm_contribution_bounds(outcomes, logging_props, on, off, gamma=g)
-
-        g_tip = tipping_gamma(_band, reference=0.0, gamma_max=gamma_max)
-        msm_certified = g_tip is None
-
-    certified = pivot.certified if pivot is not None else bool(msm_certified)
-    summary = _summarise(decision, naive, pivot, g_tip, msm_certified, gamma_max)
-    return DecisionCertificate(
-        decision=decision,
-        naive_contrast=naive,
-        certified=certified,
-        pivotality=pivot,
-        tipping_gamma=g_tip,
-        msm_certified=msm_certified,
-        summary=summary,
+    if estimate is not None:
+        if outcomes is not None or treated is not None:
+            raise ValueError("pass either raw logs (outcomes, treated) or estimate, not both")
+        return certify_estimate(estimate, gamma_max=gamma_max)
+    if outcomes is None or treated is None:
+        raise ValueError("pass outcomes and treated (or a pre-built estimate)")
+    contrast = PolicyValueContrast.from_binary(
+        outcomes,
+        treated,
+        propensities=propensities,
+        confounder_bins=confounder_bins,
+        mi_cap=mi_cap,
     )
+    return certify_estimate(contrast, gamma_max=gamma_max, labels=("treated", "control"))
 
 
 def _summarise(
