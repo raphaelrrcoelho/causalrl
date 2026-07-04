@@ -46,6 +46,13 @@ def test_key_symbols_are_exported():
         assert name in causalrl.__all__
 
 
+def test_front_door_symbols_exported():
+    # The v1.1 decision front door: certify_estimate + the PolicyValueContrast seam.
+    for name in ("certify_estimate", "PolicyValueContrast"):
+        assert name in causalrl.__all__
+        assert hasattr(causalrl, name)
+
+
 def test_version_is_stamped():
     pyproject = tomllib.loads((Path(__file__).parent.parent / "pyproject.toml").read_text())
     assert causalrl.__version__ == pyproject["project"]["version"]

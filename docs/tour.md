@@ -5,6 +5,28 @@ One runnable example per capability, organised by the
 design and faithful to its primary source (cited inline). The MABUC quickstart is in
 [Getting Started](index.md).
 
+## Certify a decision under confounding
+
+Beyond the taxonomy, causalrl's decision layer answers a question the ecosystem's estimators do
+not: **does a ship / abstain decision survive hidden confounding?** `certify_decision` (and the
+general `certify_estimate`) returns a certificate, not just a point estimate.
+
+| Library | Answers | Output |
+|---|---|---|
+| DoWhy / EconML | *What is the effect?* | point estimate / CATE |
+| **causalrl** | *Does the decision survive hidden confounding?* | ship / abstain **certificate** (tipping-Γ) |
+
+```python
+from causalrl import certify_decision
+
+cert = certify_decision(outcomes, treated, confounder_bins=z, propensities=e0)
+print(cert.recommendation)   # "act" or "abstain" — read the verdict, not cert.decision
+print(cert)                  # human-readable summary with the tipping-Γ
+```
+
+Already have a DoWhy or EconML estimate? Hand it straight to the certificate — see the
+[interop guide](interop.md).
+
 ## Causal offline-to-online (Task 1)
 
 Combine confounded offline logs with online interaction. On a confounded dynamic treatment

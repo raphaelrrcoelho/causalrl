@@ -124,3 +124,65 @@ class TestOrchestration:
         f = np.array([1, 1, 1])  # no control arm
         with pytest.raises(ValueError, match="both arms"):
             certify_decision(y, f, mi_cap=0.1)
+
+
+class TestEstimateDelegation:
+    def test_certify_decision_equals_certify_estimate_over_random_inputs(self):
+        from causalrl import certify_estimate
+        from causalrl.identification.estimate import PolicyValueContrast
+
+        rng = np.random.default_rng(11)
+        for _ in range(5):
+            n = 500
+            f = rng.integers(0, 2, size=n)
+            if not (f.any() and (~f).any()):
+                continue
+            y = 0.3 * f + rng.uniform(0, 1, size=n)
+            e0 = np.full(n, 0.5)
+            a = certify_decision(y, f, propensities=e0, gamma_max=15.0)
+            b = certify_estimate(
+                PolicyValueContrast.from_binary(y, f, propensities=e0),
+                gamma_max=15.0,
+                labels=("treated", "control"),
+            )
+            assert a == b
+
+    def test_estimate_overload_matches_certify_estimate(self):
+        from causalrl import certify_estimate
+        from causalrl.identification.estimate import PolicyValueContrast
+
+        y = [0.0, 1.0, 0.0, 1.0]
+        e0 = [0.5, 0.5, 0.5, 0.5]
+        on = [1.0, 1.0, 0.0, 0.0]
+        off = [0.0, 0.0, 1.0, 1.0]
+        c = PolicyValueContrast(outcomes=y, logging_propensities=e0, target_on=on, target_off=off)
+        assert certify_decision(estimate=c) == certify_estimate(c)
+
+    def test_estimate_and_raw_logs_are_mutually_exclusive(self):
+        from causalrl.identification.estimate import PolicyValueContrast
+
+        c = PolicyValueContrast.from_binary([0.0, 1.0], [1, 0], propensities=[0.5, 0.5])
+        with pytest.raises(ValueError, match="either raw logs"):
+            certify_decision([0.0, 1.0], [1, 0], estimate=c)
+
+    def test_missing_all_inputs_raises(self):
+        with pytest.raises(ValueError, match="outcomes and treated"):
+            certify_decision()
+
+
+class TestRecommendation:
+    def test_recommendation_abstains_when_not_certified(self):
+        # naive "prefer treated" but confounding can flip it -> abstain, not act
+        rng = np.random.default_rng(1)
+        n = 20000
+        z = rng.integers(0, 2, size=n)
+        f = (rng.random(n) < 0.3 + 0.4 * (z - 0.5)).astype(int)
+        y = 1.0 * z - 0.1 * f + rng.normal(0, 0.1, size=n)
+        cert = certify_decision(y, f, confounder_bins=z)
+        assert cert.decision == "prefer treated" and not cert.certified
+        assert cert.recommendation == "abstain"
+
+    def test_recommendation_acts_when_certified(self):
+        y, f, z = _confounded_rows(20000, 0.0, seed=1)
+        cert = certify_decision(y, f, confounder_bins=z)
+        assert cert.certified and cert.recommendation == "act"
