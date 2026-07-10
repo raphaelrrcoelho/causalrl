@@ -49,6 +49,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ConfoundedGridworld": ("causalrl.envs.suite.gridworld", "ConfoundedGridworld"),
     "ConfoundedMDP": ("causalrl.envs.base", "ConfoundedMDP"),
     "ConfoundedTrajectoryDataset": ("causalrl.data.dataset", "ConfoundedTrajectoryDataset"),
+    "TrajectoryLog": ("causalrl.data.trajectory", "TrajectoryLog"),
     "CounterfactualBanditEnv": (
         "causalrl.envs.suite.counterfactual_bandit",
         "CounterfactualBanditEnv",
@@ -267,6 +268,7 @@ __all__ = [
     "StructuralCausalBanditEnv",
     "StructuralCausalModel",
     "TabularMDP",
+    "TrajectoryLog",
     "Transition",
     "TransportFormula",
     "TransportRegretCertificate",
