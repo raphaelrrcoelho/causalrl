@@ -8,19 +8,28 @@ Phase-0 ``NoisePosterior`` protocol.
 from causalrl.scm.continuous.abduction import (
     AmortizedGaussianAbduction,
     AmortizedNoisePosterior,
+    InvertibleMechanism,
     PointNoisePosterior,
+    abduct_invertible,
     abduct_location_scale,
     certify_counterfactual,
     posterior_predictive_check,
 )
-from causalrl.scm.continuous.mechanisms import LocationScaleMechanism, MLPMechanism
+from causalrl.scm.continuous.mechanisms import (
+    ConditionalFlowMechanism,
+    LocationScaleMechanism,
+    MLPMechanism,
+)
 
 __all__ = [
     "AmortizedGaussianAbduction",
     "AmortizedNoisePosterior",
+    "ConditionalFlowMechanism",
+    "InvertibleMechanism",
     "LocationScaleMechanism",
     "MLPMechanism",
     "PointNoisePosterior",
+    "abduct_invertible",
     "abduct_location_scale",
     "certify_counterfactual",
     "posterior_predictive_check",
