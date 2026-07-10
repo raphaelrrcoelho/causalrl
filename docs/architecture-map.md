@@ -116,3 +116,31 @@ version is recorded, never a specific string.
 `experimental/ope.py` — `confounding_sensitivity_bounds(point, gamma)`, explicitly documented as a
 *qualitative, non-validated* sensitivity interval (not the published MSM bound). Phase 5's
 `experimental/cyclic/` lands here first.
+
+## 9. Phase 1 — continuous causal core (v1.4.0)
+
+Additive on 1.3.0; every new inferential routine returns a unified `Certificate`. NumPy-only except
+`scm/continuous/` (torch, `[torch]` extra). New leaf packages (re-export shims where they wrap
+shipped code, per plan §4):
+
+- `estimate/` (§7.2) — `certify_effect` (graph query → back-door plan via `identify_effect` +
+  `backdoor_adjustment_set` → DR/DML), `estimate_ate` / `EffectEstimate` (plug-in / IPW / AIPW /
+  cross-fit DML with influence-function CIs), pure-numpy nuisances (`RidgeRegressor` /
+  `LogisticRegressor`, sklearn-style pluggable). Non-identified / front-door / overlap-destroyed →
+  hedge (I3).
+- `bounds/` (§7.3) — shim re-exporting `identification.bounds` + `bounds/continuous.py`:
+  `msm_sensitivity_bounds` (estimated-`e` MSM; reduces to `ipw_sensitivity_bounds`),
+  `moment_diagnostic` / `tail_index_hill`, `certify_mean` (heavy-tail → median downgrade),
+  `certify_quantile` / `weighted_quantile` (percentile-bootstrap CIs).
+- `conformal/` (§7.4) — `conformal_quantile` (weighted), `split_conformal_interval`, `cqr_interval`,
+  `certify_conformal_interval` (`EMPIRICAL`). Marginal coverage ≥ 1 − α.
+- `transport/` (§7.5) — shim over `identification.transport` + `transport/estimate.py`:
+  `certify_transported_effect` (torch-free `transport_formula` decision + numpy g-computation),
+  `transport_gcomp`.
+- `scm/continuous/` (§7.1, torch) — `MLPMechanism`, invertible `LocationScaleMechanism`,
+  `abduct_location_scale` (exact inversion), `AmortizedGaussianAbduction` (ELBO VI),
+  `certify_counterfactual`. Tests `importorskip("torch.nn")` → CI-verified (torch.nn broken locally).
+
+`Certificate` gained an additive optional `ci: Interval | None` field (round-trips; no shipped field
+changed). The new public front doors are lazily exported from `causalrl.__init__` (torch-backed ones
+stay lazy, like `NeuralMechanism`).
