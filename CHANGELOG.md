@@ -5,6 +5,46 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-07-10
+
+Phase 1 — the continuous causal core: identification-aware estimation, partial identification for
+continuous / heavy-tailed / transported targets, finite-sample conformal wrappers, and continuous
+mechanisms with posterior abduction. Fully additive on top of 1.3.0; every new inferential routine
+returns a unified `Certificate`. No shipped signature or behaviour changed; the `certify_decision`
+byte-for-byte regression pin and the `bench_causal_core` fast-path guards are preserved.
+
+### Added
+- **`estimate/` — identification-aware DR/DML estimation** (§7.2): `certify_effect` compiles a graph
+  query into a back-door plan (`identify_effect` → `backdoor_adjustment_set`) and estimates the ATE
+  with plug-in, self-normalised IPW, AIPW, or cross-fitted DML (influence-function CIs), returning an
+  `IDENTIFIED` certificate. Non-identifiable or front-door/general-ID queries hedge (never a silent
+  point); destroyed positivity downgrades to a hedge (I3). Pure-NumPy default nuisances
+  (ridge/logistic) + sklearn-style pluggable — no scipy/sklearn hard dependency. `estimate_ate` /
+  `EffectEstimate` expose the estimators directly. `Certificate` gains an additive optional `ci`.
+- **`bounds/` — estimated-propensity MSM + heavy-tail/quantile targets** (§7.3):
+  `msm_sensitivity_bounds` bounds `E[Y(1)]` under Tan's MSM with *estimated* propensities (reduces
+  exactly to `ipw_sensitivity_bounds` on the known-propensity path); `moment_diagnostic` (Hill
+  tail-index + finite-variance) with `certify_mean` downgrading a mean request to a median on
+  infinite-variance data (I3); `certify_quantile` / `weighted_quantile` with percentile-bootstrap
+  CIs. The package re-exports the shipped nominal-propensity kernels.
+- **`conformal/` — finite-sample coverage** (§7.4): `conformal_quantile` (weighted, covariate-shift
+  aware), `split_conformal_interval`, `cqr_interval` (conformalized quantile regression), and
+  `certify_conformal_interval` (`EMPIRICAL`, exchangeability recorded). Marginal coverage ≥ 1 − α.
+- **`transport/` — data-plane transport estimation** (§7.5): `certify_transported_effect` decides
+  transportability via the shipped `transport_formula`, then estimates the transported mean from
+  source/target observational data (direct = the source interventional mean transfers; adjustment =
+  reweight source conditionals by the target covariate marginal); non-transportable → hedge.
+- **`scm/continuous/` — neural mechanisms + posterior abduction** (§7.1, torch): `MLPMechanism`,
+  the invertible `LocationScaleMechanism`, exact `abduct_location_scale`, the amortized-VI
+  `AmortizedGaussianAbduction`, and `certify_counterfactual` (`IDENTIFIED` for exact inversion,
+  `EMPIRICAL` for VI; a posterior-predictive check recorded as a checkable assumption).
+
+### Notes
+- No new dependencies: the estimation / bounds / conformal / transport layers are NumPy-only; the
+  continuous mechanisms use the existing `[torch]` extra.
+- Deferred to a later 1.x minor: conditional normalizing-flow mechanisms and NUTS/NumPyro abduction;
+  sequential DR / LTMLE and sequential-transport estimation; the 2.0 default-flip `FutureWarning`.
+
 ## [1.3.0] - 2026-07-10
 
 The 1.x consolidation: one unified certificate protocol and a columnar data plane that every later
