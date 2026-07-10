@@ -56,3 +56,19 @@ jobs:
         run: uv run pytest --nbmake --no-cov examples/
       - name: Smoke-test CGFA-PPO example
         run: uv run python examples/cgfa_ppo_example.py
+
+  nuts:
+    # Dedicated lane for the optional NUTS/NumPyro abduction backend (§7.1). Isolated on py3.11
+    # (NumPyro/JAX have no py3.14 wheels) so it cannot destabilise the main matrix; --no-cov keeps
+    # it clear of the 90% gate (the module is coverage-omitted there).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.11"
+      - name: Sync dependencies (with the numpyro extra)
+        run: uv sync --extra dev --extra numpyro
+      - name: NUTS abduction tests
+        run: uv run pytest tests/test_scm_nuts.py -v --no-cov

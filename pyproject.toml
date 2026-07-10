@@ -76,6 +76,11 @@ scale = [
 data = [
     "pyarrow>=15",
 ]
+numpyro = [
+    # NUTS abduction slow path (§7.1). NumPyro/JAX lack py3.14 wheels, so the marker keeps the
+    # universal lock resolvable; the dedicated CI lane installs and exercises it on py3.11.
+    "numpyro>=0.15; python_version < '3.14'",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -114,6 +119,11 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 include = ["src", "tests"]
 strict = ["src"]
 pythonVersion = "3.11"
+
+[tool.coverage.run]
+# The NUTS/NumPyro backend (§7.1) is verified on its own [numpyro] CI lane, not the main matrix
+# (which does not install numpyro), so exclude it from the 90% coverage gate.
+omit = ["*/scm/continuous/nuts.py"]
 
 [tool.pytest.ini_options]
 addopts = "-q --cov=causalrl --cov-report=term-missing"
