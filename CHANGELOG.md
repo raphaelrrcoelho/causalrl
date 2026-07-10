@@ -5,6 +5,39 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-07-10
+
+Phase 2 — the multi-agent core: first-class multi-agent causal decision problems built on the shipped
+one-shot `CausalGame`. Fully additive; every new inferential routine returns a unified `Certificate`
+with an honest epistemic `Kind` (I2). No new dependencies (the PettingZoo adapter is duck-typed).
+
+### Added
+- **`magames/` — typed populations + equilibrium certificates** (§8.1): `AgentType` / `Population`
+  are typed agent templates with explicit parameter sharing that materialise a `CausalGame`;
+  `LearnerTopology` caps the strongest `Kind` a certificate may claim about the population (I2 —
+  single-learner `IDENTIFIED`, simultaneous/centralised `EMPIRICAL`). `certify_equilibrium` certifies
+  a pure profile is a robust (tol-)Nash equilibrium, optionally **under an intervention** `do` that
+  forces some agents' actions — hedging when a free agent would deviate. Requesting `IDENTIFIED`
+  under an `EMPIRICAL`-only topology raises `KindNotLicensedError` (never a mislabelled certificate).
+- **Per-agent `CausalEnv` views** (§8.1): `PopulationAgentView` / `agent_causal_env_view` expose one
+  ego agent inside a fixed population as a `CausalEnvProtocol` (`sample` / `do` → `TrajectoryLog`), so
+  the Phase-1 DR estimators apply to it directly — single-learner-in-population OPE that matches the
+  Monte-Carlo ground truth.
+- **PettingZoo interop** (§8.3): `causalrl.interop.pettingzoo.pettingzoo_to_trajectory_log` rolls out
+  any PettingZoo `ParallelEnv`-shaped object under per-agent policies into a `TrajectoryLog`
+  (`entity_id` = agent). Fully duck-typed — PettingZoo is never imported (the DoWhy/EconML house
+  style) — so a real benchmark or a lightweight stand-in drives it unchanged.
+
+### Experimental
+- **`causalrl.meanfield`** (§8.2, unstable, evaluation-only): the `N → ∞` limit of a symmetric
+  two-action population — `MeanFieldGame` + `mean_field_equilibria` (fixed points of the
+  best-response-to-population-fraction map) + `certify_mean_field_equilibrium` (`EMPIRICAL`).
+  Deliberately absent from the frozen top-level API; outside semver guarantees until promoted (§14).
+
+### Notes
+- No new dependencies. The optional PettingZoo backend is duck-typed; install PettingZoo yourself to
+  run the adapter against a real multi-agent benchmark.
+
 ## [1.5.0] - 2026-07-10
 
 Completes the Phase-1 continuous causal core: the five items 1.4.0 deferred now ship. Fully additive

@@ -171,3 +171,26 @@ continuous mechanisms.
   silent legacy; `True` → certificate. All 12 internal callers opt out (byte-pin preserved); a
   completeness-gate test turns the warning into an error and asserts no wrapper leaks it. `pytest`
   `filterwarnings` silences the expected message suite-wide.
+
+## 11. Phase 2 — multi-agent core (v1.6.0)
+
+First-class multi-agent causal decision problems on top of the shipped one-shot `CausalGame`. All
+numpy / pure-Python; no new dependencies.
+
+- **`magames/` (§8.1)** — `population.py`: `AgentType` / `Population` (typed agent templates,
+  parameter sharing, `to_game()` → `CausalGame`) and `LearnerTopology` capping the epistemic `Kind`
+  (I2, via `topology_max_kind`). `equilibrium.py`: `certify_equilibrium` (exact best-response check
+  for a robust (tol-)Nash equilibrium, optionally under an intervention `do`; hedges on deviation;
+  `KindNotLicensedError` when a topology can't license the requested `Kind` — acceptance c, d).
+  `views.py`: `PopulationAgentView` / `agent_causal_env_view` — a per-agent `CausalEnvProtocol`
+  (`sample`/`do` → `TrajectoryLog`) so Phase-1 DR estimates the ego's action effect and matches the
+  MC ground truth (acceptance b).
+- **`interop/pettingzoo.py` (§8.3)** — `pettingzoo_to_trajectory_log`: duck-typed adapter (PettingZoo
+  never imported) rolling any `ParallelEnv`-shaped object into a `TrajectoryLog` with `entity_id` =
+  agent (acceptance a). Tested with a mock `ParallelEnv`. A file-level pyright directive silences the
+  `reportUnknown*` family inherent to the `env: Any` duck-typed boundary.
+- **`meanfield/` (§8.2, EXPERIMENTAL/unstable)** — `MeanFieldGame` + `mean_field_equilibria` +
+  `certify_mean_field_equilibrium` (`EMPIRICAL`); reachable only as `causalrl.meanfield`, not in the
+  frozen top-level API (§14).
+
+The magames public API is lazily exported from `causalrl.__init__`; `meanfield` is intentionally not.
