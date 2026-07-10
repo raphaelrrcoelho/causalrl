@@ -149,12 +149,15 @@ class Certificate:
     witness: Witness | None
     hedge: Hedge | None
     provenance: Provenance
+    ci: Interval | None = None  # optional confidence interval for `value` at level `alpha`
 
     def __str__(self) -> str:
         parts = [f"[{self.kind.name}] {self.claim}"]
         v = _format_value(self.value)
         if v is not None:
             parts.append(f"value={v}")
+        if self.ci is not None:
+            parts.append(f"ci={_format_value(self.ci)}")
         if self.hedge is not None:
             parts.append(f"HEDGE: {self.hedge.reason}")
         return " | ".join(parts)
@@ -171,6 +174,7 @@ class Certificate:
             },
             "kind": self.kind.value,
             "value": _value_to_json(self.value),
+            "ci": _value_to_json(self.ci),
             "alpha": self.alpha,
             "assumptions": [
                 {
@@ -214,6 +218,11 @@ class Certificate:
         prov = d["provenance"]
         wit = d.get("witness")
         hed = d.get("hedge")
+        ci_raw = d.get("ci")
+        ci: Interval | None = None
+        if ci_raw is not None:
+            parsed = _value_from_json(ci_raw)
+            ci = parsed if isinstance(parsed, Interval) else None
         return cls(
             claim=d["claim"],
             estimand=EstimandSpec(
@@ -254,6 +263,7 @@ class Certificate:
                 graph_hash=prov.get("graph_hash"),
                 timestamp=prov.get("timestamp", ""),
             ),
+            ci=ci,
         )
 
     @staticmethod
