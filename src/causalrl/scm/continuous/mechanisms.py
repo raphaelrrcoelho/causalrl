@@ -16,7 +16,7 @@ from torch import Tensor
 __all__ = ["LocationScaleMechanism", "MLPMechanism"]
 
 
-def _mlp(in_dim: int, hidden: tuple[int, ...], out_dim: int) -> torch.nn.Module:
+def build_mlp(in_dim: int, hidden: tuple[int, ...], out_dim: int) -> torch.nn.Module:
     sizes = [in_dim, *hidden, out_dim]
     layers: list[torch.nn.Module] = []
     for a, b in pairwise(sizes):
@@ -39,7 +39,7 @@ class MLPMechanism(torch.nn.Module):
     def __init__(self, parents: list[str], hidden: tuple[int, ...] = (32, 32)) -> None:
         super().__init__()
         self.parents = parents
-        self.net = _mlp(max(len(parents), 1), hidden, 1)
+        self.net = build_mlp(max(len(parents), 1), hidden, 1)
 
     def forward(self, parent_values: dict[str, Tensor], noise: Tensor) -> Tensor:
         feats = _stack_parents(self.parents, parent_values, noise)
@@ -60,8 +60,8 @@ class LocationScaleMechanism(torch.nn.Module):
         super().__init__()
         self.parents = parents
         self.min_scale = float(min_scale)
-        self.loc_net = _mlp(max(len(parents), 1), hidden, 1)
-        self.scale_net = _mlp(max(len(parents), 1), hidden, 1)
+        self.loc_net = build_mlp(max(len(parents), 1), hidden, 1)
+        self.scale_net = build_mlp(max(len(parents), 1), hidden, 1)
 
     def _loc_scale(self, feats: Tensor) -> tuple[Tensor, Tensor]:
         loc = self.loc_net(feats).squeeze(-1)  # type: ignore[reportUnknownMemberType]

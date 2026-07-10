@@ -30,7 +30,7 @@ from causalrl.certify.certificate import (
     Kind,
     Provenance,
 )
-from causalrl.scm.continuous.mechanisms import LocationScaleMechanism, _mlp
+from causalrl.scm.continuous.mechanisms import LocationScaleMechanism, build_mlp
 
 __all__ = [
     "AmortizedGaussianAbduction",
@@ -106,7 +106,7 @@ class AmortizedGaussianAbduction(torch.nn.Module):
         self.mechanism = mechanism
         self.parents = parents
         self.name = name
-        self.encoder = _mlp(len(parents) + 1, hidden, 2)
+        self.encoder = build_mlp(len(parents) + 1, hidden, 2)
 
     def _q(self, parent_values: Mapping[str, Tensor], y: Tensor) -> tuple[Tensor, Tensor]:
         cols = [parent_values[p].reshape(-1, 1) for p in self.parents] + [y.reshape(-1, 1)]
