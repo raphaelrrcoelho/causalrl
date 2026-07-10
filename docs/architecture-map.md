@@ -144,3 +144,30 @@ shipped code, per plan §4):
 `Certificate` gained an additive optional `ci: Interval | None` field (round-trips; no shipped field
 changed). The new public front doors are lazily exported from `causalrl.__init__` (torch-backed ones
 stay lazy, like `NeuralMechanism`).
+
+## 10. Phase 1 completion — deferred continuous-core items (v1.5.0)
+
+Ships the five items 1.4.0 deferred; fully additive on 1.4.0. NumPy-only except the torch/JAX
+continuous mechanisms.
+
+- **`scm/continuous/mechanisms.py` (§7.1, torch)** — `ConditionalFlowMechanism`: conditional affine
+  blocks interleaved with an invertible `LeakyReLU`, strictly monotone in the scalar noise. Exact
+  abduction generalised: `abduct_invertible` (any `InvertibleMechanism`); `abduct_location_scale`
+  delegates to it.
+- **`scm/continuous/nuts.py` (§7.1, `[numpyro]` extra)** — `abduct_nuts` (NUTS/NumPyro; JAX-callable
+  forward, pure-NumPy `NUTSNoisePosterior`), `certify_nuts_counterfactual` (`EMPIRICAL`). Lazy
+  duck-typed import; module coverage-omitted; own `nuts` CI lane (`ubuntu`/`3.11`, `--extra numpyro`).
+  The extra is gated to `python_version < '3.14'` so the universal lock resolves.
+- **`estimate/sequential.py` (§7.2, numpy)** — `estimate_sequential_value` /
+  `certify_sequential_value`: ICE g-computation + cross-fitted sequentially doubly-robust (LTMLE)
+  recursion under sequential ignorability (non-checkable assumption; per-stage overlap hedge, I3);
+  reduces to single-stage DR at horizon 1. `sequential_ice_values` is the per-unit backbone.
+- **`transport/estimate.py` (§7.5, numpy)** — `certify_sequential_transport` (hedge-first): identified
+  only when selection is confined to the baseline distribution (reweight source sequential
+  g-computation to the target baseline marginal); else hedge → `transport_regret_certificate`.
+- **`_deprecation.py` + `identification/` (I9)** — leaf `warn_certificate_default_flip`;
+  `identify_effect` / `ipw_sensitivity_bounds` / `msm_policy_value_bounds` gain a keyword-only
+  `return_certificate: bool | None` (`@overload`-typed): unset → `FutureWarning` + legacy; `False` →
+  silent legacy; `True` → certificate. All 12 internal callers opt out (byte-pin preserved); a
+  completeness-gate test turns the warning into an error and asserts no wrapper leaks it. `pytest`
+  `filterwarnings` silences the expected message suite-wide.

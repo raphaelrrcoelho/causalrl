@@ -5,6 +5,52 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-07-10
+
+Completes the Phase-1 continuous causal core: the five items 1.4.0 deferred now ship. Fully additive
+on top of 1.4.0 — no shipped signature, field, or behaviour changed (the three routines below gain
+only an optional keyword-only parameter); the `certify_decision` byte-for-byte regression pin and the
+`bench_causal_core` fast-path guards are preserved. "2.0" stays reserved for the certificate
+default-flip, which this release begins deprecating toward.
+
+### Added
+- **Conditional normalizing-flow mechanisms** (§7.1, torch): `ConditionalFlowMechanism` — a
+  composition of conditional affine maps interleaved with a fixed invertible `LeakyReLU`, strictly
+  monotone in the scalar noise, so exact abduction and exact continuous counterfactuals extend to a
+  non-affine flow family. `abduct_invertible` generalises exact noise recovery to any
+  `InvertibleMechanism` (location-scale and flow); `abduct_location_scale` now delegates to it.
+- **NUTS / NumPyro posterior abduction** (§7.1): `abduct_nuts` draws the exact exogenous-noise
+  posterior by a No-U-Turn Sampler, with the mechanism forward passed as a JAX callable; returns a
+  pure-NumPy `NUTSNoisePosterior`, and `certify_nuts_counterfactual` yields an `EMPIRICAL`
+  certificate. Optional slow path behind the new **`[numpyro]` extra** (lazy, duck-typed import),
+  verified on a dedicated CI lane.
+- **Sequential DR / LTMLE** (§7.2): `estimate_sequential_value` / `certify_sequential_value` —
+  finite-horizon policy value via iterated-conditional-expectation g-computation and a cross-fitted
+  sequentially doubly-robust (LTMLE-style) backward recursion, under sequential ignorability (an
+  explicit non-checkable assumption; per-stage positivity failures hedge, I3). At horizon 1 the DR
+  path recovers the single-stage DR ATE. `sequential_ice_values` exposes the per-unit ICE backbone.
+- **Sequential / policy-value transport estimation** (§7.5, hedge-first): `certify_sequential_transport`
+  is identified only in the one subcase where the selection difference is confined to the baseline
+  distribution (a population shift, downstream mechanisms shared) — reweighting the source sequential
+  g-computation to the target baseline marginal; any selection node on a time-varying covariate,
+  treatment, or outcome hedges (I3), with `transport_regret_certificate` the floor.
+
+### Changed
+- **2.0 certificate-default-flip `FutureWarning`** (I9): `identify_effect`, `ipw_sensitivity_bounds`,
+  and `msm_policy_value_bounds` gain a keyword-only `return_certificate: bool | None` (typed via
+  `@overload`). Unset → the current return type plus a `FutureWarning` that 2.0 will return a
+  `Certificate` by default; `False` → the current type silently; `True` → the certificate now
+  (equivalent to the shipped `*_certified` variant). All internal callers opt out, so shipped
+  wrappers and the byte-pin stay byte-identical and warning-free. This starts the ≥1-minor
+  deprecation window that matures at the 2.0 flip.
+
+### Notes
+- New optional dependency extra `[numpyro]` (NumPyro + JAX), gated to Python < 3.14 and never
+  installed in the main CI matrix; the NUTS backend module is excluded from the coverage gate and
+  exercised on its own lane. No change to the core dependency set.
+- Still deferred within 1.x: streaming/JAX-vectorised estimator kernels (Phase 3) and the mechanics
+  of the 2.0 flip itself (Phase 4).
+
 ## [1.4.0] - 2026-07-10
 
 Phase 1 — the continuous causal core: identification-aware estimation, partial identification for

@@ -169,9 +169,7 @@ def msm_sensitivity_bounds(
       (default logistic) and applies the same sharp box kernel to the treated subset.
     """
     if propensities is not None:
-        return ipw_sensitivity_bounds(
-            outcomes, propensities, gamma=gamma, return_certificate=False
-        )
+        return ipw_sensitivity_bounds(outcomes, propensities, gamma=gamma, return_certificate=False)
     if treatment is None or covariates is None:
         raise ValueError("provide either propensities=, or both treatment= and covariates=")
     y = np.asarray(outcomes, dtype=np.float64)
