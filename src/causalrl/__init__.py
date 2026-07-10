@@ -157,6 +157,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "topology_max_kind": ("causalrl.magames", "topology_max_kind"),
     "PopulationAgentView": ("causalrl.magames", "PopulationAgentView"),
     "agent_causal_env_view": ("causalrl.magames", "agent_causal_env_view"),
+    "pettingzoo_to_trajectory_log": ("causalrl.interop.pettingzoo", "pettingzoo_to_trajectory_log"),
     "MLPMechanism": ("causalrl.scm.continuous.mechanisms", "MLPMechanism"),
     "LocationScaleMechanism": ("causalrl.scm.continuous.mechanisms", "LocationScaleMechanism"),
     "ConditionalFlowMechanism": (
@@ -429,6 +430,7 @@ __all__ = [
     "msm_policy_value_bounds_certified",
     "msm_sensitivity_bounds",
     "msm_stratified_bounds",
+    "pettingzoo_to_trajectory_log",
     "pivotality_certificate",
     "pomis",
     "pure_nash_equilibria",
