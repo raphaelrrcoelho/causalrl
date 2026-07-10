@@ -125,12 +125,14 @@ class AmortizedGaussianAbduction(torch.nn.Module):
         seed: int = 0,
     ) -> AmortizedGaussianAbduction:
         torch.manual_seed(seed)  # type: ignore[reportPrivateImportUsage]
-        opt = torch.optim.Adam(self.parameters(), lr=lr)  # type: ignore[reportPrivateImportUsage]
+        # Train the encoder only; the mechanism is fixed (abduction infers noise given it).
+        opt = torch.optim.Adam(self.encoder.parameters(), lr=lr)  # type: ignore[reportPrivateImportUsage]
         pv = dict(parent_values)
+        target = y.detach()  # a fixed observed target (drop any graph carried in on `y`)
         for _ in range(steps):
-            mean, scale = self._q(pv, y)
+            mean, scale = self._q(pv, target)
             u = mean + scale * torch.randn_like(mean)  # type: ignore[reportPrivateImportUsage]
-            recon = ((self.mechanism(pv, u) - y) ** 2).mean()
+            recon = ((self.mechanism(pv, u) - target) ** 2).mean()
             kl = (0.5 * (mean**2 + scale**2 - 1.0) - torch.log(scale)).mean()  # type: ignore[reportPrivateImportUsage]
             loss = recon + beta * kl
             opt.zero_grad()
