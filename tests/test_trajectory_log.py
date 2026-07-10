@@ -5,6 +5,7 @@ The NumPy core and the bridge run everywhere; Arrow/Parquet IO is gated on a rea
 namespace stub skips rather than falsely running.
 """
 
+import numpy as np
 import pytest
 
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition
@@ -97,6 +98,35 @@ def test_pivot_dense() -> None:
     assert index == [(0, 0, 0)]
     assert table["state"].tolist() == [1]
     assert table["reward"].tolist() == [2.5]
+
+
+def test_to_confounded_dataset_requires_metadata() -> None:
+    log = TrajectoryLog.from_rows(_rows())  # no n_states/n_actions metadata
+    with pytest.raises(ValueError, match="metadata"):
+        log.to_confounded_dataset()
+
+
+def test_coerces_numpy_scalar_and_list_values() -> None:
+    rows = [
+        {"entity_id": 0, "episode_id": 0, "t": 0, "kind": "obs", "name": "n", "value": np.int64(3)},
+        {
+            "entity_id": 0,
+            "episode_id": 0,
+            "t": 0,
+            "kind": "info",
+            "name": "vec",
+            "value": [1.0, 2.0],
+        },
+    ]
+    log = TrajectoryLog.from_rows(rows)
+    assert log.values_by_name("n")[0] == 3
+    assert log.values_by_name("vec")[0] == [1.0, 2.0]
+    assert log.fingerprint() == TrajectoryLog.from_rows(rows).fingerprint()
+
+
+def test_scan_rejects_nonpositive_batch() -> None:
+    with pytest.raises(ValueError, match="batch_size"):
+        list(TrajectoryLog.from_rows(_rows()).scan(0))
 
 
 def test_parquet_roundtrip(tmp_path: object) -> None:

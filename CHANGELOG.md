@@ -5,6 +5,51 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-07-10
+
+The 1.x consolidation: one unified certificate protocol and a columnar data plane that every later
+phase (continuous core, multi-agent, scale) builds against. Fully additive — no shipped signature,
+field, or behaviour changes; the `certify_decision` byte-for-byte regression pin and the
+`bench_causal_core` fast-path guards are preserved. "2.0" remains reserved for the breaking step
+(flipping the certificate-returning defaults).
+
+### Added
+- **Unified `Certificate` protocol** (`causalrl.certify`): one serializable certificate —
+  `Certificate` with `Kind` (`IDENTIFIED` / `BOUNDED` / `EMPIRICAL`), `EstimandSpec`, `Assumption`,
+  `Witness`, `Hedge`, and `Provenance` (library version, seeds, data fingerprint, graph hash,
+  timestamp), plus `to_json` / `from_json` round-tripping. `as_certificate` adapts the shipped
+  `DecisionCertificate`, `PivotalityCertificate`, and `TransportRegretCertificate` onto it
+  (act/abstain ↔ present/absent hedge; MSM/MI outputs → `BOUNDED`).
+- **Certificate-returning routine variants**: `identify_effect_certified` (`IDENTIFIED`, witness =
+  the do-free ID formula), `ipw_sensitivity_bounds_certified` and `msm_policy_value_bounds_certified`
+  (`BOUNDED`, MSM Γ recorded as an `Assumption`). The bare functions are untouched.
+- **Columnar `TrajectoryLog`** (`causalrl.data.trajectory`): the canonical long/tidy trajectory
+  schema — a pure-NumPy in-memory core (always available) with lazy Arrow/Parquet IO behind the new
+  optional `[data]` extra (`pip install causalrl[data]`), `scan()` streaming, dense pivot helpers,
+  and content-hash fingerprinting. A **lossless two-way bridge** with `ConfoundedTrajectoryDataset`
+  keeps the d3rlpy path working unchanged.
+- **`Regime`** (`causalrl.regime`): a labeled data-generating configuration (selection-marked
+  variables + parameters) built on the transport `Domain`; hashable, serializable, and composable
+  (`a | b` with conflict detection).
+- **Environment/noise protocols** (`causalrl.protocols`): `CausalEnvProtocol`, `NoiseLedger` /
+  `NoisePosterior`, a duck-typed `SCMCausalEnv` conformance for `StructuralCausalModel` (emits
+  `TrajectoryLog`; torch-free), and a white-box `DictNoiseLedger`.
+- **`graph_hash`** (`causalrl.graphs`): a canonical, order-invariant ADMG fingerprint for
+  certificate provenance; and a NumPy-only array-API dispatch skeleton (`causalrl.backends`).
+- `docs/architecture-map.md` — the Phase-0 repo audit reconciling the layout with the 2.0 plan.
+
+### Deprecated
+- In causalrl 2.0 the bare inferential routines (`identify_effect`, `ipw_sensitivity_bounds`,
+  `msm_policy_value_bounds`, …) will return a `Certificate` by default. The `*_certified` variants
+  are the forward-compatible surface today; the eager `FutureWarning` lands in a pre-2.0 minor
+  (emitting it now would cascade through the internal bounds call graph, including the byte-pinned
+  path).
+
+### Scope
+- Deferred to a later 1.x minor (not required by this release): the Gymnasium `CausalEnvWrapper`
+  → `CausalEnvProtocol` conformance, an ID/gID Hypothesis + brute-force cross-check, and the
+  black-box noise `posterior()` path (amortized abduction — Phase 1).
+
 ## [1.2.0] - 2026-07-03
 
 The confounded-offline-RL scale path: d3rlpy trains, causalrl certifies. Learn a policy with any
