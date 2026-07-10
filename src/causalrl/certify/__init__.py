@@ -7,6 +7,7 @@ it. Leaf package: imports only bounds/graphs primitives, never interop/scale/exp
 
 from __future__ import annotations
 
+from causalrl.certify.adapters import as_certificate
 from causalrl.certify.certificate import (
     Assumption,
     Certificate,
@@ -25,4 +26,5 @@ __all__ = [
     "Kind",
     "Provenance",
     "Witness",
+    "as_certificate",
 ]
