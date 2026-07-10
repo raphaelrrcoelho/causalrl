@@ -68,9 +68,11 @@ jobs:
         uses: astral-sh/setup-uv@v3
         with:
           python-version: "3.11"
-      - name: Sync dependencies (with the numpyro extra)
-        run: uv sync --extra dev --extra numpyro
+      # Force py3.11 on every uv command: the [numpyro] extra is markered python < 3.14, so if uv
+      # resolves against 3.14 the marker drops numpyro from the environment.
+      - name: Sync dependencies (py3.11 + the numpyro extra)
+        run: uv sync --python 3.11 --extra dev --extra numpyro
       - name: Verify NumPyro / JAX import (fail loudly, never silently skip)
-        run: uv run --no-sync python -c "import numpyro, jax; print('numpyro', numpyro.__version__, 'jax', jax.__version__)"
+        run: uv run --python 3.11 --no-sync python -c "import sys, numpyro, jax; print(sys.version.split()[0], 'numpyro', numpyro.__version__, 'jax', jax.__version__)"
       - name: NUTS abduction tests
-        run: uv run --no-sync pytest tests/test_scm_nuts.py -v --no-cov
+        run: uv run --python 3.11 --no-sync pytest tests/test_scm_nuts.py -v --no-cov
