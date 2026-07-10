@@ -17,6 +17,11 @@ from causalrl.certify.certificate import (
     Provenance,
     Witness,
 )
+from causalrl.certify.routines import (
+    identify_effect_certified,
+    ipw_sensitivity_bounds_certified,
+    msm_policy_value_bounds_certified,
+)
 
 __all__ = [
     "Assumption",
@@ -27,4 +32,7 @@ __all__ = [
     "Provenance",
     "Witness",
     "as_certificate",
+    "identify_effect_certified",
+    "ipw_sensitivity_bounds_certified",
+    "msm_policy_value_bounds_certified",
 ]
