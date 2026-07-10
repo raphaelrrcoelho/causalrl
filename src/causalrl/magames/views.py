@@ -50,9 +50,7 @@ class PopulationAgentView:
     coplayer_bias: float = 0.7  # Z -> co-player action
     noise: float = 0.5
 
-    def _draw(
-        self, n: int, seed: int | None, ego_action: float | None
-    ) -> dict[str, FloatArray]:
+    def _draw(self, n: int, seed: int | None, ego_action: float | None) -> dict[str, FloatArray]:
         rng = np.random.default_rng(seed)
         z = rng.standard_normal(n)
         if ego_action is None:
