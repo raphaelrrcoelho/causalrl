@@ -29,11 +29,16 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal, overload
 
 import numpy as np
 
+from causalrl._deprecation import warn_certificate_default_flip
 from causalrl.exceptions import CausalGraphError, NotIdentifiableError
 from causalrl.scm.graph import CausalGraph
+
+if TYPE_CHECKING:
+    from causalrl.certify.certificate import Certificate
 
 __all__ = [
     "Domain",
@@ -418,16 +423,47 @@ def _id(
     )
 
 
+@overload
 def identify_effect(
-    graph: CausalGraph, treatment: Iterable[str], outcome: Iterable[str]
-) -> Estimand:
+    graph: CausalGraph,
+    treatment: Iterable[str],
+    outcome: Iterable[str],
+    *,
+    return_certificate: Literal[True],
+) -> Certificate: ...
+@overload
+def identify_effect(
+    graph: CausalGraph,
+    treatment: Iterable[str],
+    outcome: Iterable[str],
+    *,
+    return_certificate: Literal[False] | None = ...,
+) -> Estimand: ...
+def identify_effect(
+    graph: CausalGraph,
+    treatment: Iterable[str],
+    outcome: Iterable[str],
+    *,
+    return_certificate: bool | None = None,
+) -> Estimand | Certificate:
     """Return a do-free :class:`Estimand` for ``P(outcome | do(treatment))``, or raise.
 
     Runs the ID algorithm. Raises :class:`NotIdentifiableError` (with the witnessing hedge attached
     as ``.witness``) when the effect is not non-parametrically identifiable, and
     :class:`CausalGraphError` for malformed inputs (unknown nodes, empty outcome, or a treatment and
     outcome that overlap).
+
+    ``return_certificate`` (I9 deprecation): leave unset for the current :class:`Estimand` plus a
+    ``FutureWarning`` that causalrl 2.0 returns a :class:`Certificate` by default; pass ``False`` to
+    keep the :class:`Estimand` silently, or ``True`` for the certificate now (equivalent to
+    ``identify_effect_certified``).
     """
+    if return_certificate is None:
+        warn_certificate_default_flip("identify_effect", "identify_effect_certified")
+    if return_certificate:
+        from causalrl.certify.routines import identify_effect_certified
+
+        return identify_effect_certified(graph, treatment, outcome)
     x, y = frozenset(treatment), frozenset(outcome)
     unknown = (x | y) - set(graph.nodes)
     if unknown:
@@ -444,7 +480,7 @@ def is_identifiable_effect(
 ) -> bool:
     """Whether ``P(outcome | do(treatment))`` is identifiable from observational data."""
     try:
-        identify_effect(graph, treatment, outcome)
+        identify_effect(graph, treatment, outcome, return_certificate=False)
     except NotIdentifiableError:
         return False
     return True
@@ -521,7 +557,7 @@ def estimate_effect(
     ``do``. Returns the outcome distribution as ``{assignment: probability}`` with assignments keyed
     in ``sorted(outcome)`` order.
     """
-    estimand = identify_effect(graph, treatment, outcome)
+    estimand = identify_effect(graph, treatment, outcome, return_certificate=False)
     factor = _eval_observational(estimand, _empirical_joint(data, graph.nodes))
     factor = factor.condition(do)
     targets = sorted(outcome)

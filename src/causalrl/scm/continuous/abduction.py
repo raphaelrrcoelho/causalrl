@@ -18,7 +18,7 @@ attached to the certificate as a checkable assumption.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Protocol
 
 import torch
 from torch import Tensor
@@ -35,11 +35,25 @@ from causalrl.scm.continuous.mechanisms import LocationScaleMechanism, build_mlp
 __all__ = [
     "AmortizedGaussianAbduction",
     "AmortizedNoisePosterior",
+    "InvertibleMechanism",
     "PointNoisePosterior",
+    "abduct_invertible",
     "abduct_location_scale",
     "certify_counterfactual",
     "posterior_predictive_check",
 ]
+
+
+class InvertibleMechanism(Protocol):
+    """A mechanism whose scalar exogenous noise is recoverable in closed form.
+
+    Both :class:`~causalrl.scm.continuous.mechanisms.LocationScaleMechanism` and
+    :class:`~causalrl.scm.continuous.mechanisms.ConditionalFlowMechanism` satisfy this. The parent
+    argument is a concrete ``dict`` (matching those mechanisms' ``invert`` signatures — a protocol
+    method parameter is contravariant, so a ``Mapping`` here would exclude a ``dict`` implementer).
+    """
+
+    def invert(self, parent_values: dict[str, Tensor], observed: Tensor) -> Tensor: ...
 
 
 def _fit_n(t: Tensor, n: int) -> Tensor:
@@ -75,6 +89,22 @@ class AmortizedNoisePosterior:
         return {self.name: self.mean + self.scale * eps}
 
 
+def abduct_invertible(
+    mechanism: InvertibleMechanism,
+    parent_values: Mapping[str, Tensor],
+    observed: Tensor,
+    *,
+    name: str = "U",
+) -> PointNoisePosterior:
+    """Exactly recover any invertible mechanism's exogenous noise from an observed outcome.
+
+    Works for the location-scale and conditional-flow families alike (anything implementing
+    :class:`InvertibleMechanism`); the recovered noise is a point mass, so counterfactuals built on
+    it may claim ``kind=IDENTIFIED``.
+    """
+    return PointNoisePosterior({name: mechanism.invert(dict(parent_values), observed)})
+
+
 def abduct_location_scale(
     mechanism: LocationScaleMechanism,
     parent_values: Mapping[str, Tensor],
@@ -82,8 +112,8 @@ def abduct_location_scale(
     *,
     name: str = "U",
 ) -> PointNoisePosterior:
-    """Exactly recover a location-scale mechanism's exogenous noise from an observed outcome."""
-    return PointNoisePosterior({name: mechanism.invert(dict(parent_values), observed)})
+    """Exactly recover a location-scale mechanism's noise (see :func:`abduct_invertible`)."""
+    return abduct_invertible(mechanism, parent_values, observed, name=name)
 
 
 class AmortizedGaussianAbduction(torch.nn.Module):

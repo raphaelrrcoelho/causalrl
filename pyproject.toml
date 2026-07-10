@@ -1,6 +1,6 @@
 [project]
 name = "causalrl"
-version = "1.4.0"
+version = "1.5.0"
 description = "Causal reinforcement learning: the 9-task causal RL taxonomy, made runnable."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -76,6 +76,11 @@ scale = [
 data = [
     "pyarrow>=15",
 ]
+numpyro = [
+    # NUTS abduction slow path (§7.1). NumPyro/JAX lack py3.14 wheels, so the marker keeps the
+    # universal lock resolvable; the dedicated CI lane installs and exercises it on py3.11.
+    "numpyro>=0.15; python_version < '3.14'",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -115,9 +120,19 @@ include = ["src", "tests"]
 strict = ["src"]
 pythonVersion = "3.11"
 
+[tool.coverage.run]
+# The NUTS/NumPyro backend (§7.1) is verified on its own [numpyro] CI lane, not the main matrix
+# (which does not install numpyro), so exclude it from the 90% coverage gate.
+omit = ["*/scm/continuous/nuts.py"]
+
 [tool.pytest.ini_options]
 addopts = "-q --cov=causalrl --cov-report=term-missing"
 testpaths = ["tests"]
+filterwarnings = [
+    # The pre-2.0 certificate-default-flip FutureWarning (I9) is expected across the suite; it is
+    # asserted explicitly in tests/test_deprecation.py. Silence just that message elsewhere.
+    "ignore:In causalrl .* will return a Certificate:FutureWarning",
+]
 
 [dependency-groups]
 dev = [

@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from typing import NamedTuple
+from typing import TYPE_CHECKING, Literal, NamedTuple, overload
 
 import numpy as np
 
+from causalrl._deprecation import warn_certificate_default_flip
 from causalrl.data.dataset import ConfoundedTrajectoryDataset
 from causalrl.exceptions import NotIdentifiableError
+
+if TYPE_CHECKING:
+    from causalrl.certify.certificate import Certificate
 
 
 class Interval(NamedTuple):
@@ -96,9 +100,29 @@ def _fractional_extreme(y: np.ndarray, lo: np.ndarray, hi: np.ndarray, *, maximi
     return float(ratios.max() if maximize else ratios.min())
 
 
+@overload
 def ipw_sensitivity_bounds(
-    outcomes: Sequence[float], propensities: Sequence[float], *, gamma: float
-) -> Interval:
+    outcomes: Sequence[float],
+    propensities: Sequence[float],
+    *,
+    gamma: float,
+    return_certificate: Literal[True],
+) -> Certificate: ...
+@overload
+def ipw_sensitivity_bounds(
+    outcomes: Sequence[float],
+    propensities: Sequence[float],
+    *,
+    gamma: float,
+    return_certificate: Literal[False] | None = ...,
+) -> Interval: ...
+def ipw_sensitivity_bounds(
+    outcomes: Sequence[float],
+    propensities: Sequence[float],
+    *,
+    gamma: float,
+    return_certificate: bool | None = None,
+) -> Interval | Certificate:
     """Marginal-sensitivity-model bounds on the treated counterfactual mean ``E[Y(1)]``.
 
     ``outcomes`` and ``propensities`` are the treated units' outcomes ``Y_i`` and *nominal*
@@ -112,7 +136,17 @@ def ipw_sensitivity_bounds(
     Faithful to Z. Tan, *A Distributional Approach for Causal Inference Using Propensity Scores*
     (JASA 2006) and Q. Zhao, D. Small, B. Bhattacharya, *Sensitivity Analysis for Inverse
     Probability Weighting Estimators via the Percentile Bootstrap* (JRSS-B 2019). No code is ported.
+
+    ``return_certificate`` (I9 deprecation): leave unset for the current :class:`Interval` plus a
+    ``FutureWarning`` that causalrl 2.0 will return a ``BOUNDED`` :class:`Certificate` by default;
+    pass ``False`` to keep the :class:`Interval` silently, or ``True`` for the certificate now.
     """
+    if return_certificate is None:
+        warn_certificate_default_flip("ipw_sensitivity_bounds", "ipw_sensitivity_bounds_certified")
+    if return_certificate:
+        from causalrl.certify.routines import ipw_sensitivity_bounds_certified
+
+        return ipw_sensitivity_bounds_certified(outcomes, propensities, gamma=gamma)
     if gamma < 1.0:
         raise ValueError("gamma must be >= 1")
     y = np.asarray(outcomes, dtype=float)
@@ -126,13 +160,32 @@ def ipw_sensitivity_bounds(
     )
 
 
+@overload
 def msm_policy_value_bounds(
     outcomes: Sequence[float],
     logging_propensities: Sequence[float],
     target_propensities: Sequence[float],
     *,
     gamma: float,
-) -> Interval:
+    return_certificate: Literal[True],
+) -> Certificate: ...
+@overload
+def msm_policy_value_bounds(
+    outcomes: Sequence[float],
+    logging_propensities: Sequence[float],
+    target_propensities: Sequence[float],
+    *,
+    gamma: float,
+    return_certificate: Literal[False] | None = ...,
+) -> Interval: ...
+def msm_policy_value_bounds(
+    outcomes: Sequence[float],
+    logging_propensities: Sequence[float],
+    target_propensities: Sequence[float],
+    *,
+    gamma: float,
+    return_certificate: bool | None = None,
+) -> Interval | Certificate:
     """Marginal-sensitivity-model bounds on an off-policy value ``V(pi_t) = E[(pi_t/e0) Y]``.
 
     Self-normalised (Hájek) off-policy value of a target policy ``pi_t`` estimated from logs of a
@@ -150,7 +203,21 @@ def msm_policy_value_bounds(
     Tan's MSM in the spirit of N. Kallus & A. Zhou, *Confounding-Robust Policy Evaluation in
     Infinite-Horizon Reinforcement Learning* (NeurIPS 2020). The caller supplies ``pi_t`` and the
     nominal ``e0``; no code is ported.
+
+    ``return_certificate`` (I9 deprecation): leave unset for the current :class:`Interval` plus a
+    ``FutureWarning`` that causalrl 2.0 will return a ``BOUNDED`` :class:`Certificate` by default;
+    pass ``False`` to keep the :class:`Interval` silently, or ``True`` for the certificate now.
     """
+    if return_certificate is None:
+        warn_certificate_default_flip(
+            "msm_policy_value_bounds", "msm_policy_value_bounds_certified"
+        )
+    if return_certificate:
+        from causalrl.certify.routines import msm_policy_value_bounds_certified
+
+        return msm_policy_value_bounds_certified(
+            outcomes, logging_propensities, target_propensities, gamma=gamma
+        )
     if gamma < 1.0:
         raise ValueError("gamma must be >= 1")
     y = np.asarray(outcomes, dtype=float)
@@ -192,10 +259,18 @@ def msm_contribution_bounds(
     if gamma < 1.0:
         raise ValueError("gamma must be >= 1")
     on = msm_policy_value_bounds(
-        outcomes, logging_propensities, target_propensities_on, gamma=gamma
+        outcomes,
+        logging_propensities,
+        target_propensities_on,
+        gamma=gamma,
+        return_certificate=False,
     )
     off = msm_policy_value_bounds(
-        outcomes, logging_propensities, target_propensities_off, gamma=gamma
+        outcomes,
+        logging_propensities,
+        target_propensities_off,
+        gamma=gamma,
+        return_certificate=False,
     )
     return Interval(on.lower - off.upper, on.upper - off.lower)
 
@@ -224,7 +299,7 @@ def msm_per_step_bounds(
         raise ValueError("rewards_by_step and propensities_by_step must have equal length")
     lower = upper = 0.0
     for r_t, e_t in zip(rewards_by_step, propensities_by_step, strict=True):
-        iv = ipw_sensitivity_bounds(r_t, e_t, gamma=gamma)
+        iv = ipw_sensitivity_bounds(r_t, e_t, gamma=gamma, return_certificate=False)
         lower += iv.lower
         upper += iv.upper
     return Interval(lower, upper)
@@ -259,7 +334,9 @@ def msm_stratified_bounds(
         mask = s == label
         if not bool(mask.any()):
             continue
-        iv = ipw_sensitivity_bounds(v[mask].tolist(), e[mask].tolist(), gamma=gamma)
+        iv = ipw_sensitivity_bounds(
+            v[mask].tolist(), e[mask].tolist(), gamma=gamma, return_certificate=False
+        )
         lower += w * iv.lower
         upper += w * iv.upper
     return Interval(lower, upper)

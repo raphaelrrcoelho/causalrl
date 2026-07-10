@@ -69,7 +69,7 @@ def compile_estimand(graph: CausalGraph, treatment: str, outcome: str) -> Estima
     implement (front-door / general ID).
     """
     estimand = identify_effect(
-        graph, [treatment], [outcome]
+        graph, [treatment], [outcome], return_certificate=False
     )  # NotIdentifiableError if unidentified
     try:
         adjustment = backdoor_adjustment_set(graph, treatment, outcome)

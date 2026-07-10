@@ -39,7 +39,8 @@ def identify_effect_certified(
     """
     treat = sorted(treatment)
     out = sorted(outcome)
-    estimand = identify_effect(graph, treat, out)  # raises NotIdentifiableError (witnessing hedge)
+    # raises NotIdentifiableError (witnessing hedge); return_certificate=False avoids the flip warn
+    estimand = identify_effect(graph, treat, out, return_certificate=False)
     return Certificate(
         claim=f"P({','.join(out)} | do({','.join(treat)})) is identified",
         estimand=EstimandSpec(query="do", target="mean", domains=tuple(out)),
@@ -60,7 +61,9 @@ def ipw_sensitivity_bounds_certified(
     outcomes: Sequence[float], propensities: Sequence[float], *, gamma: float
 ) -> Certificate:
     """`ipw_sensitivity_bounds` as a ``BOUNDED`` certificate (Tan MSM on ``E[Y(1)]``)."""
-    interval: Interval = ipw_sensitivity_bounds(outcomes, propensities, gamma=gamma)
+    interval: Interval = ipw_sensitivity_bounds(
+        outcomes, propensities, gamma=gamma, return_certificate=False
+    )
     return Certificate(
         claim=f"E[Y(1)] bounded under the marginal sensitivity model (gamma={gamma})",
         estimand=EstimandSpec(query="do", target="mean"),
@@ -84,7 +87,7 @@ def msm_policy_value_bounds_certified(
 ) -> Certificate:
     """`msm_policy_value_bounds` as a ``BOUNDED`` certificate (off-policy value under Tan MSM)."""
     interval: Interval = msm_policy_value_bounds(
-        outcomes, logging_propensities, target_propensities, gamma=gamma
+        outcomes, logging_propensities, target_propensities, gamma=gamma, return_certificate=False
     )
     return Certificate(
         claim=f"V(pi_t) bounded under the marginal sensitivity model (gamma={gamma})",
