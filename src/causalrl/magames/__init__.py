@@ -14,12 +14,15 @@ from causalrl.magames.population import (
     Population,
     topology_max_kind,
 )
+from causalrl.magames.views import PopulationAgentView, agent_causal_env_view
 
 __all__ = [
     "AgentType",
     "KindNotLicensedError",
     "LearnerTopology",
     "Population",
+    "PopulationAgentView",
+    "agent_causal_env_view",
     "certify_equilibrium",
     "topology_max_kind",
 ]
