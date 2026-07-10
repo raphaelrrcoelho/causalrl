@@ -18,10 +18,11 @@ is g-computation over their strata, renormalised over strata present in both sam
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from causalrl.certify.certificate import (
     Assumption,
@@ -32,12 +33,20 @@ from causalrl.certify.certificate import (
     Provenance,
     Witness,
 )
+from causalrl.estimate.sequential import OutcomeFactory, sequential_ice_values
 from causalrl.exceptions import NotIdentifiableError
 from causalrl.graphs import graph_hash
 from causalrl.identification.criteria import backdoor_adjustment_set
 from causalrl.identification.transport import SelectionDiagram, transport_formula
 
-__all__ = ["certify_transported_effect", "transport_gcomp"]
+__all__ = [
+    "certify_sequential_transport",
+    "certify_transported_effect",
+    "transport_gcomp",
+    "transport_sequential_gcomp",
+]
+
+FloatArray = NDArray[np.float64]
 
 
 def _strata_keys(data: Mapping[str, Any], z_vars: list[str]) -> list[tuple[int, ...]]:
@@ -172,6 +181,149 @@ def certify_transported_effect(
                 "selection": selection,
                 "formula": formula.expression,
             },
+        ),
+        hedge=None,
+        provenance=Provenance.create(graph_hash=graph_hash(diagram.graph)),
+    )
+
+
+def _stack_named(data: Mapping[str, Any], names: list[str]) -> FloatArray:
+    return np.column_stack([np.asarray(data[nm], dtype=np.float64) for nm in names])
+
+
+def transport_sequential_gcomp(
+    source_values: Sequence[float],
+    baseline_source: list[tuple[int, ...]],
+    baseline_target: list[tuple[int, ...]],
+) -> float:
+    """Reweight per-unit source ICE values to the target baseline marginal over discrete strata.
+
+    ``source_values[i]`` is a source unit's iterated-conditional-expectation policy value given its
+    baseline stratum ``baseline_source[i]``; averaging within stratum and reweighting by the target
+    stratum marginal transports the sequential policy value to the target baseline distribution.
+    Renormalises over shared strata. An empty baseline (no shift) reduces to the source mean.
+    """
+    sums: dict[tuple[int, ...], float] = {}
+    counts: dict[tuple[int, ...], int] = {}
+    for k, q in zip(baseline_source, source_values, strict=True):
+        sums[k] = sums.get(k, 0.0) + float(q)
+        counts[k] = counts.get(k, 0) + 1
+    target_counts = Counter(baseline_target)
+    n_target = len(baseline_target)
+    total = 0.0
+    weight = 0.0
+    for k, cnt in target_counts.items():
+        if k in counts:
+            p_z = cnt / n_target
+            total += (sums[k] / counts[k]) * p_z
+            weight += p_z
+    if weight == 0.0:
+        raise ValueError("no baseline strata shared between source and target samples")
+    return total / weight
+
+
+def _hedged_sequential(
+    diagram: SelectionDiagram, selection: list[str], horizon: int, *, reason: str
+) -> Certificate:
+    return Certificate(
+        claim=f"V*(pi) over horizon {horizon} refused: {reason}",
+        estimand=EstimandSpec(query="policy_value", target="mean", domains=("source", "target")),
+        kind=Kind.IDENTIFIED,
+        value=None,
+        alpha=None,
+        assumptions=(),
+        method="refused",
+        witness=None,
+        hedge=Hedge(
+            reason=reason,
+            detail={
+                "selection": selection,
+                "fallback": "transport_regret_certificate",
+                "note": (
+                    "sequential/policy-value transport is identified here only when the selection "
+                    "difference is confined to the baseline distribution"
+                ),
+            },
+        ),
+        provenance=Provenance.create(graph_hash=graph_hash(diagram.graph)),
+    )
+
+
+def certify_sequential_transport(
+    diagram: SelectionDiagram,
+    source_data: Mapping[str, Any],
+    target_data: Mapping[str, Any],
+    *,
+    stages: Sequence[Mapping[str, Any]],
+    outcome: str,
+    target_actions: Sequence[float],
+    alpha: float = 0.05,
+    outcome_model: OutcomeFactory | None = None,
+    policy: str = "pi",
+) -> Certificate:
+    """Certify a deterministic policy's transported finite-horizon value (hedge-first; §7.5).
+
+    ``stages[t]`` is ``{"history": (names...), "treatment": name}`` for stage ``t``;
+    ``target_actions`` gives a constant target action per stage. Sequential/policy-value transport
+    is research-grade, so this is **identified only in one subcase** — when the selection difference
+    is confined to the baseline distribution ``H_1`` (a population shift, downstream mechanisms
+    shared): the source sequential g-computation is reweighted to the target baseline marginal
+    (discrete baseline strata, as in :func:`certify_transported_effect`). Any selection node on a
+    time-varying covariate, treatment, or the outcome yields a **hedge** (I3), with
+    ``transport_regret_certificate`` the shipped floor. Sequential ignorability is recorded as a
+    non-checkable assumption.
+    """
+    if not stages:
+        raise ValueError("need at least one stage")
+    if len(target_actions) != len(stages):
+        raise ValueError("target_actions must have one action per stage")
+    baseline_vars = [str(v) for v in stages[0]["history"]]
+    selection = frozenset(diagram.selection_variables)
+    horizon = len(stages)
+
+    if not selection <= set(baseline_vars):
+        return _hedged_sequential(
+            diagram, sorted(selection), horizon, reason="non-transportable-sequential"
+        )
+
+    y_src = np.asarray(source_data[outcome], dtype=np.float64)
+    n_src = len(y_src)
+    histories = [_stack_named(source_data, list(s["history"])) for s in stages]
+    treatments = [np.asarray(source_data[s["treatment"]], dtype=np.float64) for s in stages]
+    tgt_actions = [np.full(n_src, float(a), dtype=np.float64) for a in target_actions]
+    q1 = sequential_ice_values(
+        histories, treatments, tgt_actions, y_src, outcome_model=outcome_model
+    )
+
+    if baseline_vars:
+        baseline_src = _strata_keys(source_data, baseline_vars)
+        baseline_tgt = _strata_keys(target_data, baseline_vars)
+    else:
+        n_tgt = len(np.asarray(target_data[outcome]))
+        baseline_src = [() for _ in range(n_src)]
+        baseline_tgt = [() for _ in range(n_tgt)]
+    value = transport_sequential_gcomp(q1.tolist(), baseline_src, baseline_tgt)
+
+    return Certificate(
+        claim=f"V*({policy}) over horizon {horizon} = {value:.4g}",
+        estimand=EstimandSpec(
+            query="policy_value", target="mean", policy=policy, domains=("source", "target")
+        ),
+        kind=Kind.IDENTIFIED,
+        value=value,
+        alpha=alpha,
+        assumptions=(
+            Assumption("sequential-ignorability", {"horizon": horizon}, checkable=False),
+            Assumption(
+                "selection-diagram",
+                {"selection": sorted(selection), "scope": "baseline-only"},
+                checkable=True,
+            ),
+        ),
+        method="sequential-transport-gcomp",
+        witness=Witness(
+            kind="sequential-baseline-transport",
+            detail={"baseline": baseline_vars, "selection": sorted(selection), "horizon": horizon},
         ),
         hedge=None,
         provenance=Provenance.create(graph_hash=graph_hash(diagram.graph)),

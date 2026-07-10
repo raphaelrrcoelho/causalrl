@@ -144,6 +144,11 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "cqr_interval": ("causalrl.conformal.core", "cqr_interval"),
     "certify_conformal_interval": ("causalrl.conformal.core", "certify_conformal_interval"),
     "certify_transported_effect": ("causalrl.transport.estimate", "certify_transported_effect"),
+    "certify_sequential_transport": (
+        "causalrl.transport.estimate",
+        "certify_sequential_transport",
+    ),
+    "sequential_ice_values": ("causalrl.estimate.sequential", "sequential_ice_values"),
     "MLPMechanism": ("causalrl.scm.continuous.mechanisms", "MLPMechanism"),
     "LocationScaleMechanism": ("causalrl.scm.continuous.mechanisms", "LocationScaleMechanism"),
     "ConditionalFlowMechanism": (
@@ -344,6 +349,7 @@ __all__ = [
     "certify_policy",
     "certify_quantile",
     "certify_sensitivity_bounds",
+    "certify_sequential_transport",
     "certify_sequential_value",
     "certify_transported_effect",
     "conditional_mutual_information",
@@ -409,6 +415,7 @@ __all__ = [
     "run_confounded_chain_benchmark",
     "run_episodes",
     "run_frontdoor_benchmark",
+    "sequential_ice_values",
     "split_conformal_interval",
     "tipping_gamma",
     "transport_estimand",

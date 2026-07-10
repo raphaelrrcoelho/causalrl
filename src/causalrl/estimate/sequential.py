@@ -51,6 +51,7 @@ __all__ = [
     "SequentialValueEstimate",
     "certify_sequential_value",
     "estimate_sequential_value",
+    "sequential_ice_values",
 ]
 
 FloatArray = NDArray[np.float64]
@@ -213,6 +214,30 @@ def _gcomp(
         m = outcome_factory().fit(_with_action(h, a), q)
         q = _predict(m, _with_action(h, a_pi))
     return q
+
+
+def sequential_ice_values(
+    histories: Sequence[object],
+    treatments: Sequence[object],
+    target_actions: Sequence[object],
+    outcome: object,
+    *,
+    outcome_model: OutcomeFactory | None = None,
+) -> FloatArray:
+    """Per-unit iterated-conditional-expectation values ``q_1(H_1^i)`` under the target policy.
+
+    The g-computation backbone shared by :func:`estimate_sequential_value` (``gcomp``) and the
+    identified sequential-transport subcase: the per-unit conditional policy value given the
+    baseline history, *before* averaging — so a downstream caller may re-average it over a
+    different (e.g. transported) baseline distribution.
+    """
+    hist = [_as2d(h) for h in histories]
+    treat = [np.asarray(a, dtype=np.float64) for a in treatments]
+    target = [np.asarray(a, dtype=np.float64) for a in target_actions]
+    y = np.asarray(outcome, dtype=np.float64)
+    _check_shapes(hist, treat, target, y)
+    of = outcome_model or _default_outcome
+    return _gcomp(hist, treat, target, y, outcome_factory=of)
 
 
 def _fingerprint(outcome: FloatArray, treatments: Sequence[FloatArray]) -> str:
