@@ -48,10 +48,12 @@ class InvertibleMechanism(Protocol):
     """A mechanism whose scalar exogenous noise is recoverable in closed form.
 
     Both :class:`~causalrl.scm.continuous.mechanisms.LocationScaleMechanism` and
-    :class:`~causalrl.scm.continuous.mechanisms.ConditionalFlowMechanism` satisfy this.
+    :class:`~causalrl.scm.continuous.mechanisms.ConditionalFlowMechanism` satisfy this. The parent
+    argument is a concrete ``dict`` (matching those mechanisms' ``invert`` signatures — a protocol
+    method parameter is contravariant, so a ``Mapping`` here would exclude a ``dict`` implementer).
     """
 
-    def invert(self, parent_values: Mapping[str, Tensor], observed: Tensor) -> Tensor: ...
+    def invert(self, parent_values: dict[str, Tensor], observed: Tensor) -> Tensor: ...
 
 
 def _fit_n(t: Tensor, n: int) -> Tensor:

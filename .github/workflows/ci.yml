@@ -70,5 +70,7 @@ jobs:
           python-version: "3.11"
       - name: Sync dependencies (with the numpyro extra)
         run: uv sync --extra dev --extra numpyro
+      - name: Verify NumPyro / JAX import (fail loudly, never silently skip)
+        run: uv run --no-sync python -c "import numpyro, jax; print('numpyro', numpyro.__version__, 'jax', jax.__version__)"
       - name: NUTS abduction tests
-        run: uv run pytest tests/test_scm_nuts.py -v --no-cov
+        run: uv run --no-sync pytest tests/test_scm_nuts.py -v --no-cov
