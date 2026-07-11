@@ -12,9 +12,11 @@ whether the long-run unrolled ``do`` converges to the equilibrium ``do`` and ret
   yet converged at the chosen horizon;
 * **EMPIRICAL** with the solvability hedge when there is no unique equilibrium to compare against.
 
-The unrolled side reuses the shipped :func:`causalrl.scm.unrolled.build_unrolled_scm` (imported
-lazily, since it pulls in the optional torch backend); the equilibrium side and all certificate
-logic are pure NumPy.
+The unrolled side is computed directly as the linear mean dynamics ``x_{k+1} = B x_k + E[u]`` from
+``x_0 = 0``. (The shipped :func:`~causalrl.scm.unrolled.build_unrolled_scm` is scalar-per-node --
+its ``StructuralCausalModel`` reshapes every node to one scalar per unit -- so it cannot represent a
+multi-variable vector state in a single unrolled chain; the direct dynamics are the same object.)
+Everything here is pure NumPy.
 """
 
 from __future__ import annotations
@@ -32,7 +34,6 @@ from causalrl.certify.certificate import (
     Provenance,
     Witness,
 )
-from causalrl.experimental.cyclic._unroll import unrolled_state_mean
 from causalrl.experimental.cyclic.scm import FloatArray, LinearCyclicSCM
 
 _METHOD = "compare_equilibrium_unrolling"
@@ -59,13 +60,28 @@ def compare_equilibrium_unrolling(
     tol:
         Sup-norm gap below which the unrolled and equilibrium means are deemed converged.
     seed:
-        Seed threaded into the unrolled sampler and the provenance record.
+        Seed recorded in the provenance.
     """
     equilibrium = scm.solve(do=do)
     if not equilibrium.solved:
         return _no_equilibrium_certificate(equilibrium.hedge, seed)
-    unrolled_mean = unrolled_state_mean(scm, do, horizon, seed)
+    unrolled_mean = _unrolled_state_mean(scm, do, horizon)
     return _convergence_certificate(scm, do, equilibrium.mean, unrolled_mean, horizon, tol, seed)
+
+
+def _unrolled_state_mean(
+    scm: LinearCyclicSCM, do: Mapping[str, float] | None, horizon: int
+) -> FloatArray:
+    """Mean of the unrolled state after ``horizon`` steps of ``x_{k+1} = B x_k + E[u]`` from 0.
+
+    The exact linear mean dynamics of the (do-intervened) system; for a contractive system it
+    converges to the equilibrium ``(I - B)^{-1} E[u]``.
+    """
+    intervened = scm.intervene(do) if do else scm
+    state: FloatArray = np.zeros(intervened.dim)
+    for _ in range(horizon):
+        state = intervened.coefficients @ state + intervened.noise_mean
+    return state
 
 
 def _convergence_certificate(

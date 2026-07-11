@@ -28,8 +28,8 @@ them. Fully additive; nothing in the stable public API imports it.
   via the spectral radius; `do` cuts incoming edges and pins the node; `context` pins exogenous noise.
 - **`compare_equilibrium_unrolling`** — does the long-run unrolled `do()` converge to the
   equilibrium `do()`? Returns a `Certificate`: `IDENTIFIED` for contractive linear systems (with the
-  measured gap), `EMPIRICAL`/hedged otherwise. The unrolled side reuses the shipped
-  `build_unrolled_scm`.
+  measured gap), `EMPIRICAL`/hedged otherwise. The unrolled side is the exact linear mean dynamics
+  `x_{k+1} = B x_k + E[u]`.
 
 ## [2.0.0] - 2026-07-10
 

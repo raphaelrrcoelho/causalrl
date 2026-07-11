@@ -279,8 +279,9 @@ until promoted out of `experimental/` (plan §11, §14, §15). Nothing in the st
   `do` cuts incoming edges + pins, `context` pins exogenous noise.
 - **`comparator.py` (§11)** — `compare_equilibrium_unrolling` → `Certificate`: `IDENTIFIED` when the
   intervened system is contractive (unrolling provably converges; measured gap confirms), else
-  `EMPIRICAL`/hedged. The unrolled side reuses the shipped `build_unrolled_scm`, isolated in the
-  pragma-relaxed `_unroll.py` so the pure-numpy certificate logic stays strictly type-checked; that
-  torch path is verified by torch-gated end-to-end tests on the main matrix.
-- **CI** — no new lane: the numpy core runs on the main matrix, and the torch comparator path runs
-  there too (the main matrix installs torch). Experimental modules are not in the top-level API.
+  `EMPIRICAL`/hedged. The unrolled side is the exact linear mean dynamics `x_{k+1} = B x_k + E[u]`.
+  (The shipped `build_unrolled_scm`'s `StructuralCausalModel` is scalar-per-node — it reshapes every
+  node to one scalar per unit — so it cannot hold a multi-variable vector state in one unrolled
+  chain; the direct dynamics are the same object and keep the module pure-numpy.)
+- **CI** — no new lane: the whole package is pure numpy and runs on the main matrix. Experimental
+  modules are not in the top-level API.

@@ -1,8 +1,6 @@
 """Equilibrium-vs-unrolling comparator (plan §11: contraction agreement, empirical/hedge otherwise).
 
-The certificate logic is pure NumPy and tested directly. The end-to-end path reuses the shipped
-torch-backed ``build_unrolled_scm``; those tests are skipped where the optional backend is absent
-(they run on the main CI matrix, which installs torch) and assert it matches the NumPy unrolling.
+The unrolled side is the exact linear mean dynamics (pure NumPy), so every test runs everywhere.
 """
 
 from __future__ import annotations
@@ -13,17 +11,6 @@ import pytest
 from causalrl.certify.certificate import Certificate, Kind
 from causalrl.experimental.cyclic import LinearCyclicSCM, compare_equilibrium_unrolling
 from causalrl.experimental.cyclic.comparator import _convergence_certificate
-
-
-def _torch_backend_available() -> bool:
-    try:
-        import torch.nn  # noqa: F401
-    except Exception:
-        return False
-    return True
-
-
-_TORCH_OK = _torch_backend_available()
 
 
 def _feedback_scm() -> LinearCyclicSCM:
@@ -89,19 +76,17 @@ def test_certificate_serializes() -> None:
     assert restored.value == pytest.approx(cert.value)
 
 
-@pytest.mark.skipif(not _TORCH_OK, reason="requires the torch backend (build_unrolled_scm)")
-def test_end_to_end_shipped_unroller_reaches_the_equilibrium() -> None:
+def test_end_to_end_reaches_the_equilibrium() -> None:
     scm = _feedback_scm()
     cert = compare_equilibrium_unrolling(scm, horizon=400, tol=1e-3, seed=0)
     assert cert.kind is Kind.IDENTIFIED
     assert cert.value is not None and cert.value < 1e-3
-    from causalrl.experimental.cyclic._unroll import unrolled_state_mean
+    # the unrolled mean converges to the closed-form equilibrium [8/3, 10/3]
+    assert cert.witness is not None
+    got = cert.witness.detail["unrolled_mean"]
+    np.testing.assert_allclose(got, [8.0 / 3.0, 10.0 / 3.0], atol=1e-3)
 
-    shipped = unrolled_state_mean(scm, None, 400, 0)
-    np.testing.assert_allclose(shipped, _numpy_unrolled_mean(scm, None, 400), atol=1e-5)
 
-
-@pytest.mark.skipif(not _TORCH_OK, reason="requires the torch backend (build_unrolled_scm)")
 def test_end_to_end_under_intervention() -> None:
     scm = _feedback_scm()
     cert = compare_equilibrium_unrolling(scm, do={"x0": 5.0}, horizon=400, tol=1e-3, seed=1)
