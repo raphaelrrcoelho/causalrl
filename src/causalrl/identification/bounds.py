@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Literal, NamedTuple, overload
 
 import numpy as np
 
-from causalrl._deprecation import warn_certificate_default_flip
 from causalrl.data.dataset import ConfoundedTrajectoryDataset
 from causalrl.exceptions import NotIdentifiableError
 
@@ -106,7 +105,7 @@ def ipw_sensitivity_bounds(
     propensities: Sequence[float],
     *,
     gamma: float,
-    return_certificate: Literal[True],
+    return_certificate: Literal[True] | None = ...,
 ) -> Certificate: ...
 @overload
 def ipw_sensitivity_bounds(
@@ -114,7 +113,7 @@ def ipw_sensitivity_bounds(
     propensities: Sequence[float],
     *,
     gamma: float,
-    return_certificate: Literal[False] | None = ...,
+    return_certificate: Literal[False],
 ) -> Interval: ...
 def ipw_sensitivity_bounds(
     outcomes: Sequence[float],
@@ -137,12 +136,12 @@ def ipw_sensitivity_bounds(
     (JASA 2006) and Q. Zhao, D. Small, B. Bhattacharya, *Sensitivity Analysis for Inverse
     Probability Weighting Estimators via the Percentile Bootstrap* (JRSS-B 2019). No code is ported.
 
-    ``return_certificate`` (I9 deprecation): leave unset for the current :class:`Interval` plus a
-    ``FutureWarning`` that causalrl 2.0 will return a ``BOUNDED`` :class:`Certificate` by default;
-    pass ``False`` to keep the :class:`Interval` silently, or ``True`` for the certificate now.
+    ``return_certificate`` (2.0 default): returns a ``BOUNDED`` :class:`Certificate`; pass ``False``
+    for the legacy :class:`Interval`, or ``True`` (equivalently, the ``*_certified`` variant) to be
+    explicit.
     """
     if return_certificate is None:
-        warn_certificate_default_flip("ipw_sensitivity_bounds", "ipw_sensitivity_bounds_certified")
+        return_certificate = True  # causalrl 2.0: return a Certificate by default
     if return_certificate:
         from causalrl.certify.routines import ipw_sensitivity_bounds_certified
 
@@ -167,7 +166,7 @@ def msm_policy_value_bounds(
     target_propensities: Sequence[float],
     *,
     gamma: float,
-    return_certificate: Literal[True],
+    return_certificate: Literal[True] | None = ...,
 ) -> Certificate: ...
 @overload
 def msm_policy_value_bounds(
@@ -176,7 +175,7 @@ def msm_policy_value_bounds(
     target_propensities: Sequence[float],
     *,
     gamma: float,
-    return_certificate: Literal[False] | None = ...,
+    return_certificate: Literal[False],
 ) -> Interval: ...
 def msm_policy_value_bounds(
     outcomes: Sequence[float],
@@ -204,14 +203,12 @@ def msm_policy_value_bounds(
     Infinite-Horizon Reinforcement Learning* (NeurIPS 2020). The caller supplies ``pi_t`` and the
     nominal ``e0``; no code is ported.
 
-    ``return_certificate`` (I9 deprecation): leave unset for the current :class:`Interval` plus a
-    ``FutureWarning`` that causalrl 2.0 will return a ``BOUNDED`` :class:`Certificate` by default;
-    pass ``False`` to keep the :class:`Interval` silently, or ``True`` for the certificate now.
+    ``return_certificate`` (2.0 default): returns a ``BOUNDED`` :class:`Certificate`; pass ``False``
+    for the legacy :class:`Interval`, or ``True`` (equivalently, the ``*_certified`` variant) to be
+    explicit.
     """
     if return_certificate is None:
-        warn_certificate_default_flip(
-            "msm_policy_value_bounds", "msm_policy_value_bounds_certified"
-        )
+        return_certificate = True  # causalrl 2.0: return a Certificate by default
     if return_certificate:
         from causalrl.certify.routines import msm_policy_value_bounds_certified
 

@@ -134,11 +134,6 @@ omit = ["*/scm/continuous/nuts.py", "*/backends/jax/*"]
 [tool.pytest.ini_options]
 addopts = "-q --cov=causalrl --cov-report=term-missing"
 testpaths = ["tests"]
-filterwarnings = [
-    # The pre-2.0 certificate-default-flip FutureWarning (I9) is expected across the suite; it is
-    # asserted explicitly in tests/test_deprecation.py. Silence just that message elsewhere.
-    "ignore:In causalrl .* will return a Certificate:FutureWarning",
-]
 
 [dependency-groups]
 dev = [
