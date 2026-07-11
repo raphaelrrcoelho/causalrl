@@ -41,6 +41,11 @@ d3rlpy, or an arbitrary simulator — drive the certificate layer. See `docs/mig
 - **Docs**: five runnable, CI-executed task guides (`examples/guides/`), a 2.0 migration guide, an
   assumption glossary, an expanded API reference, and a JOSS paper draft. Dedicated CI lanes verify
   the fresh install of the `[scale]` and `[interop]` extras.
+- **Generality lint** (§12.4 / invariant I7): `tools/generality_lint.py` scans the public surface of
+  `src/causalrl` — identifiers (camel/snake sub-tokens) and docstrings (whole words) — against a
+  seed application-domain-noun denylist and fails CI on any leak, keeping the core domain-agnostic.
+  Runs as a dedicated `generality` CI lane and inside the main test matrix
+  (`tests/test_generality_lint.py`). Completes the v2.0 Definition-of-Done ("generality lint active").
 
 ## [1.7.0] - 2026-07-10
 

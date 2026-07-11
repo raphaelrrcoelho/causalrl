@@ -149,3 +149,18 @@ jobs:
           tests/test_interop_example_smoke.py
           --deselect "tests/test_interop_example_smoke.py::test_interop_example_runs[interop_econml_certify.py]"
           --no-cov
+
+  generality:
+    # Generality lint (§12.4 / invariant I7): no application-domain noun may leak into the public
+    # surface of src/causalrl (identifiers or docstrings). Pure stdlib, so it runs in an isolated
+    # interpreter with no project sync. Also enforced inside the main matrix by
+    # tests/test_generality_lint.py; this lane is the explicit, standalone §12.4 CI scan.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.11"
+      - name: Generality lint (domain-noun scan of the public core)
+        run: uv run --no-project --python 3.11 python tools/generality_lint.py

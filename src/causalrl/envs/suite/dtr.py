@@ -11,9 +11,9 @@ _TERMINAL = 2
 class DTREnv(ConfoundedMDP):
     """Confounded (single-stage) dynamic treatment regime.
 
-    A patient subtype ``Z ~ Bernoulli(0.5)`` is OBSERVED by the agent (the state). An
-    unobserved comorbidity ``U ~ Bernoulli(0.5)`` is hidden from the agent but drives the
-    logging clinician's treatment choice. The agent picks a treatment ``a in {0, 1}`` and
+    A context subtype ``Z ~ Bernoulli(0.5)`` is OBSERVED by the agent (the state). An
+    unobserved confounder ``U ~ Bernoulli(0.5)`` is hidden from the agent but drives the
+    logging policy's treatment choice. The agent picks a treatment ``a in {0, 1}`` and
     receives a Bernoulli reward whose success probability depends on ``(Z, a, U)``.
 
     state = 0 / 1 : observed subtype Z
@@ -22,8 +22,8 @@ class DTREnv(ConfoundedMDP):
 
     The reward table is chosen so that:
     - the do-optimal policy is a = Z (matched treatment), with average value 0.75;
-    - the confounder U inflates the apparent reward of treatment 1, so a clinician who
-      follows U over-prescribes treatment 1. In the resulting confounded logs, treatment 1
+    - the confounder U inflates the apparent reward of treatment 1, so a logging policy that
+      follows U over-selects treatment 1. In the resulting confounded logs, treatment 1
       looks best for BOTH subtypes, so a naive offline learner picks a = 1 everywhere and is
       WRONG for subtype Z = 0 (true value 0.55 vs the optimal 0.70) — average value 0.675.
 

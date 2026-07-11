@@ -254,3 +254,8 @@ any external stack can drive the certificate layer. All additive pieces are nump
   `interop` py3.11 lanes prove the fresh install of those extras resolves and imports (the adapters
   are also mock-tested on the main matrix). d3rlpy/dowhy/econml resolve in the universal lock
   alongside numpy 2.x, so a locked `uv sync --extra scale/interop` installs without re-resolving.
+- **Generality lint (§12.4 / I7)** — `tools/generality_lint.py` scans the public surface of
+  `src/causalrl` (identifiers via camel/snake sub-tokens; docstrings via whole words) against a seed
+  domain-noun denylist and fails CI on any leak — a dedicated `generality` lane plus the main-matrix
+  `tests/test_generality_lint.py`. Completes the v2.0 Definition-of-Done ("generality lint active");
+  the one prior leak (a `dtr.py` docstring) was de-domained to abstract causal-inference terms.
