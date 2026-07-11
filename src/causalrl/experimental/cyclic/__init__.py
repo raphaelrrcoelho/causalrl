@@ -20,6 +20,7 @@ outside causalrl's semver guarantees until promoted out of ``experimental/`` (pl
 
 from __future__ import annotations
 
+from causalrl.experimental.cyclic.comparator import compare_equilibrium_unrolling
 from causalrl.experimental.cyclic.graph import CyclicCausalGraph
 from causalrl.experimental.cyclic.scm import (
     CyclicSolution,
@@ -33,5 +34,6 @@ __all__ = [
     "CyclicSolution",
     "CyclicSolveError",
     "LinearCyclicSCM",
+    "compare_equilibrium_unrolling",
     "sigma_separated",
 ]
