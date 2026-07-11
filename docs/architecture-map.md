@@ -259,3 +259,29 @@ any external stack can drive the certificate layer. All additive pieces are nump
   domain-noun denylist and fails CI on any leak — a dedicated `generality` lane plus the main-matrix
   `tests/test_generality_lint.py`. Completes the v2.0 Definition-of-Done ("generality lint active");
   the one prior leak (a `dtr.py` docstring) was de-domained to abstract causal-inference terms.
+
+## 14. Phase 5 — experimental cyclic SCMs (v2.1.0, 2.x-experimental track)
+
+`causalrl.experimental.cyclic` — a first, **experimental** layer for cyclic (feedback) SCMs,
+restricted to documented solvable classes and hedging outside them. Not API-frozen; outside semver
+until promoted out of `experimental/` (plan §11, §14, §15). Nothing in the stable API imports it.
+
+- **`graph.py` (§11)** — `CyclicCausalGraph`: a directed graph that may contain cycles (SCC
+  structure, `is_acyclic`, no acyclicity constraint) plus `acyclification()` — the Forré-Mooij ADMG
+  in which each SCC is a bidirected clique and external parents are lifted onto every SCC member.
+- **`separation.py` (§11)** — `sigma_separated` computes σ-separation as m-separation of the
+  acyclification, delegating to the shipped `identification._separation.d_separated`. On a DAG the
+  acyclification is the identity, so **σ/d coincidence holds by construction** (tested over random
+  DAGs + latents; the plan's σ/d acceptance).
+- **`scm.py` (§11)** — `LinearCyclicSCM` (`x = B x + u`, Gaussian noise): `solve` / `sample` return
+  the reduced-form equilibrium when `I-B` is invertible, else a typed `Hedge` / `CyclicSolveError`
+  (I3 — never an arbitrary solution). Solvability via det/SVD; contractivity via spectral radius;
+  `do` cuts incoming edges + pins, `context` pins exogenous noise.
+- **`comparator.py` (§11)** — `compare_equilibrium_unrolling` → `Certificate`: `IDENTIFIED` when the
+  intervened system is contractive (unrolling provably converges; measured gap confirms), else
+  `EMPIRICAL`/hedged. The unrolled side is the exact linear mean dynamics `x_{k+1} = B x_k + E[u]`.
+  (The shipped `build_unrolled_scm`'s `StructuralCausalModel` is scalar-per-node — it reshapes every
+  node to one scalar per unit — so it cannot hold a multi-variable vector state in one unrolled
+  chain; the direct dynamics are the same object and keep the module pure-numpy.)
+- **CI** — no new lane: the whole package is pure numpy and runs on the main matrix. Experimental
+  modules are not in the top-level API.

@@ -5,6 +5,32 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-07-11
+
+Phase 5 — experimental cyclic SCM support. Feedback systems (control loops, coupled steady states)
+are *cyclic* SCMs; the core is acyclic-only. This minor adds a first, **experimental** cyclic layer
+under `causalrl.experimental.cyclic`, restricted to documented solvable classes and hedging outside
+them. Fully additive; nothing in the stable public API imports it.
+
+> **Stability:** `causalrl.experimental.cyclic` is on the 2.x-experimental track — not API-frozen
+> and **outside causalrl's semver guarantees** until promoted out of `experimental/`. Import paths
+> and signatures may change in any minor.
+
+### Added (experimental)
+- **`CyclicCausalGraph`** — a directed graph that may contain cycles, carrying its
+  strongly-connected-component structure and the Forré-Mooij *acyclification*.
+- **`sigma_separated`** — σ-separation, the Markov property for cyclic graphs (Forré & Mooij;
+  Bongers et al.). Computed by acyclification and delegated to the shipped d-separation, so it
+  **coincides with d-separation on acyclic graphs by construction** (verified over random DAGs).
+- **`LinearCyclicSCM`** — a linear cyclic SCM `x = B x + u`. `solve` / `sample` return the
+  reduced-form equilibrium `N((I-B)⁻¹μ, (I-B)⁻¹Σ(I-B)⁻ᵀ)` when `I-B` is invertible, and a **typed
+  hedge** (never an arbitrary solution) when it is singular. Solvability via det/SVD; contractivity
+  via the spectral radius; `do` cuts incoming edges and pins the node; `context` pins exogenous noise.
+- **`compare_equilibrium_unrolling`** — does the long-run unrolled `do()` converge to the
+  equilibrium `do()`? Returns a `Certificate`: `IDENTIFIED` for contractive linear systems (with the
+  measured gap), `EMPIRICAL`/hedged otherwise. The unrolled side is the exact linear mean dynamics
+  `x_{k+1} = B x_k + E[u]`.
+
 ## [2.0.0] - 2026-07-10
 
 Phase 4 — interop & the 2.0 flip: the first stable major. **One breaking change** (announced by a
