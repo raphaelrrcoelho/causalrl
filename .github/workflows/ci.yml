@@ -56,6 +56,14 @@ jobs:
         run: uv run pytest --nbmake --no-cov examples/
       - name: Smoke-test CGFA-PPO example
         run: uv run python examples/cgfa_ppo_example.py
+      - name: Run the five 2.0 task guides (§10 acceptance)
+        run: |
+          for guide in examples/guides/*.py; do
+            echo "== $guide =="
+            uv run python "$guide"
+          done
+      - name: Smoke-test the columnar-simulator worked example
+        run: uv run python examples/columnar_sim_example.py
 
   nuts:
     # Dedicated lane for the optional NUTS/NumPyro abduction backend (§7.1). Isolated on py3.11
@@ -97,3 +105,37 @@ jobs:
         run: uv run --python 3.11 --no-sync python -c "import sys, jax; print(sys.version.split()[0], 'jax', jax.__version__)"
       - name: JAX backend parity + determinism tests
         run: uv run --python 3.11 --no-sync pytest tests/test_backends_jax.py -v --no-cov
+
+  scale:
+    # Fresh-install smoke for the [scale] extra (d3rlpy) on py3.11 (§10 acceptance: +scale green).
+    # The RL stack has no py3.14 wheels; the adapter is duck-typed and also tested (mocked) on the
+    # main matrix, so this lane proves the fresh install resolves and imports.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.11"
+      - name: Sync dependencies (py3.11 + the scale extra)
+        run: uv sync --python 3.11 --extra dev --extra scale
+      - name: Verify d3rlpy install + adapter import
+        run: uv run --python 3.11 --no-sync python -c "import d3rlpy, causalrl.scale.d3rlpy; print('d3rlpy', d3rlpy.__version__)"
+      - name: Scale adapter tests (with the real d3rlpy present)
+        run: uv run --python 3.11 --no-sync pytest tests/test_scale_bridge.py tests/test_scale_certify_policy.py tests/test_scale_d3rlpy_deep.py tests/test_scale_example_smoke.py --no-cov
+
+  interop:
+    # Fresh-install smoke for the [interop] extra (DoWhy/EconML) on py3.11 (§10: +interop green).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.11"
+      - name: Sync dependencies (py3.11 + the interop extra)
+        run: uv sync --python 3.11 --extra dev --extra interop
+      - name: Verify DoWhy/EconML install + adapter imports
+        run: uv run --python 3.11 --no-sync python -c "import dowhy, econml, causalrl.interop.sbi_numpyro, causalrl.interop.columnar_sim; print('interop OK')"
+      - name: Interop adapter tests (with the real DoWhy/EconML present)
+        run: uv run --python 3.11 --no-sync pytest tests/test_interop_dowhy.py tests/test_interop_econml.py tests/test_interop_sbi_numpyro.py tests/test_interop_columnar_sim.py tests/test_interop_example_smoke.py --no-cov

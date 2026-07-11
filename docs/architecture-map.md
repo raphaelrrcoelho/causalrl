@@ -225,3 +225,32 @@ core; the JAX backend is an optional accelerated mirror whose only hard duty is 
   `bench_causal_core.py` guards (874× MSM, exact known-noise CF) are untouched. **CI reality (§7)
   unchanged**: main matrix on numpy+data; the JAX backend is verified only on its own lane; local
   py3.14 env cannot install JAX, so the `jax` lane is the sole truth for `backends/jax/*`.
+
+## 13. Phase 4 — interop & the 2.0 flip (v2.0.0)
+
+The first stable major: one breaking change (the certificate-default flip) plus additive interop so
+any external stack can drive the certificate layer. All additive pieces are numpy/pure-Python.
+
+- **The 2.0 flip (§10, BREAKING)** — `identify_effect` / `ipw_sensitivity_bounds` /
+  `msm_policy_value_bounds` return a `Certificate` by default (`return_certificate` unset); pass
+  `return_certificate=False` for the legacy `Estimand` / `Interval`. The `@overload`s flipped so
+  `None` types as the certificate; the pre-2.0 `FutureWarning` and `_deprecation.py` are removed.
+  Validation/errors still propagate on the default path (the `*_certified` variants delegate with
+  `return_certificate=False`), and all 12 internal callers already opt out — so only the default
+  return type changed. `test_certificate_default.py` pins the new default + byte-stability; the
+  shipped tests' value-consuming bare calls were migrated to `return_certificate=False`.
+- **`interop/sbi_numpyro.py` (§10)** — `regimes_from_posterior` / `PosteriorRegimeSampler` /
+  `across_regimes` + duck-typed `regimes_from_numpyro` / `regimes_from_sbi_posterior` (neither
+  numpyro nor sbi imported). Pure numpy.
+- **`interop/columnar_sim.py` (§10)** — `ColumnarSimulator` / `simulator_from_callables` /
+  `check_conformance`: the emit-a-`TrajectoryLog` contract, a reference `CausalEnvProtocol` adapter
+  over row-emitting callables. Worked example `examples/columnar_sim_example.py`.
+- **`scale/d3rlpy.py` (§10)** — both-direction `TrajectoryLog` ↔ `MDPDataset` bridges,
+  `policy_actions`, `certify_fqe` (`EMPIRICAL`), and the `as_certificate` retarget of
+  `certify_policy`. d3rlpy stays lazy; `certify_fqe` / `policy_actions` never import it.
+- **Docs (§10)** — five CI-executed task guides (`examples/guides/`), `docs/migration-2.0.md`,
+  `docs/assumptions.md`, `docs/guides.md`, an expanded `api.md`, and `paper/paper.md`.
+- **CI** — the `notebooks` lane runs the five guides + the columnar-sim example; new `scale` and
+  `interop` py3.11 lanes prove the fresh install of those extras resolves and imports (the adapters
+  are also mock-tested on the main matrix). d3rlpy/dowhy/econml resolve in the universal lock
+  alongside numpy 2.x, so a locked `uv sync --extra scale/interop` installs without re-resolving.
