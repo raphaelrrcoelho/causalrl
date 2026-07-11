@@ -5,6 +5,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-07-10
+
+Phase 3 — scale & data plane: the same certificates at simulator scale. Single-pass streaming
+estimators run over columnar `TrajectoryLog`s (in memory or streamed from Parquet) without
+materialising the log, and an optional JAX backend mirrors the NumPy numerics for vectorised
+sampling and kernels. Fully additive; every new routine returns a unified `Certificate`. No new
+required dependencies — the JAX backend is an isolated optional extra, and the NumPy streaming core
+is the always-tested default.
+
+### Added
+- **Streaming sufficient statistics** (§9): `causalrl.backends.streaming.StreamingMoments`
+  (Chan parallel-merge running count/mean/variance) and `WeightedStreamingRatio` (self-normalised
+  Hájek weighted mean with a one-pass influence-function SE and a Kish-ESS overlap diagnostic).
+  Mergeable and order-independent; exact agreement with one-shot NumPy.
+- **Streaming quantile sketch** (§9): `causalrl.backends.quantile_sketch.GKQuantileSketch` — a
+  Greenwald-Khanna ε-approximate summary answering quantiles within a hard `ε·n` rank-error bound
+  (exposed as `error_bound` and recorded in certificate provenance, I8) in sub-linear space;
+  mergeable with the ε guarantee preserved.
+- **Streaming certificate kernels** (§9): `stream_policy_value` (self-normalised importance-sampling
+  off-policy value with a CI and an effective-sample-size overlap hedge, I3), `stream_msm_bounds`
+  (streamed columns → exact Tan closed form → a `BOUNDED` certificate of `E[Y(1)]`), and
+  `stream_quantile_certificate` (tail/quantile targets via the GK sketch). Each consumes a
+  `TrajectoryLog` or a Parquet log streamed batch-by-batch. Lazily exported from the top level.
+- **Columnar streaming helpers** (§9): `TrajectoryLog.sorted_by_key` and `iter_parquet_batches`, and
+  a shared `causalrl.data.streaming_join.KeyJoiner` that joins a decision's cells across batches with
+  an O(1) carry-over buffer for key-sorted logs. End-to-end acceptance demo: a Phase-2 population env
+  → Parquet → a streamed OPE certificate that recovers the Monte-Carlo ground truth within its CI.
+- **JAX scale backend** (§9, optional `[jax]` extra): `causalrl.backends.jax` —
+  `vmap_sample_linear_gaussian` (vmapped SCM sampling under explicit PRNG keys),
+  `batched_do_linear_gaussian` (`do()` over an intervention grid), and `ipw_value_jax` mirroring the
+  NumPy accumulator. `get_namespace` gains duck-typed JAX dispatch (never imports JAX unless handed a
+  JAX array). Identical seeds ⇒ identical results across NumPy and JAX within tolerance (the
+  determinism/parity acceptance). Isolated on a dedicated py3.11 CI lane and coverage-omitted, so it
+  cannot destabilise the default matrix (JAX ships no py3.14 wheels).
+- **Benchmark guard**: `benchmarks/bench_streaming.py` asserts streaming↔one-shot exactness, the
+  sketch ε bound, and end-to-end streamed-OPE correctness, and reports throughput (hard-fail on a
+  >2× relative regression). The shipped 874× MSM / exact-counterfactual guards are untouched.
+
 ## [1.6.0] - 2026-07-10
 
 Phase 2 — the multi-agent core: first-class multi-agent causal decision problems built on the shipped
