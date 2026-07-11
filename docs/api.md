@@ -207,3 +207,57 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 ::: causalrl.identification.bounds.mi_flip_threshold
 
 ::: causalrl.identification.bounds.tipping_gamma
+
+## Unified Certificates (§5.2)
+
+::: causalrl.certify.certificate.Certificate
+
+::: causalrl.certify.adapters.as_certificate
+
+## Identification-Aware Estimation (Phase 1)
+
+::: causalrl.estimate.compiler.certify_effect
+
+::: causalrl.bounds.continuous.msm_sensitivity_bounds
+
+::: causalrl.bounds.continuous.certify_mean
+
+::: causalrl.transport.estimate.certify_transported_effect
+
+## Multi-Agent Core (Phase 2)
+
+::: causalrl.magames.population.Population
+
+::: causalrl.magames.equilibrium.certify_equilibrium
+
+::: causalrl.magames.views.agent_causal_env_view
+
+## Scale & Streaming (Phase 3)
+
+::: causalrl.estimate.streaming.stream_policy_value
+
+::: causalrl.estimate.streaming.stream_quantile_certificate
+
+::: causalrl.bounds.streaming.stream_msm_bounds
+
+::: causalrl.backends.streaming.StreamingMoments
+
+::: causalrl.backends.streaming.WeightedStreamingRatio
+
+::: causalrl.backends.quantile_sketch.GKQuantileSketch
+
+## Interop & Scale (Phase 4)
+
+::: causalrl.interop.sbi_numpyro.regimes_from_posterior
+
+::: causalrl.interop.sbi_numpyro.across_regimes
+
+::: causalrl.interop.columnar_sim.ColumnarSimulator
+
+::: causalrl.interop.columnar_sim.simulator_from_callables
+
+::: causalrl.scale.certify_policy
+
+::: causalrl.scale.d3rlpy.certify_fqe
+
+::: causalrl.scale.d3rlpy.policy_actions
