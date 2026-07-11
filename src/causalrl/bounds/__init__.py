@@ -16,6 +16,7 @@ from causalrl.bounds.continuous import (
     tail_index_hill,
     weighted_quantile,
 )
+from causalrl.bounds.streaming import stream_msm_bounds
 from causalrl.identification.bounds import (
     Interval,
     causal_q_bounds,
@@ -43,6 +44,7 @@ __all__ = [
     "msm_policy_value_bounds",
     "msm_sensitivity_bounds",
     "msm_stratified_bounds",
+    "stream_msm_bounds",
     "tail_index_hill",
     "tipping_gamma",
     "weighted_quantile",

@@ -194,3 +194,34 @@ numpy / pure-Python; no new dependencies.
   frozen top-level API (§14).
 
 The magames public API is lazily exported from `causalrl.__init__`; `meanfield` is intentionally not.
+
+## 12. Phase 3 — scale & data plane (v1.7.0)
+
+The same certificates at simulator scale. The value is carried by an always-tested NumPy streaming
+core; the JAX backend is an optional accelerated mirror whose only hard duty is numeric parity.
+
+- **Streaming accumulators (§9)** — `backends/streaming.py`: `StreamingMoments` (Chan parallel-merge
+  count/mean/variance) and `WeightedStreamingRatio` (self-normalised Hájek value + one-pass
+  influence-function SE + Kish-ESS). `backends/quantile_sketch.py`: `GKQuantileSketch`
+  (Greenwald-Khanna, hard `ε·n` rank-error bound via `error_bound`, mergeable). Pure numpy, exact
+  vs one-shot; the JAX backend must agree with them within tolerance.
+- **Streaming join (§9)** — `data/streaming_join.py`: `iter_log_batches` (in-memory `scan()` or
+  streamed Parquet via `TrajectoryLog.iter_parquet_batches`) + `KeyJoiner` (carry-over decision join,
+  O(1) memory for a `sorted_by_key` log). Both additive `TrajectoryLog` methods live in
+  `data/trajectory.py`.
+- **Streaming certificate kernels (§9)** — `estimate/streaming.py`: `stream_policy_value`
+  (IS off-policy value + CI, ESS overlap hedge — I3) and `stream_quantile_certificate` (GK tail
+  target, ε recorded — I8). `bounds/streaming.py`: `stream_msm_bounds` (streamed columns → exact Tan
+  closed form → `BOUNDED`). Each emits a unified `Certificate` over a log too large to hold. The
+  end-to-end acceptance (Phase-2 population env → Parquet → streamed OPE recovering the MC truth) is
+  in `tests/test_streaming_estimate.py`; lazily exported from `causalrl.__init__`.
+- **`backends/jax/` (§9, EXPERIMENTAL-adjacent, optional `[jax]` extra)** — `sample.py`
+  (`vmap_sample_linear_gaussian`, `batched_do_linear_gaussian`; PRNG-key determinism) and
+  `kernels.py` (`ipw_value_jax`) mirror the numpy core. `get_namespace` gains duck-typed dispatch
+  (imports JAX only when handed a JAX array). Isolated exactly like the NUTS lane: `python<3.14`
+  marker, dedicated py3.11 `jax` CI lane, coverage-omitted — the numpy matrix never imports JAX.
+- **Benchmark guard** — `benchmarks/bench_streaming.py` (streaming↔one-shot exactness, sketch ε,
+  end-to-end OPE correctness, throughput report; >2× relative-regression hard-fail). The shipped
+  `bench_causal_core.py` guards (874× MSM, exact known-noise CF) are untouched. **CI reality (§7)
+  unchanged**: main matrix on numpy+data; the JAX backend is verified only on its own lane; local
+  py3.14 env cannot install JAX, so the `jax` lane is the sole truth for `backends/jax/*`.

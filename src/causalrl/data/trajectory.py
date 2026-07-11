@@ -325,6 +325,33 @@ class TrajectoryLog:
         _, pq = _parquet()
         return cls.from_arrow(pq.read_table(str(path)))
 
+    def sorted_by_key(self) -> TrajectoryLog:
+        """Return a copy with rows sorted by ``(entity_id, episode_id, t)`` (stable within a key).
+
+        Key-contiguous ordering lets the streaming estimators join a decision's cells with an
+        O(1) carry-over buffer instead of holding the whole log (plan §9).
+        """
+        n = len(self)
+        order = np.lexsort((np.arange(n), self._t, self._episode_id, self._entity_id))
+        cols = {c: self.column(c)[order] for c in _COLUMNS}
+        return TrajectoryLog(cols, self._metadata)
+
+    @classmethod
+    def iter_parquet_batches(
+        cls, path: str | os.PathLike[str], batch_size: int
+    ) -> Iterator[TrajectoryLog]:
+        """Stream a Parquet log in row batches without materialising it (plan §9; ``[data]`` extra).
+
+        Yields one :class:`TrajectoryLog` per Arrow record batch; log-level metadata is not carried
+        on the per-batch logs (the streaming estimators consume named value columns, not metadata).
+        """
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        pa, pq = _parquet()
+        parquet_file = pq.ParquetFile(str(path))
+        for record_batch in parquet_file.iter_batches(batch_size=batch_size):
+            yield cls.from_arrow(pa.Table.from_batches([record_batch]))
+
 
 def _encode_value(
     v: Any,

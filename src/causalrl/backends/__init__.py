@@ -16,11 +16,17 @@ __all__ = ["asarray", "get_namespace"]
 
 
 def get_namespace(*arrays: Any) -> Any:
-    """Return the array-API namespace backing ``arrays``.
+    """Return the array-API namespace backing ``arrays`` (NumPy by default; ``jax.numpy`` for JAX).
 
-    NumPy is the only backend in Phase 0; later phases inspect ``arrays`` to dispatch to
-    ``jax.numpy`` or a torch shim. Callers should treat the result as an Array-API namespace.
+    Dispatch is duck-typed on each array's defining module, so importing :mod:`causalrl.backends`
+    never imports JAX — only an actual JAX array triggers the lazy ``import jax.numpy`` (plan §9,
+    invariant I4). Callers should treat the result as an Array-API namespace.
     """
+    for array in arrays:
+        if type(array).__module__.startswith("jax"):  # pragma: no cover - jax lane only
+            import jax.numpy as jnp  # pyright: ignore[reportMissingImports]
+
+            return jnp
     return np
 
 

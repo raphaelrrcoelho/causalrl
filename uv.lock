@@ -335,7 +335,7 @@ wheels = [
 
 [[package]]
 name = "causalrl"
-version = "1.6.0"
+version = "1.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "gymnasium" },
@@ -373,6 +373,9 @@ interop = [
     { name = "dowhy" },
     { name = "econml" },
 ]
+jax = [
+    { name = "jax", marker = "python_full_version < '3.14'" },
+]
 numpyro = [
     { name = "numpyro", marker = "python_full_version < '3.14'" },
 ]
@@ -396,6 +399,7 @@ requires-dist = [
     { name = "econml", marker = "extra == 'interop'", specifier = ">=0.15" },
     { name = "gymnasium", specifier = ">=1.0" },
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.120" },
+    { name = "jax", marker = "python_full_version < '3.14' and extra == 'jax'", specifier = ">=0.4" },
     { name = "jupyter", marker = "extra == 'dev'", specifier = ">=1.1" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
@@ -417,7 +421,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'examples'", specifier = ">=2.5" },
     { name = "torch", marker = "extra == 'torch'", specifier = ">=2.5" },
 ]
-provides-extras = ["torch", "examples", "docs", "dev", "interop", "scale", "data", "numpyro"]
+provides-extras = ["torch", "examples", "docs", "dev", "interop", "scale", "data", "numpyro", "jax"]
 
 [package.metadata.requires-dev]
 dev = [
