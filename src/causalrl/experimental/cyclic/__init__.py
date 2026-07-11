@@ -21,9 +21,17 @@ outside causalrl's semver guarantees until promoted out of ``experimental/`` (pl
 from __future__ import annotations
 
 from causalrl.experimental.cyclic.graph import CyclicCausalGraph
+from causalrl.experimental.cyclic.scm import (
+    CyclicSolution,
+    CyclicSolveError,
+    LinearCyclicSCM,
+)
 from causalrl.experimental.cyclic.separation import sigma_separated
 
 __all__ = [
     "CyclicCausalGraph",
+    "CyclicSolution",
+    "CyclicSolveError",
+    "LinearCyclicSCM",
     "sigma_separated",
 ]
