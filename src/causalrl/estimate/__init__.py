@@ -20,6 +20,7 @@ from causalrl.estimate.nuisance import (
     Regressor,
     RidgeRegressor,
 )
+from causalrl.estimate.streaming import stream_policy_value, stream_quantile_certificate
 
 __all__ = [
     "Classifier",
@@ -32,4 +33,6 @@ __all__ = [
     "certify_effect",
     "compile_estimand",
     "estimate_ate",
+    "stream_policy_value",
+    "stream_quantile_certificate",
 ]
