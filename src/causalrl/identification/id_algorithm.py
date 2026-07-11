@@ -33,7 +33,6 @@ from typing import TYPE_CHECKING, Literal, overload
 
 import numpy as np
 
-from causalrl._deprecation import warn_certificate_default_flip
 from causalrl.exceptions import CausalGraphError, NotIdentifiableError
 from causalrl.scm.graph import CausalGraph
 
@@ -429,7 +428,7 @@ def identify_effect(
     treatment: Iterable[str],
     outcome: Iterable[str],
     *,
-    return_certificate: Literal[True],
+    return_certificate: Literal[True] | None = ...,
 ) -> Certificate: ...
 @overload
 def identify_effect(
@@ -437,7 +436,7 @@ def identify_effect(
     treatment: Iterable[str],
     outcome: Iterable[str],
     *,
-    return_certificate: Literal[False] | None = ...,
+    return_certificate: Literal[False],
 ) -> Estimand: ...
 def identify_effect(
     graph: CausalGraph,
@@ -453,13 +452,12 @@ def identify_effect(
     :class:`CausalGraphError` for malformed inputs (unknown nodes, empty outcome, or a treatment and
     outcome that overlap).
 
-    ``return_certificate`` (I9 deprecation): leave unset for the current :class:`Estimand` plus a
-    ``FutureWarning`` that causalrl 2.0 returns a :class:`Certificate` by default; pass ``False`` to
-    keep the :class:`Estimand` silently, or ``True`` for the certificate now (equivalent to
-    ``identify_effect_certified``).
+    ``return_certificate`` (2.0 default): returns a :class:`Certificate`; pass ``False`` for the
+    legacy :class:`Estimand`, or ``True`` (equivalently, ``identify_effect_certified``) to be
+    explicit.
     """
     if return_certificate is None:
-        warn_certificate_default_flip("identify_effect", "identify_effect_certified")
+        return_certificate = True  # causalrl 2.0: return a Certificate by default
     if return_certificate:
         from causalrl.certify.routines import identify_effect_certified
 

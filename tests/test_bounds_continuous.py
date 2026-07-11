@@ -45,7 +45,7 @@ def test_msm_estimated_reduces_to_ipw_under_known_propensities() -> None:
     y = (rng.standard_normal(500) + 1.0).tolist()
     e = rng.uniform(0.2, 0.8, 500).tolist()
     assert msm_sensitivity_bounds(y, propensities=e, gamma=2.0) == ipw_sensitivity_bounds(
-        y, e, gamma=2.0
+        y, e, gamma=2.0, return_certificate=False
     )
 
 

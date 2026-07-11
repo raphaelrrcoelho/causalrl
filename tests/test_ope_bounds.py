@@ -62,16 +62,16 @@ def test_ipw_sensitivity_collapses_at_one_and_contains_truth() -> None:
     propensities = np.full(y_treated.shape, float(treated.mean()))  # nominal (no-covariate) e
     truth = _true_do(scm, 1)
 
-    lo1, hi1 = ipw_sensitivity_bounds(y_treated, propensities, gamma=1.0)
+    lo1, hi1 = ipw_sensitivity_bounds(y_treated, propensities, gamma=1.0, return_certificate=False)
     assert lo1 == pytest.approx(hi1, abs=1e-9)  # collapses to the point estimate
     assert hi1 == pytest.approx(float(y_treated.mean()), abs=0.01)
     assert hi1 > truth + 0.02  # the confounded point estimate is biased upward
 
-    lo3, hi3 = ipw_sensitivity_bounds(y_treated, propensities, gamma=3.0)
+    lo3, hi3 = ipw_sensitivity_bounds(y_treated, propensities, gamma=3.0, return_certificate=False)
     assert lo3 <= truth <= hi3  # Γ > true odds ratio (~2.33): contains the truth
     assert lo3 < lo1 and hi3 > hi1  # monotone widening
 
 
 def test_ipw_sensitivity_requires_valid_gamma() -> None:
     with pytest.raises(ValueError):
-        ipw_sensitivity_bounds([1.0, 0.0], [0.5, 0.5], gamma=0.9)
+        ipw_sensitivity_bounds([1.0, 0.0], [0.5, 0.5], gamma=0.9, return_certificate=False)

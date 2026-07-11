@@ -110,7 +110,7 @@ def test_frontdoor_is_identifiable_and_matches_simulation() -> None:
 
 def test_frontdoor_estimand_renders_a_do_free_formula() -> None:
     graph = CausalGraph(directed_edges=[("X", "M"), ("M", "Y")], bidirected_edges=[("X", "Y")])
-    formula = identify_effect(graph, {"X"}, {"Y"}).render()
+    formula = identify_effect(graph, {"X"}, {"Y"}, return_certificate=False).render()
     assert "do(" not in formula
     assert "P(" in formula
 

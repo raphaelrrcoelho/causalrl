@@ -57,8 +57,10 @@ def test_policy_value_reduces_to_ipw_for_constant_target():
     e0 = rng.uniform(0.1, 0.9, size=400)
     pt = np.full(400, 0.017)  # arbitrary constant target propensity
     for g in (1.0, 1.5, 3.0):
-        pv = msm_policy_value_bounds(y.tolist(), e0.tolist(), pt.tolist(), gamma=g)
-        ipw = ipw_sensitivity_bounds(y.tolist(), e0.tolist(), gamma=g)
+        pv = msm_policy_value_bounds(
+            y.tolist(), e0.tolist(), pt.tolist(), gamma=g, return_certificate=False
+        )
+        ipw = ipw_sensitivity_bounds(y.tolist(), e0.tolist(), gamma=g, return_certificate=False)
         assert abs(pv.lower - ipw.lower) < 1e-9
         assert abs(pv.upper - ipw.upper) < 1e-9
 
@@ -71,7 +73,9 @@ def test_policy_value_gamma1_is_self_normalised_ips_point():
     pt = rng.uniform(0.0, 0.05, size=300)
     w = pt / e0
     v_hat = float((w * y).sum() / w.sum())
-    iv = msm_policy_value_bounds(y.tolist(), e0.tolist(), pt.tolist(), gamma=1.0)
+    iv = msm_policy_value_bounds(
+        y.tolist(), e0.tolist(), pt.tolist(), gamma=1.0, return_certificate=False
+    )
     assert iv.upper - iv.lower < 1e-9
     assert abs(iv.lower - v_hat) < 1e-9
 
@@ -83,8 +87,12 @@ def test_policy_value_widens_with_gamma_and_brackets_point():
     pt = rng.uniform(0.0, 0.05, size=300)
     w = pt / e0
     v_hat = float((w * y).sum() / w.sum())
-    iv1 = msm_policy_value_bounds(y.tolist(), e0.tolist(), pt.tolist(), gamma=1.5)
-    iv2 = msm_policy_value_bounds(y.tolist(), e0.tolist(), pt.tolist(), gamma=3.0)
+    iv1 = msm_policy_value_bounds(
+        y.tolist(), e0.tolist(), pt.tolist(), gamma=1.5, return_certificate=False
+    )
+    iv2 = msm_policy_value_bounds(
+        y.tolist(), e0.tolist(), pt.tolist(), gamma=3.0, return_certificate=False
+    )
     assert iv1.lower <= v_hat <= iv1.upper
     assert (iv2.upper - iv2.lower) >= (iv1.upper - iv1.lower)
 
@@ -97,7 +105,7 @@ def test_stratified_never_wider_than_pooled():
     strata = rng.integers(0, 3, size=300)
     weights = {s: 1 / 3 for s in range(3)}
     strat = msm_stratified_bounds(v, p, strata, weights, gamma=2.0)
-    pooled = ipw_sensitivity_bounds(v.tolist(), p.tolist(), gamma=2.0)
+    pooled = ipw_sensitivity_bounds(v.tolist(), p.tolist(), gamma=2.0, return_certificate=False)
     assert isinstance(strat, Interval)
     assert (strat.upper - strat.lower) <= (pooled.upper - pooled.lower) + 1e-9
 
@@ -114,8 +122,8 @@ def test_contribution_gamma1_is_point_difference():
     # At gamma=1 the contribution interval collapses to the difference of the two arms'
     # self-normalised IPS points.
     y, e0, on, off = _disjoint_arms(7)
-    on_iv = msm_policy_value_bounds(y, e0, on, gamma=1.0)
-    off_iv = msm_policy_value_bounds(y, e0, off, gamma=1.0)
+    on_iv = msm_policy_value_bounds(y, e0, on, gamma=1.0, return_certificate=False)
+    off_iv = msm_policy_value_bounds(y, e0, off, gamma=1.0, return_certificate=False)
     iv = msm_contribution_bounds(y, e0, on, off, gamma=1.0)
     assert iv.upper - iv.lower < 1e-9
     assert abs(iv.lower - (on_iv.lower - off_iv.lower)) < 1e-9
@@ -133,8 +141,8 @@ def test_contribution_widens_and_brackets_point():
 def test_contribution_equals_arm_interval_difference():
     # Definitional: the contribution interval IS [on.lo - off.hi, on.hi - off.lo].
     y, e0, on, off = _disjoint_arms(9)
-    a = msm_policy_value_bounds(y, e0, on, gamma=2.0)
-    b = msm_policy_value_bounds(y, e0, off, gamma=2.0)
+    a = msm_policy_value_bounds(y, e0, on, gamma=2.0, return_certificate=False)
+    b = msm_policy_value_bounds(y, e0, off, gamma=2.0, return_certificate=False)
     iv = msm_contribution_bounds(y, e0, on, off, gamma=2.0)
     assert isinstance(iv, Interval)
     assert abs(iv.lower - (a.lower - b.upper)) < 1e-12

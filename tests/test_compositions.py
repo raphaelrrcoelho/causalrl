@@ -202,7 +202,9 @@ def _msm_lower_action(data: dict[str, np.ndarray], action: int, gamma: float) ->
     z, a, y = data["Z"], data["A"], data["Y"]
     e_per_unit = np.where(z == 1, (a == action)[z == 1].mean(), (a == action)[z == 0].mean())
     mask = a == action
-    return float(ipw_sensitivity_bounds(y[mask], e_per_unit[mask], gamma=gamma)[0])
+    return float(
+        ipw_sensitivity_bounds(y[mask], e_per_unit[mask], gamma=gamma, return_certificate=False)[0]
+    )
 
 
 def test_msm_lower_bound_diagnoses_naive_offline_ranking() -> None:

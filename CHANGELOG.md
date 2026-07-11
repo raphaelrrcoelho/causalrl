@@ -5,6 +5,48 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-07-10
+
+Phase 4 — interop & the 2.0 flip: the first stable major. **One breaking change** (announced by a
+`FutureWarning` since 1.5), plus additive interop that lets any external stack — SBI/NumPyro,
+d3rlpy, or an arbitrary simulator — drive the certificate layer. See `docs/migration-2.0.md`.
+
+### Changed (BREAKING)
+- **Certificates by default** (§10): `identify_effect`, `ipw_sensitivity_bounds`, and
+  `msm_policy_value_bounds` now return a unified `Certificate` when `return_certificate` is unset —
+  `identify_effect` an `IDENTIFIED` certificate, the two bound routines a `BOUNDED` certificate. Pass
+  `return_certificate=False` for the legacy `Estimand` / `Interval` (a supported, non-deprecated
+  escape hatch). The certificate wraps exactly the same numerics (byte-stability pinned). Error
+  behaviour is unchanged. This is the only breaking change; no other return type changed and no
+  public name was removed.
+
+### Removed
+- The pre-2.0 certificate-default-flip `FutureWarning` and the private `causalrl._deprecation`
+  helper (the flip they announced has happened).
+
+### Added
+- **SBI/NumPyro → `Regime` bridge** (§10): `regimes_from_posterior` turns a posterior over
+  environment parameters into a set of calibrated `Regime`s (a `Regime` can mark a mechanism swap
+  via a selection node); `PosteriorRegimeSampler` (bootstrap + posterior-mean); duck-typed
+  `regimes_from_numpyro` / `regimes_from_sbi_posterior`; `across_regimes` returns the `[min, max]`
+  envelope of a functional across the ensemble — quantifying a claim across calibrated configurations.
+- **Generic columnar-simulator adapter** (§10): `ColumnarSimulator` / `simulator_from_callables` wrap
+  a row-emitting simulator into a `CausalEnvProtocol`, so any simulator supports causalrl by emitting
+  the `TrajectoryLog` schema — no bespoke integration, no dependency on the simulator.
+  `check_conformance` validates a would-be simulator. Worked example in `examples/`.
+- **Deepened d3rlpy path** (§10): `TrajectoryLog` ↔ `MDPDataset` both directions, `policy_actions`
+  (a duck-typed trained-policy `do()` handle), `certify_fqe` (fitted-Q evaluation as an honest
+  `EMPIRICAL` certificate), and `certify_policy` retargeted onto the unified `Certificate` via the
+  shipped `as_certificate` adapter.
+- **Docs**: five runnable, CI-executed task guides (`examples/guides/`), a 2.0 migration guide, an
+  assumption glossary, an expanded API reference, and a JOSS paper draft. Dedicated CI lanes verify
+  the fresh install of the `[scale]` and `[interop]` extras.
+- **Generality lint** (§12.4 / invariant I7): `tools/generality_lint.py` scans the public surface of
+  `src/causalrl` — identifiers (camel/snake sub-tokens) and docstrings (whole words) — against a
+  seed application-domain-noun denylist and fails CI on any leak, keeping the core domain-agnostic.
+  Runs as a dedicated `generality` CI lane and inside the main test matrix
+  (`tests/test_generality_lint.py`). Completes the v2.0 Definition-of-Done ("generality lint active").
+
 ## [1.7.0] - 2026-07-10
 
 Phase 3 — scale & data plane: the same certificates at simulator scale. Single-pass streaming
