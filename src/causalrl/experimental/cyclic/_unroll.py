@@ -2,6 +2,7 @@
 # pyright: reportUnknownArgumentType=false, reportUnknownParameterType=false
 # pyright: reportMissingParameterType=false, reportArgumentType=false, reportUnknownLambdaType=false
 # pyright: reportAttributeAccessIssue=false, reportMissingTypeStubs=false
+# pyright: reportPrivateImportUsage=false
 # Isolated torch glue: torch's dynamic attributes (torch.eye/zeros/float64, tensor methods) are not
 # fully resolvable by pyright; end-to-end correctness (incl. the StructuralCausalModel.see call) is
 # verified by the torch-gated runtime tests on the main CI matrix, not by static types here.

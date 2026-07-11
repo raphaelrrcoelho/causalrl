@@ -105,3 +105,21 @@ def test_shape_validation() -> None:
         LinearCyclicSCM([[1.0, 2.0]], ["x0"])
     with pytest.raises(ValueError, match="must match"):
         LinearCyclicSCM([[0.0, 0.0], [0.0, 0.0]], ["only_one"])
+
+
+def test_noise_shape_validation() -> None:
+    with pytest.raises(ValueError, match="noise_mean"):
+        LinearCyclicSCM([[0.0]], ["x0"], noise_mean=[1.0, 2.0])
+    with pytest.raises(ValueError, match="noise_cov"):
+        LinearCyclicSCM([[0.0]], ["x0"], noise_cov=[[1.0, 0.0], [0.0, 1.0]])
+
+
+def test_mean_dict_on_solved_equilibrium() -> None:
+    md = _feedback_scm().solve().mean_dict()
+    assert md["x0"] == pytest.approx(8.0 / 3.0)
+    assert md["x1"] == pytest.approx(10.0 / 3.0)
+
+
+def test_intervene_unknown_variable_raises() -> None:
+    with pytest.raises(KeyError):
+        _feedback_scm().intervene({"nope": 1.0})

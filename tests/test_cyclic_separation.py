@@ -102,3 +102,18 @@ def test_acyclification_of_a_dag_is_the_identity() -> None:
 def test_chain_matches_d_separation(x: set[str], y: set[str], z: set[str], expected: bool) -> None:
     ccg = CyclicCausalGraph([("a", "b"), ("b", "c")])
     assert sigma_separated(ccg, x, y, z) is expected
+
+
+def test_graph_accessors() -> None:
+    g = CyclicCausalGraph([("a", "b"), ("b", "a")], [("a", "c")], nodes=["a", "b", "c"])
+    assert set(g.parents("b")) == {"a"}
+    assert set(g.children("a")) == {"b"}
+    assert set(g.directed_edges) == {("a", "b"), ("b", "a")}
+    assert {frozenset(e) for e in g.bidirected_edges} == {frozenset({"a", "c"})}
+    assert set(g.nodes) == {"a", "b", "c"}
+
+
+def test_graph_unknown_node_raises() -> None:
+    g = CyclicCausalGraph([("a", "b")])
+    with pytest.raises(KeyError):
+        g.parents("nope")
