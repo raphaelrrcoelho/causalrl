@@ -123,3 +123,49 @@ def test_mean_dict_on_solved_equilibrium() -> None:
 def test_intervene_unknown_variable_raises() -> None:
     with pytest.raises(KeyError):
         _feedback_scm().intervene({"nope": 1.0})
+
+
+def test_stability_margin_weaker_than_contractivity() -> None:
+    # B = [[-2]]: spectral radius 2 (non-contractive) but eigenvalue real part -2 < 1: the mean
+    # dynamics x' = (B - I)x + u are stable with margin 1 - (-2) = 3.
+    scm = LinearCyclicSCM([[-2.0]], ["x0"])
+    assert scm.spectral_radius() == pytest.approx(2.0)
+    assert not scm.is_contractive()
+    assert scm.spectral_abscissa() == pytest.approx(-3.0)
+    assert scm.stability_margin() == pytest.approx(3.0)
+
+
+def test_stability_margin_negative_when_unstable() -> None:
+    scm = LinearCyclicSCM([[1.5]], ["x0"])
+    assert scm.stability_margin() == pytest.approx(-0.5)
+    assert scm.max_stable_learning_rate() == 0.0
+
+
+def test_stability_margin_nilpotent_feedforward() -> None:
+    scm = LinearCyclicSCM([[0.0, 2.0], [0.0, 0.0]], ["x0", "x1"])
+    assert scm.stability_margin() == pytest.approx(1.0)
+    # nu = -1: gamma* = -2 Re(nu) / |nu|^2 = 2 (any admissible learning rate <= 1 converges).
+    assert scm.max_stable_learning_rate() == pytest.approx(2.0)
+
+
+def test_max_stable_learning_rate_matches_eigenvalue_algebra() -> None:
+    # B = [[-2]]: nu = -3, gamma* = -2(-3)/9 = 2/3; the damped map 1 + gamma(nu) crosses |.|=1 there.
+    scm = LinearCyclicSCM([[-2.0]], ["x0"])
+    gamma_star = scm.max_stable_learning_rate()
+    assert gamma_star == pytest.approx(2.0 / 3.0)
+    inside = abs(1.0 + 0.99 * gamma_star * (-3.0))
+    outside = abs(1.0 + 1.01 * gamma_star * (-3.0))
+    assert inside < 1.0 < outside
+
+
+def test_stability_margin_complex_pair_rotation() -> None:
+    # Rotation scaled to modulus 1.2: eigenvalues 1.2 e^{+-i 2pi/3} with real part -0.6 < 1:
+    # non-contractive yet stable mean dynamics.
+    angle = 2.0 * np.pi / 3.0
+    rot = 1.2 * np.array(
+        [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+    )
+    scm = LinearCyclicSCM(rot, ["x0", "x1"])
+    assert scm.spectral_radius() == pytest.approx(1.2)
+    assert scm.stability_margin() == pytest.approx(1.6)
+    assert 0.0 < scm.max_stable_learning_rate() <= 2.0

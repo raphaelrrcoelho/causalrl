@@ -93,3 +93,61 @@ def test_end_to_end_under_intervention() -> None:
     assert cert.kind is Kind.IDENTIFIED
     assert cert.witness is not None
     np.testing.assert_allclose(cert.witness.detail["equilibrium_mean"], [5.0, 4.5], atol=1e-6)
+
+
+def test_naive_hedge_carries_stability_diagnostics() -> None:
+    # rho(B) = 2 but margin = 3 > 0: the hedge must say the mean dynamics are still stable and
+    # name the learning rate below which the adaptive unrolling converges.
+    scm = LinearCyclicSCM([[-2.0]], ["x0"], noise_mean=[3.0])
+    cert = compare_equilibrium_unrolling(scm, horizon=50)
+    assert cert.kind is Kind.EMPIRICAL
+    assert cert.hedge is not None and "non-contractive" in cert.hedge.reason
+    assert cert.hedge.detail is not None
+    assert cert.hedge.detail["stability_margin"] == pytest.approx(3.0)
+    assert cert.hedge.detail["max_stable_learning_rate"] == pytest.approx(2.0 / 3.0)
+    assert cert.witness is not None
+    assert cert.witness.detail["stability_margin"] == pytest.approx(3.0)
+    assert cert.witness.detail["spectral_radius"] == pytest.approx(2.0)
+
+
+def test_learning_rate_certifies_stable_non_contractive_system() -> None:
+    # The T1 case: naive unrolling diverges (rho = 2) yet gamma = 0.3 < gamma* = 2/3 makes the
+    # damped adaptive dynamics converge to the equilibrium do() (x* = 3 / (1 + 2) = 1).
+    scm = LinearCyclicSCM([[-2.0]], ["x0"], noise_mean=[3.0])
+    cert = compare_equilibrium_unrolling(scm, horizon=400, tol=1e-6, learning_rate=0.3)
+    assert cert.kind is Kind.IDENTIFIED
+    assert cert.hedge is None
+    assert cert.value is not None and cert.value < 1e-6
+    assert cert.witness is not None and cert.witness.detail["learning_rate"] == 0.3
+    np.testing.assert_allclose(cert.witness.detail["equilibrium_mean"], [1.0])
+
+
+def test_learning_rate_above_threshold_hedges_with_the_threshold() -> None:
+    scm = LinearCyclicSCM([[-2.0]], ["x0"], noise_mean=[3.0])
+    cert = compare_equilibrium_unrolling(scm, horizon=100, learning_rate=0.9)
+    assert cert.kind is Kind.EMPIRICAL
+    assert cert.hedge is not None and cert.hedge.detail is not None
+    assert cert.hedge.detail["max_stable_learning_rate"] == pytest.approx(2.0 / 3.0)
+
+
+def test_learning_rate_cannot_rescue_unstable_mean_dynamics() -> None:
+    scm = LinearCyclicSCM([[1.5]], ["x0"], noise_mean=[1.0])
+    cert = compare_equilibrium_unrolling(scm, learning_rate=0.5)
+    assert cert.kind is Kind.EMPIRICAL
+    assert cert.hedge is not None and cert.hedge.detail is not None
+    assert cert.hedge.detail["max_stable_learning_rate"] == 0.0
+
+
+def test_learning_rate_one_reproduces_naive_dynamics() -> None:
+    scm = _feedback_scm()
+    naive = compare_equilibrium_unrolling(scm, horizon=100)
+    damped = compare_equilibrium_unrolling(scm, horizon=100, learning_rate=1.0)
+    assert damped.kind is naive.kind
+    assert damped.value == pytest.approx(naive.value)
+
+
+def test_invalid_learning_rate_raises() -> None:
+    with pytest.raises(ValueError, match="learning_rate"):
+        compare_equilibrium_unrolling(_feedback_scm(), learning_rate=0.0)
+    with pytest.raises(ValueError, match="learning_rate"):
+        compare_equilibrium_unrolling(_feedback_scm(), learning_rate=1.5)

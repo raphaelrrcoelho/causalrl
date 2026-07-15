@@ -113,6 +113,39 @@ class LinearCyclicSCM:
         """Whether ``I - B`` is invertible -- a unique equilibrium exists."""
         return not self._is_singular(np.eye(self.dim) - self.coefficients, tol)
 
+    def spectral_abscissa(self) -> float:
+        """``max Re(lambda(B - I))`` -- the abscissa of the mean-dynamics Jacobian.
+
+        The associated mean (adaptive-learning) dynamics of ``x = B x + u`` are the ODE
+        ``x' = (B - I) x + u``; they are locally stable at the equilibrium iff this is negative.
+        """
+        if self.dim == 0:
+            return -1.0
+        return float(np.max(np.linalg.eigvals(self.coefficients).real)) - 1.0
+
+    def stability_margin(self) -> float:
+        """``-spectral_abscissa()`` -- positive iff the mean dynamics equilibrate.
+
+        This is strictly weaker than contractivity: ``rho(B) < 1`` implies a positive margin, but a
+        positive margin allows ``rho(B) >= 1`` (e.g. ``B = [[-2]]``), where the naive unrolling
+        diverges yet damped adaptive dynamics still converge to the equilibrium ``do()``.
+        """
+        return -self.spectral_abscissa()
+
+    def max_stable_learning_rate(self) -> float:
+        """Largest ``gamma`` below which ``x + gamma (B x + u - x)`` converges (0.0 if none).
+
+        Each eigenvalue ``nu`` of ``B - I`` maps to ``1 + gamma nu``; that stays inside the unit
+        circle iff ``gamma < -2 Re(nu) / |nu|^2``, so the binding constraint is their minimum. A
+        positive :meth:`stability_margin` guarantees this is positive (small-gain convergence).
+        """
+        if self.dim == 0:
+            return 2.0
+        if self.stability_margin() <= 0.0:
+            return 0.0
+        shifted = np.linalg.eigvals(self.coefficients) - 1.0
+        return float(np.min(-2.0 * shifted.real / np.abs(shifted) ** 2))
+
     @staticmethod
     def _is_singular(matrix: FloatArray, tol: float) -> bool:
         if matrix.size == 0:
