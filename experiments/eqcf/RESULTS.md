@@ -1,4 +1,4 @@
-# E1–E5 results (2026-07-14, local numpy runs)
+# E1–E7 results (2026-07-14/15, local runs; E3b on GPU)
 
 All runs: `cd experiments/eqcf && uv run python <script>.py`. Seeds fixed in-script; numbers below
 are pasted from the actual runs (logs regenerable by rerunning).
@@ -68,6 +68,73 @@ principle). Intervention: demand shock do(u=+1).
   the *sign* of the policy conclusion flips between the two semantics — the machine-checkable
   Lucas-critique warning.
 - margin crosses zero at phi* (−0.0059 at phi*−0.05, +0.0058 at phi*+0.05).
+
+## E6 — the collusion probe: stateful learners escape the stage-game CCE (`e6_collusion.py`)
+
+The decisive T2-boundary probe (2026-07-15). Cournot P=13−(q1+q2), c=1, q∈{2..6}: static Nash
+(4,4) profit 16 each (welfare 32), joint-monopoly split (3,3) profit 18 each (welfare 36, stage
+temptation 20). Calvano-style memory-1 Q-learners (state = last joint action, δ=0.95, slow
+exploration decay, optimistic init), 2M steps, empirical joint over the last 500k.
+
+**Key structural fact found by the LP: the exact stage-CCE interval for total profit is the
+degenerate point {32}** — welfare is point-identified (T2 degeneracy rung) for *every* no-regret
+population in this game.
+
+| population | firm-1 profit | total profit vs CCE {32} | eps_T |
+|---|---|---|---|
+| memory-1 Q, seed 0 | 17.94 | **35.89 — outside** | **1.941** |
+| memory-1 Q, seed 1 | 17.92 | **33.72 — outside** | **1.550** |
+| memory-1 Q, seed 2 | 17.95 | **35.88 — outside** | **1.981** |
+| stateless Q | 16.03 | 32.12 (ε-explained) | 0.481 |
+| Hedge (no-regret) | 15.98 | 31.97 (ε-explained) | 0.016 |
+
+Modal play for seeds 0/2: 96–98% mass on the joint-monopoly (3,3). Measured eps_T ≈ 1.94 ≈
+(temptation 2.0) × (collusive mass 0.97): **the measured realized regret literally reads off the
+forgone stage-game deviation gain that the learned punishment scheme is enforcing — a collusion
+meter.** The trichotomy in one game and one functional: no-regret populations sit on the
+point-identified value; history-dependent populations escape it and are detected, not missed —
+the certificate inflates to the measured-ε interval instead of endorsing the static analysis.
+Demarcation for T2's scope: its object is the *stage-game* CCE; the repeated-game analogue is
+folk-theorem-vacuous, so inflation/abstention is the honest report (Main Theorem, scope note).
+
+## E7 — the basin probe: locally certified, globally selected (`e7_basins.py`)
+
+The decisive T1-boundary probe (2026-07-15). Bistable mean dynamics x′ = tanh(3x) − x + u; SA
+ensemble N=100k, gain 0.05, noise 0.1, x0 ~ N(0, 1.5²).
+
+- u=0: stable equilibria ±0.995 (margins **+0.969 each** — both locally certified IDENTIFIED),
+  unstable boundary at 0; ensemble splits 50.2/49.8.
+- do(u=0.2): roots move to −0.782 / +1.199 (margins +0.892/+0.991), boundary to −0.105; ensemble
+  re-partitions to 47.4/52.6 — **2.8% of the population crosses the basin boundary**.
+- **Equilibrium-tracking at x+\* predicts +1.198; the population mixture mean is +0.261 — a gap of
+  0.938** that no local certificate can see. Every local certificate is *correct*; the global
+  interventional object is the basin-mass mixture over stable σ-solutions (the Blom–Bongers–Mooij
+  caveat, measured). Missing diagnostic identified: a multiplicity-aware hedge (all stable roots +
+  ensemble basin masses) for the nonlinear cyclic layer.
+
+## E3b — deep-RL populations vs the bounds, batched on GPU (`e3b_deep_rl.py`)
+
+CUDA run, R=256 independent replicate populations per condition (one batched computation — the
+replicate axis is the power), neural (2-layer MLP) policy-gradient learners with baseline —
+the PPO family's core update — on the same Cournot game as E6, 20k steps, last-5k window.
+
+| condition | eps_T quartiles | profit quartiles | outside exact CCE | supra-competitive |
+|---|---|---|---|---|
+| stateless PG | 0.000 / 0.001 / 0.002 | 16.00 / 16.00 / 16.00 | 0/256 | 0/256 |
+| memory-1 PG | 0.000 / 0.001 / 0.001 | 16.00 / 16.00 / 16.00 | 0/256 | 0/256 |
+
+**Finding (paired with E6): the collusion driver is not memory — it is value bootstrapping.**
+Policy-gradient populations behave empirically no-regret (median eps_T = 0.001) and land exactly
+on the Nash/point-identified values even *with* memory, in the same game where memory-1
+Q-learners (bootstrapped values, discounting, optimistic init) escape to 35.9 welfare with
+eps_T ≈ 1.9. T2's practical reach: PPO-family populations respect the exact bounds; the
+Q-family's escape is metered, not missed. Scope caveat: 20k-step PG runs with standard
+hyperparameters — the claim is "no collusion emerged in 512 populations under this regime",
+not "PG cannot collude"; longer/tuned runs are the follow-up.
+
+The certificate's new ε-sensitivity reads: at the measured median regret, the firm-1-profit
+interval grows at 8.0 width-units per unit of additional regret — and its ε=0 width is already
+8.0 (structural, the game): the looseness here is the game's, not the learners'.
 
 ## E5 — JAX scale garnish (`e5_jax_scale.py`)
 

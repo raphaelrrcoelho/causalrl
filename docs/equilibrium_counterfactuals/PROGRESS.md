@@ -27,6 +27,17 @@ rungs). The shipped design splits by solvable object class — linear cyclic SCM
 comparator) vs finite games (T2 rungs, `certify_cce_do`) — because BOUNDED-via-CCE is only defined
 for games. `THEORY.md` §3 states the unified ladder across both instruments.
 
+## Leap round (2026-07-15, GPU box): decisive probes instead of batteries
+
+| piece | state | outcome |
+|---|---|---|
+| ε-sensitivity instrument (LP duals in witness) | DONE + tests (lib, on local main) | certificate now prices marginal regret: structural vs statistical looseness |
+| Main Theorem (unified trichotomy) + T1′ (hyperbolic) | DRAFTED in THEORY.md §0.5/§1 | the paper's spine |
+| E6 collusion probe (T2 boundary) | RUN, 3 seeds | memory-1 Q collude (35.9 vs degenerate CCE welfare {32}); eps_T ≈ 1.94 = temptation×mass = collusion meter |
+| E7 basin probe (T1 boundary) | RUN | both margins +0.9 (locally right) yet do(u) mixture mean +0.26 vs tracked +1.20 — selection gap 0.94 |
+| E3b deep-RL vs bounds (GPU, R=512 populations) | RUN | PG-family stays exactly no-regret/Nash even with memory — collusion driver = value bootstrapping, not memory |
+| local torch fix | `uv pip uninstall triton` (broken triton 3.7.0) | torch 2.12+cu130 fully works; reverts on next `uv sync` |
+
 ## Next (not started)
 
 - Residual pre-submission reading checks listed in PROPOSAL.md (Hammond et al. pre-policy §,

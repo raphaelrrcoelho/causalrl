@@ -23,6 +23,44 @@ when they do not. The trichotomy: point identification under expectational stabi
 identification by the CCE polytope under (measured or assumed) no-regret (T2), certified
 non-identification with diagnostics otherwise (T3).
 
+## 0.5 Main Theorem (the trichotomy, unified)
+
+**Theorem (identification trichotomy for learning populations).** Let `Q = E[f]` be an
+interventional query under `do`, posed of a population of adaptive learners, where the system is
+in one of the two shipped exact classes (a cyclic SCM with smooth mean field, or a finite game).
+Then exactly one of the following holds, each condition computable by a shipped instrument, and
+the corresponding certificate is warranted:
+
+1. **POINT (`IDENTIFIED`).** Either (i) the intervened σ-solution is unique-on-its-basin and the
+   mean dynamics are stable there (`stability_margin > 0`; hyperbolic case in T1′): the
+   learning-limit `do()` *equals* the equilibrium `do()` for every sufficiently small gain,
+   locally on that basin — T1; or (ii) the system is a finite game and `f` is constant over
+   `CCE(G_do)` (LP width ≤ tol): the equilibrium point prediction holds for *every* no-regret
+   population — T2 degeneracy.
+2. **SET (`BOUNDED`).** The system is a finite game and the population's measured realized regret
+   at the horizon actually run is `ε_T`: the realized time-average of `f` lies in the LP interval
+   over `CCE_{ε_T}(G_do)`, with **no further assumptions** — T2. The reported dual multipliers
+   are the interval's growth rate per unit of additional regret (the certificate's
+   ε-sensitivity), so the certificate also prices what more learning time is worth.
+3. **NONE (`EMPIRICAL`, hedged with diagnostics).** One of: the mean dynamics are unstable at the
+   σ-solution (`margin < 0`; no admissible gain rescues — T1 converse); the ε-interval is vacuous
+   at the measured regret (abstention); or the intervened system has multiple stable σ-solutions
+   (or a marginal one), so the global learning outcome is a *basin-mass mixture* over them — an
+   object plain SCM semantics cannot represent (Blom–Bongers–Mooij), reported as a selection
+   hedge — T3.
+
+The case analysis is exhaustive and decidable within the stated classes: margin sign, LP width, LP
+vacuity, and solvability/multiplicity are each finite computations (`stability_margin`,
+`compare_equilibrium_unrolling`, `cce_bounds`, `certify_cce_do`, `solve`).
+
+**Scope demarcation (measured by E6/E3b).** Case 2's polytope is the **stage-game** CCE.
+Populations with history-dependent strategies (memory-`k` learners, recurrent policies) can
+sustain time-averages outside it — but they are detected, not missed: their measured `ε_T` stays
+bounded away from zero, and it *equals the forgone stage-game deviation gain that intertemporal
+threats are enforcing*. Measured `ε_T` is therefore a collusion meter. The repeated-game analogue
+of case 2 is folk-theorem-sized (vacuous), so abstention/inflation is the correct certificate —
+and the theorem says exactly when it fires.
+
 ## 1. T1 — E-stability is causal validity (linear class, both directions)
 
 **Setting.** Linear cyclic SCM `x = Bx + u`, intervened system `(B_do, u_do)` with `I − B_do`
@@ -83,11 +121,38 @@ initial conditions — the causal-constraint-model caveat and the economics (equ
 learning) are the same phenomenon. The library refuses to fabricate a solution in this case
 (invariant I3: `solve()` returns a typed hedge), which is the operationally honest behaviour.
 
+**T1′ (hyperbolic local version — the nonlinear statement).** Let the mean field be
+`F(x) = f(x) − x` with `f` C¹, and let `x*` be a hyperbolic zero of `F` (no eigenvalue of
+`J = DF(x*)` on the imaginary axis). Then:
+
+1. `J` Hurwitz ⇒ for every `γ ∈ (0, γ*(J))` (same eigenvalue formula as the linear case, applied
+   to `J`) the constant-gain iteration converges locally to `x*` (to an `O(γ)` neighbourhood
+   under noise), and decreasing-gain SA converges to `x*` a.s. on the event of remaining in a
+   compact subset of its basin — so the learning-limit `do()` equals the equilibrium `do()`
+   **locally on the basin of `x*`**.
+2. `J` not Hurwitz (some `Re λ > 0`) ⇒ under nondegenerate noise, SA does not converge to `x*`
+   a.s. (non-convergence to linearly unstable points) — the equilibrium `do()` at `x*` has no
+   learning-limit counterpart.
+
+*Proof sketch.* Linearize at `x*`; hyperbolicity gives a locally conjugate linear system
+(Hartman–Grobman), reducing (1)/(2) to the linear T1 plus the standard SA limit-set theorem
+(Kushner–Yin; Evans–Honkapohja ch. 6) and the Pemantle-type non-convergence theorem. The gain
+threshold `γ*` is the linear formula evaluated at `J`. ∎
+
+**The global caveat is quantitative, not rhetorical (E7).** With multiple stable σ-solutions the
+theorem's "locally on the basin" qualifier binds: every local certificate can be simultaneously
+correct while the *population-level* interventional outcome is the basin-mass mixture, and
+interventions move basin boundaries. E7 measures this: both equilibria of a bistable mean field
+carry margins ≈ +0.9 (locally IDENTIFIED), yet `do(u)` both shifts the roots and re-partitions
+the ensemble across basins — equilibrium-tracking predicts the shifted root while the population
+mean lands far from it. The missing diagnostic is a multiplicity-aware hedge: report all stable
+σ-solutions and (when trajectories are available) ensemble basin masses.
+
 **Scope honesty.** T1 as stated is exact for the linear/contractive-adjacent class — the class for
-which the shipped cyclic-SCM identification is solid. The nonlinear version (local statement at a
-hyperbolic σ-solution via linearization) is standard-but-bookkeeping; the bridge claim ("E-stability
-= the σ-solution is the causally correct object") is the contribution, per the due-diligence
-verdict. Framework prior art to cite: White & Chalak's settable systems (JMLR 2009);
+which the shipped cyclic-SCM identification is solid; T1′ extends it locally to hyperbolic
+σ-solutions of smooth systems, with the basin scope made explicit above. The bridge claim
+("E-stability = the σ-solution is the causally correct object") is the contribution, per the
+due-diligence verdict. Framework prior art to cite: White & Chalak's settable systems (JMLR 2009);
 Mooij–Janzing–Schölkopf ODE→SCM; Rubenstein et al.; Iwasaki–Simon and Dash on equilibration.
 
 ## 2. T2 — CCE partial identification (finite-time, anytime-valid form)
@@ -128,6 +193,15 @@ Foster–Vohra), every limit point of `{μ_T}` lies in `CCE_0(G_do)`, and by con
 value in the constraint right-hand side (Lipschitz, with constant given by the optimal dual
 multipliers) the ε-bounds converge to the exact-CCE bounds. This recovers the classical statement
 as the `ε → 0` limit of the certified one.
+
+**Corollary (the ε-sensitivity is shipped, not just cited).** `bound(ε)` is a concave/convex
+piecewise-linear function of the relaxation for the max/min side respectively, and its
+one-sided derivative at the measured `ε_T` is the sum of the optimal LP dual multipliers —
+returned by the solver (`LPResult.dual_ub`) and reported in the certificate witness as
+`epsilon_sensitivity = {lower, upper, width}`. Reading: `width_sensitivity × regret-rate(T)` is
+the marginal certificate tightness bought by running the population longer; a certificate with
+large width but tiny sensitivity says *the looseness is structural (the game), not statistical
+(the learners)* — a distinction no asymptotic statement makes.
 
 **Corollary (degeneracy = when the equilibrium point prediction is safe).** The equilibrium point
 prediction of `f` is valid for *every* no-regret population iff `f` is constant over `CCE(G_do)`
