@@ -9,6 +9,7 @@ repo_name: raphaelrrcoelho/causalrl
 exclude_docs: |
   superpowers/
   frontier/
+  equilibrium_counterfactuals/
 
 theme:
   name: material
