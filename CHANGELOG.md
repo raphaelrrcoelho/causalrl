@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`cce_polytope` / `cce_bounds` / `cce_regret` / `certify_cce_do`** (`causalrl.magames`, exported
+  top-level) — partial identification of a learning population's time-averaged behaviour by the
+  coarse-correlated-equilibrium polytope of a (possibly `do()`-intervened) finite game. Both bound
+  endpoints are linear programs solved by a new dependency-free two-phase simplex (the core still
+  ships without scipy). `cce_bounds` accepts a uniform or per-agent `epsilon` relaxation;
+  `cce_regret` measures the realized regret of a joint distribution, and passing it as `epsilon`
+  to `certify_cce_do` gives the **finite-time** certificate — the bound binds at the horizon
+  actually run, with no asymptotic no-regret assumption. Certificate ladder: `IDENTIFIED` when the
+  functional is constant over the polytope, `BOUNDED` under assumed-or-measured no-regret,
+  `EMPIRICAL` abstention when the interval is vacuous or the premise is unavailable.
+
+### Added (experimental)
+- **`LinearCyclicSCM.stability_margin` / `spectral_abscissa` / `max_stable_learning_rate`** —
+  E-stability diagnostics of the mean dynamics `x' = (B - I)x + u`: a positive margin is strictly
+  weaker than contractivity and licenses convergence of damped adaptive unrolling.
+- **`compare_equilibrium_unrolling(..., learning_rate=gamma)`** — unrolls the damped adaptive
+  dynamics `x + gamma (Bx + u - x)`; certifies `IDENTIFIED` on the strictly larger
+  stable-mean-dynamics class. Every hedge now carries the stability diagnostics, so a
+  non-contractive-but-stable system reports the learning rate that *would* certify it.
+
 ## [2.1.0] - 2026-07-11
 
 Phase 5 — experimental cyclic SCM support. Feedback systems (control loops, coupled steady states)
