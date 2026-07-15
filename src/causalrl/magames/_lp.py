@@ -25,13 +25,16 @@ _Vector = FloatArray | Sequence[float]
 class LPResult:
     """Outcome of :func:`solve_lp` (``status``: ``optimal`` / ``infeasible`` / ``unbounded``).
 
-    On ``"optimal"``, ``x`` is the minimiser (original variables only) and ``value`` is ``c @ x``;
-    otherwise both are ``None``.
+    On ``"optimal"``, ``x`` is the minimiser (original variables only), ``value`` is ``c @ x``,
+    and ``dual_ub`` holds the sensitivities ``d value / d b_ub`` (one per ``<=`` row; a valid
+    subgradient at degenerate optima; ``None`` when no inequality rows were given). Otherwise
+    ``x``/``value``/``dual_ub`` are ``None``.
     """
 
     status: str
     x: FloatArray | None
     value: float | None
+    dual_ub: FloatArray | None = None
 
 
 def solve_lp(
@@ -84,7 +87,10 @@ def solve_lp(
     solution = np.zeros(width)
     solution[basis] = rhs
     x = solution[:n]
-    return LPResult("optimal", x, float(cost @ x))
+    # Duals of the <= rows: the slack column for row j in the final tableau is (+-)B^-1 e_j, and
+    # the row-flip sign cancels in c_B @ B^-1 e_j, so this is d value / d b_j directly.
+    dual_ub = cost2[basis] @ table[:, n:] if n_ub else None
+    return LPResult("optimal", x, float(cost @ x), dual_ub)
 
 
 def _simplex(

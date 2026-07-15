@@ -123,7 +123,15 @@ def _functional_vector(polytope: CCEPolytope, functional: Functional) -> FloatAr
     )
 
 
-def _polytope_bounds(polytope: CCEPolytope, values: FloatArray, epsilon: Epsilon) -> Interval:
+def _polytope_bounds(
+    polytope: CCEPolytope, values: FloatArray, epsilon: Epsilon
+) -> tuple[Interval, dict[str, float]]:
+    """Bounds plus the epsilon-sensitivities (LP duals summed over constraints).
+
+    ``lower``/``upper`` are ``d bound / d epsilon`` under a uniform relaxation (subgradients at
+    kinks); ``width`` is their difference — the marginal interval growth per unit of measured
+    regret, i.e. how much certificate tightness one more unit of learner regret costs.
+    """
     n = len(polytope.profiles)
     a_ub, b_ub = (
         (polytope.deviation_gains, _epsilon_vector(polytope, epsilon))
@@ -138,7 +146,14 @@ def _polytope_bounds(polytope: CCEPolytope, values: FloatArray, epsilon: Epsilon
             f"CCE bound LPs did not solve: ({low.status}, {high.status})"
         )
     assert low.value is not None and high.value is not None
-    return Interval(low.value, -high.value)
+    lower_sens = float(np.sum(low.dual_ub)) if low.dual_ub is not None else 0.0
+    upper_sens = float(-np.sum(high.dual_ub)) if high.dual_ub is not None else 0.0
+    sensitivity = {
+        "lower": lower_sens,
+        "upper": upper_sens,
+        "width": upper_sens - lower_sens,
+    }
+    return Interval(low.value, -high.value), sensitivity
 
 
 def cce_bounds(
@@ -155,7 +170,8 @@ def cce_bounds(
     regret (:func:`cce_regret`) for the finite-time form.
     """
     polytope = cce_polytope(game, do=do)
-    return _polytope_bounds(polytope, _functional_vector(polytope, functional), epsilon)
+    interval, _ = _polytope_bounds(polytope, _functional_vector(polytope, functional), epsilon)
+    return interval
 
 
 def cce_regret(
@@ -207,7 +223,9 @@ def certify_cce_do(
     """
     polytope = cce_polytope(game, do=do)
     values = _functional_vector(polytope, functional)
-    interval = _polytope_bounds(polytope, values, epsilon if epsilon is not None else 0.0)
+    interval, sensitivity = _polytope_bounds(
+        polytope, values, epsilon if epsilon is not None else 0.0
+    )
     width = interval.upper - interval.lower
     full = Interval(float(np.min(values)), float(np.max(values)))
     full_width = full.upper - full.lower
@@ -221,6 +239,7 @@ def certify_cce_do(
             "interval": [interval.lower, interval.upper],
             "width": width,
             "epsilon": measured if not isinstance(measured, Mapping) else dict(measured),
+            "epsilon_sensitivity": sensitivity,
             "n_profiles": len(polytope.profiles),
             "n_constraints": len(polytope.constraint_labels),
             "do": dict(do or {}),

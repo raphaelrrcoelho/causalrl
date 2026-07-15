@@ -212,3 +212,19 @@ def test_epsilon_validation() -> None:
         cce_bounds(game, _welfare(game), epsilon=-0.1)
     with pytest.raises(KeyError, match="unknown agents"):
         cce_bounds(game, _welfare(game), epsilon={"nope": 1.0})
+
+
+def test_certificate_reports_epsilon_sensitivity() -> None:
+    game = _symmetric_game(_DOMINANT)
+    cert = certify_cce_do(game, _welfare(game), no_regret=False, epsilon=0.3)
+    assert cert.witness is not None
+    sens = cert.witness.detail["epsilon_sensitivity"]
+    assert sens["width"] >= 0.0
+    assert sens["upper"] >= 0.0 >= sens["lower"]
+    # Finite-difference check on the actual bounds at the same epsilon.
+    h = 1e-6
+    lo0, hi0 = cce_bounds(game, _welfare(game), epsilon=0.3)
+    lo1, hi1 = cce_bounds(game, _welfare(game), epsilon=0.3 + h)
+    assert (hi1 - hi0) / h == pytest.approx(sens["upper"], abs=1e-5)
+    assert (lo1 - lo0) / h == pytest.approx(sens["lower"], abs=1e-5)
+    assert sens["width"] == pytest.approx(sens["upper"] - sens["lower"], abs=1e-9)

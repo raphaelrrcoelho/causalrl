@@ -80,3 +80,50 @@ def test_redundant_equality_rows_are_dropped() -> None:
     )
     assert res.status == "optimal"
     assert res.value == pytest.approx(1.0)
+
+
+def test_duals_on_binding_inequalities() -> None:
+    # min -x1 - x2 s.t. x1 + 2 x2 <= 4, 3 x1 + x2 <= 6: y solves A^T y = c -> y = (-0.4, -0.2),
+    # i.e. relaxing b_1 by 1 moves the optimum from -14/5 to -16/5.
+    res = solve_lp([-1.0, -1.0], a_ub=[[1.0, 2.0], [3.0, 1.0]], b_ub=[4.0, 6.0])
+    assert res.status == "optimal"
+    assert res.dual_ub is not None
+    np.testing.assert_allclose(res.dual_ub, [-0.4, -0.2], atol=1e-9)
+
+
+def test_dual_is_zero_for_slack_constraint() -> None:
+    # The cap x1 <= 10 is never binding at the optimum of the simplex problem.
+    res = solve_lp(
+        [3.0, 1.0, 2.0],
+        a_ub=[[1.0, 0.0, 0.0]],
+        b_ub=[10.0],
+        a_eq=[[1.0, 1.0, 1.0]],
+        b_eq=[1.0],
+    )
+    assert res.status == "optimal"
+    assert res.dual_ub is not None
+    np.testing.assert_allclose(res.dual_ub, [0.0], atol=1e-9)
+
+
+def test_duals_none_without_inequalities() -> None:
+    res = solve_lp([1.0, 1.0], a_eq=[[1.0, 1.0]], b_eq=[1.0])
+    assert res.status == "optimal"
+    assert res.dual_ub is None
+
+
+def test_duals_match_finite_differences() -> None:
+    # Perturb each b_j; the value change must match the reported dual (smooth point).
+    c = [-3.0, 0.0, -2.0]
+    a_ub = [[1.0, 0.0, 0.0], [0.0, 1.0, 1.0]]
+    b_ub = np.array([0.25, 0.9])
+    a_eq, b_eq = [[1.0, 1.0, 1.0]], [1.0]
+    base = solve_lp(c, a_ub=a_ub, b_ub=b_ub, a_eq=a_eq, b_eq=b_eq)
+    assert base.status == "optimal" and base.dual_ub is not None and base.value is not None
+    h = 1e-6
+    for j in range(2):
+        bumped = b_ub.copy()
+        bumped[j] += h
+        res = solve_lp(c, a_ub=a_ub, b_ub=bumped, a_eq=a_eq, b_eq=b_eq)
+        assert res.value is not None
+        fd = (res.value - base.value) / h
+        assert fd == pytest.approx(base.dual_ub[j], abs=1e-6)
