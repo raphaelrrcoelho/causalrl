@@ -23,7 +23,7 @@ _Vector = FloatArray | Sequence[float]
 
 @dataclass(frozen=True)
 class LPResult:
-    """Outcome of :func:`solve_lp`: ``status`` is ``"optimal"``, ``"infeasible"`` or ``"unbounded"``.
+    """Outcome of :func:`solve_lp` (``status``: ``optimal`` / ``infeasible`` / ``unbounded``).
 
     On ``"optimal"``, ``x`` is the minimiser (original variables only) and ``value`` is ``c @ x``;
     otherwise both are ``None``.
@@ -87,9 +87,10 @@ def solve_lp(
     return LPResult("optimal", x, float(cost @ x))
 
 
-def _simplex(table: FloatArray, rhs: FloatArray, cost: FloatArray, basis: list[int], tol: float) -> str:
+def _simplex(
+    table: FloatArray, rhs: FloatArray, cost: FloatArray, basis: list[int], tol: float
+) -> str:
     """Tableau simplex with Bland's rule; mutates ``table``/``rhs``/``basis`` in place."""
-    m = table.shape[0]
     while True:
         reduced = cost - cost[basis] @ table
         candidates = np.flatnonzero(reduced < -tol)

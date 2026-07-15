@@ -96,16 +96,9 @@ def cce_polytope(game: CausalGame, *, do: Mapping[str, int] | None = None) -> CC
         idx = game.agents.index(agent)
         table = game.utilities[agent]
         for deviation in game.actions[agent]:
-            rows.append(
-                [
-                    table[(*p[:idx], deviation, *p[idx + 1 :])] - table[p]
-                    for p in profiles
-                ]
-            )
+            rows.append([table[(*p[:idx], deviation, *p[idx + 1 :])] - table[p] for p in profiles])
             labels.append((agent, deviation))
-    gains = (
-        np.asarray(rows, dtype=np.float64) if rows else np.zeros((0, len(profiles)))
-    )
+    gains = np.asarray(rows, dtype=np.float64) if rows else np.zeros((0, len(profiles)))
     return CCEPolytope(tuple(game.agents), profiles, gains, tuple(labels))
 
 
@@ -126,16 +119,11 @@ def _epsilon_vector(polytope: CCEPolytope, epsilon: Epsilon) -> FloatArray:
 
 def _functional_vector(polytope: CCEPolytope, functional: Functional) -> FloatArray:
     return np.array(
-        [
-            float(functional(dict(zip(polytope.agents, p, strict=True))))
-            for p in polytope.profiles
-        ]
+        [float(functional(dict(zip(polytope.agents, p, strict=True)))) for p in polytope.profiles]
     )
 
 
-def _polytope_bounds(
-    polytope: CCEPolytope, values: FloatArray, epsilon: Epsilon
-) -> Interval:
+def _polytope_bounds(polytope: CCEPolytope, values: FloatArray, epsilon: Epsilon) -> Interval:
     n = len(polytope.profiles)
     a_ub, b_ub = (
         (polytope.deviation_gains, _epsilon_vector(polytope, epsilon))
@@ -160,7 +148,7 @@ def cce_bounds(
     do: Mapping[str, int] | None = None,
     epsilon: Epsilon = 0.0,
 ) -> Interval:
-    """Min/max of ``functional``'s expectation over the ``epsilon``-CCE polytope of the intervened game.
+    """Min/max of ``functional``'s expectation over the ``epsilon``-CCE polytope under ``do``.
 
     ``functional`` maps a joint profile (``{agent: action}``) to a real value; ``epsilon`` is a
     uniform or per-agent relaxation of the no-deviation constraints — pass a *measured* realized

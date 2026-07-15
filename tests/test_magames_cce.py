@@ -196,3 +196,19 @@ def test_top_level_exports() -> None:
     for name in ("cce_polytope", "cce_bounds", "cce_regret", "certify_cce_do", "CCEPolytope"):
         assert hasattr(causalrl, name)
         assert name in causalrl.__all__
+
+
+def test_polytope_validates_do() -> None:
+    game = _symmetric_game(_DOMINANT)
+    with pytest.raises(KeyError, match="unknown agent"):
+        cce_polytope(game, do={"nope": 0})
+    with pytest.raises(ValueError, match="not available"):
+        cce_polytope(game, do={"A2": 7})
+
+
+def test_epsilon_validation() -> None:
+    game = _symmetric_game(_DOMINANT)
+    with pytest.raises(ValueError, match="nonnegative"):
+        cce_bounds(game, _welfare(game), epsilon=-0.1)
+    with pytest.raises(KeyError, match="unknown agents"):
+        cce_bounds(game, _welfare(game), epsilon={"nope": 1.0})

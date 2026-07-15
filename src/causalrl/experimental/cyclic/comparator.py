@@ -18,7 +18,8 @@ whether the long-run unrolled ``do`` converges to the equilibrium ``do`` and ret
 * **EMPIRICAL** with the solvability hedge when there is no unique equilibrium to compare against.
 
 The unrolled side is computed directly as the linear mean dynamics ``x_{k+1} = B x_k + E[u]`` (or
-its damped form) from ``x_0 = 0``. (The shipped :func:`~causalrl.scm.unrolled.build_unrolled_scm` is scalar-per-node --
+its damped form) from ``x_0 = 0``. (The shipped
+:func:`~causalrl.scm.unrolled.build_unrolled_scm` is scalar-per-node --
 its ``StructuralCausalModel`` reshapes every node to one scalar per unit -- so it cannot represent a
 multi-variable vector state in a single unrolled chain; the direct dynamics are the same object.)
 Everything here is pure NumPy.
@@ -204,14 +205,10 @@ def _convergence_certificate(
     else:
         claim = "equilibrium vs adaptive-learning do(): unstable at this learning rate"
         kind = Kind.EMPIRICAL
-        reason = (
-            "adaptive dynamics are unstable at this learning rate"
-            + (
-                "; reduce learning_rate below max_stable_learning_rate"
-                if margin > 0.0
-                else "; no learning rate stabilises these mean dynamics (negative "
-                "stability margin)"
-            )
+        reason = "adaptive dynamics are unstable at this learning rate" + (
+            "; reduce learning_rate below max_stable_learning_rate"
+            if margin > 0.0
+            else "; no learning rate stabilises these mean dynamics (negative stability margin)"
         )
         hedge = Hedge(
             reason,

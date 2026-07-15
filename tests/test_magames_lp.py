@@ -69,3 +69,14 @@ def test_mixed_equality_and_inequality() -> None:
     assert res.value == pytest.approx(-2.25)
     assert res.x is not None
     np.testing.assert_allclose(res.x, [0.25, 0.0, 0.75], atol=1e-8)
+
+
+def test_redundant_equality_rows_are_dropped() -> None:
+    # The same constraint twice: phase 1 must pivot out / drop the redundant row, not fail.
+    res = solve_lp(
+        [1.0, 2.0],
+        a_eq=[[1.0, 1.0], [1.0, 1.0], [2.0, 2.0]],
+        b_eq=[1.0, 1.0, 2.0],
+    )
+    assert res.status == "optimal"
+    assert res.value == pytest.approx(1.0)
