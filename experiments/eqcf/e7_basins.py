@@ -51,9 +51,9 @@ def equilibria(u: float) -> list[tuple[float, float]]:
     return roots
 
 
-def ensemble_basin_mass(u: float, seed: int = 0) -> dict[str, float]:
+def ensemble_basin_mass(u: float, seed: int = 0, spread: float = 1.5) -> dict[str, float]:
     rng = np.random.default_rng(seed)
-    x = rng.normal(0.0, 1.5, N_LEARNERS)
+    x = rng.normal(0.0, spread, N_LEARNERS)
     for _ in range(T_STEPS):
         x = x + GAIN * (mean_field(x, u) + rng.normal(0.0, NOISE, N_LEARNERS))
     return {"negative": float(np.mean(x < 0)), "positive": float(np.mean(x > 0)),
@@ -77,6 +77,17 @@ def main() -> None:
         print(f"  SA-ensemble basin mass: negative {mass['negative']:.3f} "
               f"(mean {mass['mean_neg']:+.3f}), positive {mass['positive']:.3f} "
               f"(mean {mass['mean_pos']:+.3f})")
+
+    # Referee-proofing: the crossing mass depends on the (arbitrary) initial dispersion — report
+    # the whole curve rather than one point.
+    print("\n--- selection effect vs initial dispersion (mass moved to + basin by do(u=0.2)) ---")
+    for spread in (0.25, 0.5, 1.0, 1.5, 2.0, 3.0):
+        b = ensemble_basin_mass(0.0, spread=spread)
+        s = ensemble_basin_mass(0.2, spread=spread)
+        mix_b = b["negative"] * b["mean_neg"] + b["positive"] * b["mean_pos"]
+        mix_s = s["negative"] * s["mean_neg"] + s["positive"] * s["mean_pos"]
+        print(f"  spread {spread:4.2f}: moved {s['positive'] - b['positive']:+.3f}   "
+              f"mixture mean {mix_b:+.3f} -> {mix_s:+.3f}")
 
     base = ensemble_basin_mass(0.0)
     shifted = ensemble_basin_mass(0.2)

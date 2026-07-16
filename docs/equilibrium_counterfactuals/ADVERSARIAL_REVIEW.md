@@ -32,11 +32,14 @@ confounded.** The PG learners maximize *immediate* stage reward (no discounting)
 represent punishment threats **by construction**, so "memory-1 PG doesn't collude" was partly
 guaranteed by design. Additionally the E6/E3b horizons differ 100× (2M vs 20k). And real PPO uses
 γ>0, so "PPO-family respects the bounds" was unsupported. **FIXED**: reframed as a
-state-vs-farsightedness decomposition — memory alone does not break the stage-game bounds; the
-folk-theorem ingredient is the intertemporal objective. The farsighted-PG cell at matched horizon
-is named as the single most valuable follow-up. What survives is still real: 512 independent
-myopic neural populations behave no-regret and land on the point-identified values — the
-clean control cell of the 2×2.
+state-vs-farsightedness decomposition, and then **RESOLVED by E8 (2026-07-16)**: at the matched
+2M horizon, farsighted (γ=0.95, MC-returns, no-critic) memory-1 PG populations do NOT collude
+(64/64 on the point-identified welfare 32, median eps_T 0.005) while the bootstrapped Q anchor
+does (3/3 at 34.8–35.9, eps_T ≈ 1.9). The folk-theorem prediction for the open cell was
+falsified in the interesting direction: the driver narrows past "intertemporal objective" to
+**value bootstrapping** — consistent with the Q-vs-PG asymmetry in the algorithmic-collusion
+literature. The horizon confound is closed; remaining scope: one game, n=32 return truncation
+(effective γ-horizon ≈ 20), entropy-regularized on-policy PG.
 
 **B2. E2's "chaos" label.** No Lyapunov diagnostic of the coupled learning dynamics was computed
 at these parameters; SAF prove chaos for replicator families, not for this exact configuration

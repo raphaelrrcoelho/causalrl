@@ -130,6 +130,12 @@ ensemble N=100k, gain 0.05, noise 0.1, x0 ~ N(0, 1.5²).
   interventional object is the basin-mass mixture over stable σ-solutions (the Blom–Bongers–Mooij
   caveat, measured). Missing diagnostic identified: a multiplicity-aware hedge (all stable roots +
   ensemble basin masses) for the nonlinear cyclic layer.
+- **Dispersion-robustness (referee-proofing curve, 2026-07-15):** crossing mass under do(u=0.2)
+  by initial spread — 0.25: +16.4%, 0.5: +8.4%, 1.0: +4.3%, 1.5: +2.8%, 2.0: +2.1%, 3.0: +1.4%;
+  post-intervention mixture means 0.53 / 0.37 / 0.29 / 0.26 / 0.25 / 0.23 — the gap to the
+  tracked root (+1.20) persists at every dispersion (0.67–0.97), and the selection effect is
+  *largest* exactly when the population starts concentrated near the old boundary (the
+  near-indifference case). The conclusion is not an artifact of the initial-condition choice.
 
 ## E3b — deep-RL populations vs the bounds, batched on GPU (`e3b_deep_rl.py`)
 
@@ -157,6 +163,32 @@ matched-horizon, γ-swept version of that 2×2 is the single most valuable follo
 The certificate's new ε-sensitivity reads: at the measured median regret, the firm-1-profit
 interval grows at 8.0 width-units per unit of additional regret — and its ε=0 width is already
 8.0 (structural, the game): the looseness here is the game's, not the learners'.
+
+## E8 — the open cell closed: farsightedness alone does not collude (`e8_farsighted_2x2.py`)
+
+Matched-horizon decisive pair (2026-07-16, CUDA, T=2,000,000 per cell — E6's full horizon — R=64
+replicates; farsightedness via n-step (n=32) truncated **Monte-Carlo discounted returns, no
+critic**, isolating the intertemporal objective from value bootstrapping):
+
+| memory-1 population | eps_T q25/50/75 | welfare q25/50/75 | collusive |
+|---|---|---|---|
+| PG myopic γ=0 (control) | 0.000 / 0.000 / 0.000 | 32.00 / 32.00 / 32.00 | 0/64 |
+| PG farsighted γ=0.95 (THE cell) | 0.000 / 0.005 / 0.013 | 31.99 / 32.00 / 32.00 | 0/64 |
+| Q bootstrapped+farsighted (anchor) | 1.745 / 1.941 / 1.961 | 34.80 / 35.88 / 35.88 | 3/3 |
+
+**Finding: the folk-theorem prediction for the 2×2 was falsified in the interesting direction.**
+State + motive (memory + γ=0.95) was NOT sufficient for these on-policy Monte-Carlo
+policy-gradient populations — all 64 land exactly on the point-identified welfare 32 — while the
+bootstrapped-value family (Q: greedy bootstrapped targets, optimistic init) escapes at the same
+horizon in the same game. The collusion driver, within this design, narrows to **value
+bootstrapping**, not memory and not farsightedness per se. This matches the known Q-vs-PG
+asymmetry in the algorithmic-collusion literature and gives the certificate story its sharpest
+form: the stage-CCE bounds hold empirically for on-policy learning families (myopic or
+farsighted), and the measured-ε abstention fires exactly for the family known to collude.
+Scope qualifications: MC returns truncated at n=32 (effective γ-horizon ≈ 20 < 32, so punishment
+phases up to ~20 steps were representable — the motive channel was genuinely open); one game,
+one seed batch per cell (R=64 replicates each); entropy-regularized on-policy PG has a known
+bias toward stage-Nash play, which is part of the explanation, not a confound of it.
 
 ## E5 — JAX scale garnish (`e5_jax_scale.py`)
 

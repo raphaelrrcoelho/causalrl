@@ -37,6 +37,8 @@ for games. `THEORY.md` §3 states the unified ladder across both instruments.
 | E7 basin probe (T1 boundary) | RUN | both margins +0.9 (locally right) yet do(u) mixture mean +0.26 vs tracked +1.20 — selection gap 0.94 |
 | E3b deep-RL vs bounds (GPU, R=512 populations) | RUN | *myopic* PG stays no-regret/Nash even with memory — the folk-theorem ingredient is the intertemporal objective, not memory alone; farsighted-PG cell + matched horizon = key follow-up |
 | Adversarial self-review | DONE 2026-07-15 | ADVERSARIAL_REVIEW.md — LP duality certificates, Main-Theorem exclusivity fixed, E3b/E4/E2 overclaims corrected, venue verdict |
+| E8 matched-horizon decisive pair (GPU, 2M steps/cell) | RUN 2026-07-16 | farsighted MC-PG does NOT collude (64/64 at welfare 32) vs Q anchor 3/3 collusive — driver narrows to VALUE BOOTSTRAPPING; horizon confound closed |
+| E7 dispersion curve | RUN 2026-07-15 | selection effect robust across spreads 0.25–3.0 (crossing 16.4%→1.4%, gap to tracked root persists 0.67–0.97) |
 | local torch fix | `uv pip uninstall triton` (broken triton 3.7.0) | torch 2.12+cu130 fully works; reverts on next `uv sync` |
 
 ## Next (not started)
