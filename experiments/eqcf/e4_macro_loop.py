@@ -7,8 +7,10 @@ within-period block given expectations pi_e yields the expectations recursion
     pi = T(phi) pi_e + u',     T(phi) = (beta + kappa sigma) / (1 + kappa sigma phi)
 
 with naive expectations pi_e' = pi closing the cyclic SCM  B = [[0, T], [1, 0]].
-E-stability threshold: T(phi) < 1  <=>  phi > phi* = 1 - (1 - beta) / (kappa sigma)
-(the Bullard-Mitra learnability version of the Taylor principle).
+E-stability threshold: T(phi) < 1  <=>  phi > phi* = 1 - (1 - beta) / (kappa sigma) — a
+Taylor-principle-TYPE threshold for this bespoke static-timing toy (it recovers phi > 1 exactly
+in the patient limit beta -> 1; it is not the Bullard-Mitra condition, whose model timing and
+expectations differ).
 
 The exhibit: under a positive demand shock do(u = +1),
   - active rule (phi = 1.5): equilibrium do() and learning do() agree (certified IDENTIFIED);

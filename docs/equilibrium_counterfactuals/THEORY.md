@@ -25,41 +25,50 @@ non-identification with diagnostics otherwise (T3).
 
 ## 0.5 Main Theorem (the trichotomy, unified)
 
-**Theorem (identification trichotomy for learning populations).** Let `Q = E[f]` be an
-interventional query under `do`, posed of a population of adaptive learners, where the system is
-in one of the two shipped exact classes (a cyclic SCM with smooth mean field, or a finite game).
-Then exactly one of the following holds, each condition computable by a shipped instrument, and
-the corresponding certificate is warranted:
+**Theorem (identification trichotomy for learning populations).** Let `Q = E[f]` be a *global*
+interventional query under `do` (the population's long-run behaviour, not conditioned on a basin),
+posed of a population of adaptive learners, where the system is in one of the two shipped exact
+classes (a cyclic SCM with smooth mean field, or a finite game). Then exactly one of the following
+holds, each condition computable by a shipped instrument, and the corresponding certificate is
+warranted:
 
-1. **POINT (`IDENTIFIED`).** Either (i) the intervened σ-solution is unique-on-its-basin and the
-   mean dynamics are stable there (`stability_margin > 0`; hyperbolic case in T1′): the
-   learning-limit `do()` *equals* the equilibrium `do()` for every sufficiently small gain,
-   locally on that basin — T1; or (ii) the system is a finite game and `f` is constant over
-   `CCE(G_do)` (LP width ≤ tol): the equilibrium point prediction holds for *every* no-regret
-   population — T2 degeneracy.
+1. **POINT (`IDENTIFIED`).** Either (i) the intervened system has a **unique** stable σ-solution,
+   it is hyperbolic, and the mean dynamics are stable there (`stability_margin > 0`; T1/T1′): the
+   learning-limit `do()` *equals* the equilibrium `do()` for every sufficiently small gain; or
+   (ii) the system is a finite game and `f` is constant over `CCE(G_do)` (LP width ≤ tol): the
+   equilibrium point prediction holds for *every* no-regret population — T2 degeneracy.
 2. **SET (`BOUNDED`).** The system is a finite game and the population's measured realized regret
    at the horizon actually run is `ε_T`: the realized time-average of `f` lies in the LP interval
    over `CCE_{ε_T}(G_do)`, with **no further assumptions** — T2. The reported dual multipliers
    are the interval's growth rate per unit of additional regret (the certificate's
    ε-sensitivity), so the certificate also prices what more learning time is worth.
-3. **NONE (`EMPIRICAL`, hedged with diagnostics).** One of: the mean dynamics are unstable at the
-   σ-solution (`margin < 0`; no admissible gain rescues — T1 converse); the ε-interval is vacuous
-   at the measured regret (abstention); or the intervened system has multiple stable σ-solutions
-   (or a marginal one), so the global learning outcome is a *basin-mass mixture* over them — an
-   object plain SCM semantics cannot represent (Blom–Bongers–Mooij), reported as a selection
-   hedge — T3.
+3. **NONE (`EMPIRICAL`, hedged with diagnostics).** One of: every σ-solution has unstable mean
+   dynamics (`margin < 0`; no admissible gain rescues — T1 converse); the ε-interval is vacuous
+   at the measured regret (abstention); or the intervened system has **multiple** stable
+   σ-solutions (or a marginal one), so the global learning outcome is a *basin-mass mixture* over
+   them — an object plain SCM semantics cannot represent (Blom–Bongers–Mooij), reported as a
+   selection hedge — T3. In the multiplicity case, each stable σ-solution still carries a correct
+   *basin-local* case-1 certificate (T1′ is local by nature); the trichotomy classifies the
+   *global* query, and E7 measures exactly this local-right/global-mixture gap.
 
-The case analysis is exhaustive and decidable within the stated classes: margin sign, LP width, LP
-vacuity, and solvability/multiplicity are each finite computations (`stability_margin`,
-`compare_equilibrium_unrolling`, `cce_bounds`, `certify_cce_do`, `solve`).
+The case analysis is exhaustive and decidable within the stated classes: margin sign at each
+σ-solution, σ-solution multiplicity, LP width, LP vacuity, and solvability are each finite
+computations (`stability_margin`, `compare_equilibrium_unrolling`, `cce_bounds`,
+`certify_cce_do`, `solve`); exclusivity holds because case 1(i) requires global uniqueness of the
+stable σ-solution, which the multiplicity branch of case 3 negates.
 
 **Scope demarcation (measured by E6/E3b).** Case 2's polytope is the **stage-game** CCE.
-Populations with history-dependent strategies (memory-`k` learners, recurrent policies) can
-sustain time-averages outside it — but they are detected, not missed: their measured `ε_T` stays
-bounded away from zero, and it *equals the forgone stage-game deviation gain that intertemporal
-threats are enforcing*. Measured `ε_T` is therefore a collusion meter. The repeated-game analogue
-of case 2 is folk-theorem-sized (vacuous), so abstention/inflation is the correct certificate —
-and the theorem says exactly when it fires.
+Populations with history-dependent strategies *and intertemporal objectives* (discounted
+bootstrapped values — the folk-theorem ingredients) can sustain time-averages outside it — but
+they are detected, not missed: their measured `ε_T` stays bounded away from zero, and it *equals
+the forgone stage-game deviation gain that intertemporal threats are enforcing*. E3b's control:
+history-dependent but **myopic** learners (policy gradient on stage reward, no discounting)
+cannot represent such threats and empirically stay no-regret — memory alone does not break case 2;
+the intertemporal objective does. A large `ε_T` alone is *not* proof of collusion (exploration
+also produces it — E6's stateless-Q control reads 0.48); the collusion signature is `ε_T` bounded
+away from zero **with concentrated supra-competitive play**. The repeated-game analogue of case 2
+is folk-theorem-sized (vacuous), so abstention/inflation is the correct certificate — and the
+theorem says exactly when it fires.
 
 ## 1. T1 — E-stability is causal validity (linear class, both directions)
 

@@ -33,9 +33,10 @@ for games. `THEORY.md` §3 states the unified ladder across both instruments.
 |---|---|---|
 | ε-sensitivity instrument (LP duals in witness) | DONE + tests (lib, on local main) | certificate now prices marginal regret: structural vs statistical looseness |
 | Main Theorem (unified trichotomy) + T1′ (hyperbolic) | DRAFTED in THEORY.md §0.5/§1 | the paper's spine |
-| E6 collusion probe (T2 boundary) | RUN, 3 seeds | memory-1 Q collude (35.9 vs degenerate CCE welfare {32}); eps_T ≈ 1.94 = temptation×mass = collusion meter |
+| E6 collusion probe (T2 boundary) | RUN, 3 seeds; LP values duality-certified | memory-1 Q collude (35.9 vs degenerate CCE welfare {32}); eps_T ≈ 1.94 = temptation×mass (collusion signature with concentrated supra-competitive play); grid multiplicity disclosed |
 | E7 basin probe (T1 boundary) | RUN | both margins +0.9 (locally right) yet do(u) mixture mean +0.26 vs tracked +1.20 — selection gap 0.94 |
-| E3b deep-RL vs bounds (GPU, R=512 populations) | RUN | PG-family stays exactly no-regret/Nash even with memory — collusion driver = value bootstrapping, not memory |
+| E3b deep-RL vs bounds (GPU, R=512 populations) | RUN | *myopic* PG stays no-regret/Nash even with memory — the folk-theorem ingredient is the intertemporal objective, not memory alone; farsighted-PG cell + matched horizon = key follow-up |
+| Adversarial self-review | DONE 2026-07-15 | ADVERSARIAL_REVIEW.md — LP duality certificates, Main-Theorem exclusivity fixed, E3b/E4/E2 overclaims corrected, venue verdict |
 | local torch fix | `uv pip uninstall triton` (broken triton 3.7.0) | torch 2.12+cu130 fully works; reverts on next `uv sync` |
 
 ## Next (not started)

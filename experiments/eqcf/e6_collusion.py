@@ -9,8 +9,9 @@ from zero even as play stabilises. Either outcome is decisive for the T2 instrum
 - eps_T -> 0 with Nash profits: stateful RL behaves no-regret; the exact-CCE bound's reach
   extends beyond its assumptions;
 - eps_T bounded away from 0 with supra-competitive profits: tacit collusion sits OUTSIDE the
-  stage-game polytope, the certificate honestly abstains/inflates, and the measured eps_T is
-  literally a collusion meter (persistent forgone stage-game deviation gain).
+  stage-game polytope, the certificate honestly abstains/inflates, and the measured eps_T reads
+  the forgone stage-game deviation gain (a collusion signature when combined with concentrated
+  supra-competitive play — eps_T alone also arises from mere exploration).
 
 Game: P = 13 - (q1 + q2), c = 1, quantities {2,3,4,5,6}. Static Nash (4,4): profit 16 each.
 Joint-monopoly split (3,3): 18 each, with stage deviation temptation 20 (undercut... overproduce).

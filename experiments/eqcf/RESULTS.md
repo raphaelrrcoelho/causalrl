@@ -25,7 +25,11 @@ the one that fails in the nonlinear class.
 ## E2 — SAF learning chaos vs the T2 instrument (`e2_saf_chaos.py`)
 
 Perturbed RPS (eps_x=0.5, eps_y=−0.1), intervention: tax 0.3 on X's action 0 (intervened game
-built explicitly). Hedge population, T=200k.
+built explicitly). Hedge population, T=200k. Honesty note: chaos of the learning dynamics at
+*these* parameters was not separately verified in-run (SAF prove it for replicator dynamics in
+their parameter families); the demonstrated facts are non-convergence to Nash of the time-average
+and the certified containment — the label should be read as "non-convergent learning", with a
+Lyapunov diagnostic of the coupled learning flow as the cheap follow-up.
 
 - Nash point prediction of X's payoff: **0.0667**; realized time-average: **0.1034** (miss 0.037).
 - Measured realized regret eps_T = **0.0021**.
@@ -58,8 +62,11 @@ path (local torch unavailable); tabular Q suffices for the qualitative question.
 
 ## E4 — macro loop, certified policy flip (`e4_macro_loop.py`)
 
-NK toy, beta=0.99, sigma=1, kappa=0.3 ⇒ E-stability threshold phi* = 0.9667 (Bullard–Mitra Taylor
-principle). Intervention: demand shock do(u=+1).
+NK toy, beta=0.99, sigma=1, kappa=0.3 ⇒ E-stability threshold phi* = 0.9667 — a
+Taylor-principle-*type* threshold in this bespoke static-timing toy (phi* = 1 − (1−beta)/(kappa
+sigma), which recovers the textbook phi > 1 exactly in the patient limit beta → 1; it is NOT the
+Bullard–Mitra condition, whose timing and expectations differ). Intervention: demand shock
+do(u=+1).
 
 - phi=1.5 (active): **IDENTIFIED** (gap 7e-15); equilibrium pi* = +9.06; learning path converges
   to it (pi_30 = +8.79). margin=+0.057.
@@ -89,13 +96,25 @@ population in this game.
 | Hedge (no-regret) | 15.98 | 31.97 (ε-explained) | 0.016 |
 
 Modal play for seeds 0/2: 96–98% mass on the joint-monopoly (3,3). Measured eps_T ≈ 1.94 ≈
-(temptation 2.0) × (collusive mass 0.97): **the measured realized regret literally reads off the
-forgone stage-game deviation gain that the learned punishment scheme is enforcing — a collusion
-meter.** The trichotomy in one game and one functional: no-regret populations sit on the
-point-identified value; history-dependent populations escape it and are detected, not missed —
-the certificate inflates to the measured-ε interval instead of endorsing the static analysis.
-Demarcation for T2's scope: its object is the *stage-game* CCE; the repeated-game analogue is
-folk-theorem-vacuous, so inflation/abstention is the honest report (Main Theorem, scope note).
+(temptation 2.0) × (collusive mass 0.97): **the measured realized regret reads off the forgone
+stage-game deviation gain that the learned punishment scheme is enforcing.** Qualification: a
+large eps_T alone is not a collusion verdict — exploration also produces it (stateless Q reads
+0.48 at Nash profits); the collusion signature is eps_T bounded away from zero *combined with*
+concentrated supra-competitive play. The trichotomy in one game and one functional: no-regret
+populations sit on the point-identified value; farsighted history-dependent populations escape it
+and are detected, not missed — the certificate inflates to the measured-ε interval instead of
+endorsing the static analysis.
+
+**Verification + disclosure (adversarial check, 2026-07-15).** All four headline LP values
+(welfare {32}, profit [12, 20]) carry machine-checked weak-duality certificates (dual-feasible
+multipliers, slack ~1e-14), independent of the simplex internals. Structural cause found: the
+1-unit grid creates *three* pure Nash on the total-quantity-8 anti-diagonal — (3,5), (4,4), (5,3)
+— whose hull the CCE contains; welfare is constant (32) on that line, which is why the welfare
+CCE is degenerate and the profit interval spans [12, 20] "structurally". Disclosure: the
+degeneracy is thus partly a discretization artifact (continuous Cournot has a unique Nash); the
+collusion *escape* (35.9 > 32) is NOT an artifact — no CCE weight can exceed 32 (duality-
+certified), and (3,3)'s deviation gain is strict. Referee-proofing: rerun on an off-grid
+discretization where Nash is unique, expect a nondegenerate welfare interval and the same escape.
 
 ## E7 — the basin probe: locally certified, globally selected (`e7_basins.py`)
 
@@ -123,14 +142,17 @@ the PPO family's core update — on the same Cournot game as E6, 20k steps, last
 | stateless PG | 0.000 / 0.001 / 0.002 | 16.00 / 16.00 / 16.00 | 0/256 | 0/256 |
 | memory-1 PG | 0.000 / 0.001 / 0.001 | 16.00 / 16.00 / 16.00 | 0/256 | 0/256 |
 
-**Finding (paired with E6): the collusion driver is not memory — it is value bootstrapping.**
-Policy-gradient populations behave empirically no-regret (median eps_T = 0.001) and land exactly
-on the Nash/point-identified values even *with* memory, in the same game where memory-1
-Q-learners (bootstrapped values, discounting, optimistic init) escape to 35.9 welfare with
-eps_T ≈ 1.9. T2's practical reach: PPO-family populations respect the exact bounds; the
-Q-family's escape is metered, not missed. Scope caveat: 20k-step PG runs with standard
-hyperparameters — the claim is "no collusion emerged in 512 populations under this regime",
-not "PG cannot collude"; longer/tuned runs are the follow-up.
+**Finding (paired with E6), stated with its confounds: memory alone does not break the stage-game
+bounds; the folk-theorem ingredient that does is the intertemporal objective.** These PG learners
+maximize *immediate* stage reward (REINFORCE with baseline, no discounting), so they cannot
+represent punishment threats **by construction** — the memory-1 condition isolates "state" from
+"farsightedness", and with state alone all 512 populations stay empirically no-regret (median
+eps_T = 0.001) on the Nash/point-identified values, where E6's *discounted* memory-1 Q-learners
+(δ=0.95, bootstrapped values) escape to 35.9 welfare with eps_T ≈ 1.9. Two honest caveats:
+(i) the E6/E3b horizon differs 100× (2M vs 20k steps), so this is not a matched-horizon
+comparison; (ii) actual PPO deployments use γ > 0 — this run says nothing about *farsighted*
+policy-gradient agents, which remain the open cell of the 2×2 (state × farsightedness). The
+matched-horizon, γ-swept version of that 2×2 is the single most valuable follow-up experiment.
 
 The certificate's new ε-sensitivity reads: at the measured median regret, the firm-1-profit
 interval grows at 8.0 width-units per unit of additional regret — and its ε=0 width is already

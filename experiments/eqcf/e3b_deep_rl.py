@@ -5,8 +5,13 @@ the core update of the PPO family) play the same Cournot stage game as E6. Two c
 R independent replicate populations each, trained simultaneously as one batched GPU computation:
 
   stateless : policy sees a constant input  -> the approximately-no-regret regime;
-  memory-1  : policy sees the last joint action -> history-dependent strategies are learnable,
-              so stage-game CCE escape (tacit collusion) is possible.
+  memory-1  : policy sees the last joint action -> history-dependent strategies are learnable.
+
+IMPORTANT design fact for interpreting the result: these learners maximize IMMEDIATE stage
+reward (no discounting), so they are myopic by construction and cannot represent intertemporal
+punishment threats even with memory — the memory-1 condition isolates "state" from
+"farsightedness". The open cell (farsighted gamma > 0 policy gradient, matched to E6's horizon)
+is the follow-up; this run says nothing about it.
 
 Readout per replicate: measured stage-game regret eps_T and average profit over the tail window;
 across replicates: quartiles, fraction outside the exact stage-CCE, fraction supra-competitive.
