@@ -3,9 +3,11 @@
 % Draft 2026-07-16, branch equilibrium-counterfactuals (local only).
 %
 % PRE-SUBMISSION TODOs (owner):
-%  - Swap documentclass/preamble for the CLeaR (PMLR) style file; anonymize:
-%    the library name "causalrl" and repository links must be redacted or
-%    replaced by an anonymized artifact link for double-blind review.
+%  - Swap documentclass/preamble for the CLeaR (PMLR) style file. The library
+%    is deliberately NOT named in the body (theory-paper identity + double-blind
+%    hygiene + the standing strategy of keeping the library launch separate from
+%    the paper wave); concrete API names live only in Appendix E's artifact note
+%    — swap that note for an anonymized artifact link at submission.
 %  - Residual reading checks from the due-diligence report (also flagged in
 %    references.bib): Hammond et al. pre-policy section; Mishra--Fox in full;
 %    Magnolfi--Roncoroni published ANR treatment; EC 2024--26 proceedings scan;
@@ -47,7 +49,6 @@
 \newcommand{\Cid}{\textsc{Identified}}
 \newcommand{\Cbd}{\textsc{Bounded}}
 \newcommand{\Cem}{\textsc{Empirical}}
-\newcommand{\lib}{\textsf{causalrl}} % TODO: anonymize for submission
 \newcommand{\code}[1]{\texttt{#1}}
 
 \title{When Can You Trust an Equilibrium Counterfactual?\\
@@ -75,7 +76,7 @@ $\varepsilon_T$ actually measured at the horizon actually run, with no further a
 otherwise it is \emph{not identified}, but the failure itself is certifiable, with diagnostics ---
 including the case of multiple stable solutions, where the honest global object is a basin-mass
 mixture that no plain SCM can represent. Every condition in the trichotomy is computable by
-instruments we release in an open-source library, and each returns a typed certificate. Four
+instruments we release as an open-source artifact, and each returns a typed certificate. Four
 experiments exercise every rung: a cobweb ladder where the certificate fires correctly across four
 regimes, a game with non-convergent learning where the certified interval catches what the Nash
 point misses, a monetary-policy toy where the \emph{sign} of a policy conclusion flips between the
@@ -144,9 +145,9 @@ multiplicity of stable solutions, where the global interventional object is a ba
 --- the causal-constraint-model caveat of \citet{blom2019beyond} operationalized, and, in our
 experiments, \emph{measured}.
 \item \textbf{Instruments and evidence.} All conditions are computed by exact, dependency-free
-instruments in an open-source library (\lib): a stability-margin diagnostic and a damped-unrolling
-comparator for cyclic SCMs, and a CCE-polytope constructor with LP bounds, measured-regret
-certificates, and dual-multiplier sensitivities for finite games. Four experiments exercise every
+instruments we release as an open-source artifact: a stability-margin diagnostic and a
+damped-unrolling comparator for cyclic SCMs, and a CCE-polytope constructor with LP bounds,
+measured-regret certificates, and dual-multiplier sensitivities for finite games. Four experiments exercise every
 rung of the resulting certificate ladder (Section~\ref{sec:experiments}).
 \end{enumerate}
 
@@ -215,8 +216,8 @@ $B_{\doop} - I$,
 \gstar \;=\; \min_i \frac{-2\operatorname{Re}\nu_i}{|\nu_i|^2},
 \end{equation}
 the \emph{stability margin} (positive iff $B_{\doop}-I$ is Hurwitz) and the \emph{maximal stable
-learning rate} (the sharp constant-gain threshold, Lemma~\ref{lem:gain}). Both are exported by the
-library (\code{stability\_margin}, \code{max\_stable\_learning\_rate}).
+learning rate} (the sharp constant-gain threshold, Lemma~\ref{lem:gain}). Both are computed
+exactly by the released instruments (Appendix~\ref{app:exp}).
 
 \subsection{Queries, and what ``identified'' means here}\label{sec:queries}
 
@@ -239,8 +240,8 @@ stronger rung and, when possible, what action would unblock it (e.g.\ ``reduce t
 below $\gstar$''). The rung ordering is a soundness contract, not a scoring rule: \Cid{} may be
 claimed only under a proof of point identification, \Cbd{} only under a proof of containment, and
 everything else must degrade to \Cem{} with diagnostics rather than fabricate a bound. The
-$\doop$-comparator for cyclic SCMs (\code{compare\_equilibrium\_unrolling}) and the game
-certifier (\code{certify\_cce\_do}) implement the ladder in Table~\ref{tab:ladder}.
+$\doop$-comparator for cyclic SCMs and the game certifier for finite games implement the
+ladder in Table~\ref{tab:ladder}.
 
 % ============================================================================
 \section{Point identification: E-stability is causal validity}\label{sec:t1}
@@ -372,7 +373,7 @@ A population plays $T$ rounds of $G_{\doop}$, producing the empirical joint dist
 agent $i$'s \emph{realized regret} is
 $\varepsilon_T(i) = \max_{a_i'} \frac{1}{T}\sum_{t=1}^{T}
 [\,u_i(a_i', s_{-i,t}) - u_i(s_t)\,]$ clipped at zero --- computable from the trajectory log
-alone (\code{cce\_regret}).
+alone.
 
 \begin{theorem}[T2: finite-time containment, assumption-free]\label{thm:t2}
 For every horizon $T$ and every profile functional $h$,
@@ -381,7 +382,7 @@ For every horizon $T$ and every profile functional $h$,
 \Bigr] \quad \text{over } \mu \in \CCE_{\varepsilon_T}(G_{\doop}),
 \]
 where $\varepsilon_T$ is the vector of measured realized regrets. Both endpoints are linear
-programs over a polytope contained in the simplex (\code{cce\_bounds}).
+programs over a polytope contained in the simplex.
 \end{theorem}
 \begin{proof}
 $\mu_T \in \CCE_{\varepsilon_T}(G_{\doop})$ is the definition of realized regret rearranged: the
@@ -522,8 +523,7 @@ is case~3. The cases are exhaustive and mutually exclusive by construction --- i
 1(i) and 3(multiplicity) cannot co-fire because 1(i) requires global uniqueness, and 1(ii) and 2
 cannot co-fire because they split on width. Each condition is a finite computation given the
 enumerated solutions: margin signs, solution count, LP width, LP vacuity
-(\code{stability\_margin}, \code{compare\_equilibrium\_unrolling}, \code{cce\_bounds},
-\code{certify\_cce\_do}).
+(one instrument per row of Table~\ref{tab:ladder}).
 \end{proof}
 
 \begin{table}[t]
@@ -536,16 +536,16 @@ condition & instrument & certificate \\
 $\rho(B_{\doop}) < 1$, gap $\leq$ tol & comparator (naive unrolling) & \Cid \\
 $\margin > 0$, $\gamma < \gstar$, gap $\leq$ tol & comparator (damped, T1) & \Cid \\
 $\margin > 0$ but naive unrolling diverges & comparator hedge + $\gstar$ & \Cem{} (actionable) \\
-$h$ constant over $\CCE_0(G_{\doop})$ & \code{certify\_cce\_do} (T2 degeneracy) & \Cid \\
-no-regret assumed or $\varepsilon_T$ measured & \code{certify\_cce\_do} (T2) & \Cbd \\
-$\varepsilon_T$-interval vacuous & \code{certify\_cce\_do} & \Cem{} (abstention) \\
+$h$ constant over $\CCE_0(G_{\doop})$ & game certifier (T2 degeneracy) & \Cid \\
+no-regret assumed or $\varepsilon_T$ measured & game certifier (T2) & \Cbd \\
+$\varepsilon_T$-interval vacuous & game certifier & \Cem{} (abstention) \\
 $\margin < 0$ at every $\sigma$-solution & comparator hedge (no rescuing $\gamma$) & \Cem{} (certified failure) \\
 $I - B_{\doop}$ singular / $\margin \approx 0$ / multiplicity & typed refusal + selection hedge & \Cem{} (selection / CCM caveat) \\
 \bottomrule
 \end{tabular}
 \caption{The certificate ladder as shipped: every rung of Theorem~\ref{thm:main}, the instrument
 that checks it, and the certificate it warrants. ``Actionable'' hedges name the re-run that would
-upgrade the rung (e.g.\ a learning rate below $\gstar$); the last row is the library's typed
+upgrade the rung (e.g.\ a learning rate below $\gstar$); the last row is a typed
 refusal to fabricate a solution when the equilibrium object is ill-posed or selection-dependent.}
 \label{tab:ladder}
 \end{table}
@@ -764,7 +764,7 @@ robustness battery that claim genuinely needs. \textbf{Economics-facing model.} 
 static-timing toy; its threshold is Taylor-principle-\emph{type} only. A standard-timing
 calibrated New-Keynesian learning exercise is required before policy conclusions, and is
 deferred. \textbf{Multiplicity diagnostics.} E7's ensemble basin masses are computed by the
-experiment, not yet by a shipped library hedge; promoting the multiplicity-aware hedge into the
+experiment, not yet by a shipped instrument; promoting the multiplicity-aware hedge into the
 certificate layer (all stable $\sigma$-solutions plus basin-mass estimates) is engineering
 follow-up. \textbf{E2's dynamical label.} We verified non-convergence and containment, not a
 positive Lyapunov exponent for our exact configuration; the diagnostic is cheap and planned.
@@ -933,7 +933,7 @@ the optimal dual face. The min side is the max side of $-h$, hence convex with t
 statement. \hfill $\qed$
 
 \begin{remark}
-The library's solver returns the dual vector alongside the primal optimum, and the shipped
+Our LP solver returns the dual vector alongside the primal optimum, and the shipped
 certificates carry $\{\partial\text{lower}, \partial\text{upper}, \partial\text{width}\}$ at the
 measured $\varepsilon_T$. All experimental LP values in this paper are additionally verified by
 independent weak-duality certificates: a dual-feasible $y \geq 0$ with
@@ -981,9 +981,13 @@ Assumption~\ref{ass:R}. In class (c) both conditions are single LP solves. \hfil
 \section{Experimental details and reproducibility}\label{app:exp}
 % ============================================================================
 
-All experiments are single-file scripts against the released library; seeds are fixed in-script;
-every number in Section~\ref{sec:experiments} is pasted from an actual run. LP values carry
-independent weak-duality verification (Appendix~\ref{app:t2}).
+All experiments are single-file scripts against the released instruments; seeds are fixed
+in-script; every number in Section~\ref{sec:experiments} is pasted from an actual run. LP values
+carry independent weak-duality verification (Appendix~\ref{app:t2}). In the artifact's API
+(library name withheld here; replaced by an anonymized artifact link at submission), the
+instruments are: the comparator \code{compare\_equilibrium\_unrolling}; the spectral diagnostics
+\code{stability\_margin} and \code{max\_stable\_learning\_rate}; and the game instruments
+\code{cce\_polytope}, \code{cce\_bounds}, \code{cce\_regret}, and \code{certify\_cce\_do}.
 
 \paragraph{E1 (cobweb).} Demand $D(p) = 10 - p$, supply intercept $c = 1$, tax
 $\doop(\tau{=}1)$ entering as the supply-intercept shift; SCM
