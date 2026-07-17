@@ -89,9 +89,21 @@ anonymization, owner's residual reading checks, Dogra/Mishra–Fox citation veri
     engage Lomys–Magnolfi head-on.** Deltas B (trichotomy) and C (E-stability bridge) came
     back CLEAR of direct overlap.
 
+## Page-budget trim (2026-07-17): DONE
+
+Main text (abstract through Conclusion) now ends exactly on p.12 in PMLR format (References
+start p.13; 19pp total incl. appendices) — matching CLeaR's historical 12pp main-text limit.
+Five trim rounds: prose tightening throughout, E1/E2 honesty notes condensed (regime-D
+time-average note moved to Appendix E), §4 Provenance merged with the Related-Work
+learning-in-games paragraph (deduplication; the four-choices delta vs Lomys–Magnolfi now lives
+in §7 with a §4 pointer), figure heights reduced (figsize 3.0→2.55/2.6 in paper_figs.py, both
+copies), and \looseness=-1 on four late paragraphs. No content dropped: all honesty items,
+theorem statements, proofs, and novelty armor intact.
+
 ## Next (not started)
 
-- Paper 1 trim to CLeaR page budget (~2.5pp); swap in CLeaR 2027 wrapper when kit released.
+- Swap in the CLeaR 2027 wrapper .sty + re-fit when the author kit is released (CFP expected
+  ~Oct 2026; cadence: CLeaR 2025 deadline was Nov 2, 2024). Attach artifact.zip at submission.
 - Paper 2 (EC-shaped) prerequisites: E6 Calvano-scale seeds, off-grid Cournot with unique Nash,
   optional Lyapunov diagnostic for E2's learning flow.
 - Multiplicity-aware hedge (all stable σ-solutions + ensemble basin masses) promoted from E7

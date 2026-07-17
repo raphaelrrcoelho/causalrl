@@ -68,28 +68,25 @@ Systems}
 \maketitle
 
 \begin{abstract}
-Equilibrium models answer interventional queries by mutilate-and-re-solve: impose the
-intervention on the structural equations and read the new fixed point --- the $\doop$-semantics of
-cyclic structural causal models. Learning and agent-based models answer the same query by
-unrolling adaptive dynamics and observing where they go. The two operators can disagree, and the
-disagreement is the formal content of a fault line running from the Lucas critique to modern
-complexity economics. We make the question --- \emph{when do the two operators return the same
-answer?} --- a machine-checkable identification problem. Our main theorem is a trichotomy for
-global interventional queries on populations of adaptive learners: the equilibrium counterfactual
-is \emph{point-identified} exactly under an expectational-stability condition
-(E-stability~$\Leftrightarrow$~causal validity of the $\sigma$-solution, with the sharp
-learning-rate threshold); it is \emph{set-identified} by a linear program over the
-$\varepsilon$-coarse-correlated-equilibrium polytope of the intervened game, at the regret
-$\varepsilon_T$ actually measured at the horizon actually run, with no further assumptions; and
-otherwise it is \emph{not identified}, but the failure itself is certifiable, with diagnostics ---
-including the case of multiple stable solutions, where the honest global object is a basin-mass
-mixture that no plain SCM can represent. Every condition in the trichotomy is computable by
-instruments we release as an open-source artifact, and each returns a typed certificate. Four
-experiments exercise every rung: a cobweb ladder where the certificate fires correctly across four
-regimes, a game with non-convergent learning where the certified interval catches what the Nash
-point misses, a monetary-policy toy where the \emph{sign} of a policy conclusion flips between the
-two semantics exactly where the certificate says not to trust the equilibrium, and a bistable
-system where locally correct certificates coexist with a measured global selection gap.
+Equilibrium models answer interventional queries by mutilate-and-re-solve --- the
+$\doop$-semantics of cyclic structural causal models; learning models answer the same query by
+unrolling adaptive dynamics. The two operators can disagree, and the disagreement is the formal
+content of a fault line running from the Lucas critique to complexity economics. We make the
+question --- \emph{when do the two operators return the same answer?} --- a machine-checkable
+identification problem. Our main theorem is a trichotomy for global interventional queries on
+populations of adaptive learners: the equilibrium counterfactual is \emph{point-identified}
+exactly under expectational stability (E-stability~$\Leftrightarrow$~causal validity of the
+$\sigma$-solution, with the sharp learning-rate threshold); it is \emph{set-identified} by a
+linear program over the $\varepsilon$-coarse-correlated-equilibrium polytope of the intervened
+game, at the regret $\varepsilon_T$ actually measured at the horizon actually run, with no
+further assumptions; and otherwise it is \emph{not identified}, but the failure itself is
+certifiable, with diagnostics --- including multiplicity, where the honest global object is a
+basin-mass mixture no plain SCM can represent. Every condition is computable by instruments we
+release as an open-source artifact, each returning a typed certificate, and four experiments
+exercise every rung --- including a monetary-policy toy where the \emph{sign} of a policy
+conclusion flips between the two semantics exactly where the certificate says not to trust the
+equilibrium, and a bistable system with locally correct certificates but a measured global
+selection gap.
 \end{abstract}
 
 \begin{keywords}
@@ -106,72 +103,63 @@ interest-rate rule, and the equilibrium answer is a \emph{fall} of $8.2$ points:
 structural equations, re-solve the fixed point, read off the counterfactual. Ask the same
 structural equations populated by adaptive learners, and inflation \emph{rises without bound} ---
 $+250$ points within thirty learning steps (Section~\ref{sec:e4}). Same model, same intervention,
-same query; opposite sign. Under an active rule, the two answers agree to machine precision.
-Nothing in the equilibrium computation warns which case one is in.
+same query; opposite sign. Under an active rule the two answers agree to machine precision, and
+nothing in the equilibrium computation warns which case one is in.
 
-The pattern is old. The Lucas critique \citep{lucas1976econometric} is an argument that
-interventional predictions computed from an equilibrium description can fail when the underlying
-adaptation re-equilibrates; the adaptive-learning program in macroeconomics
-\citep{marcet1989convergence,evans2001learning} showed that stability of learning --- E-stability
---- governs whether rational-expectations equilibria are attainable at all;
-\citet{dogra2024paradoxes} argues that the causal interpretation of equilibrium economics is
-paradox-ridden precisely because equilibrium models suppress the adjustment process; and the
-complexity-economics literature has long insisted that ``equations'' (equilibrium conditions) and
-``maps'' (adaptive processes) are different objects \citep{brock1997rational,pangallo2019best}. On
-the causal-inference side, cyclic structural causal models give equilibrium counterfactuals an
-exact semantics \citep{bongers2021foundations}, the ODE-to-SCM construction says when an SCM is an
-abstraction of an underlying dynamical system \citep{mooij2013ordinary,rubenstein2017causal}, and
-\citet{blom2019beyond} prove that when equilibria depend on initial conditions, no plain SCM can
-represent the system at all. What none of these literatures provides is an \emph{identification
-theory}: a statement of exactly when the equilibrium $\doop$-operator answers the interventional
-question posed of the adaptive system, what can be salvaged when it does not, and a procedure that
-checks the conditions and says so.
+The pattern is old. The Lucas critique \citep{lucas1976econometric} says interventional
+predictions computed from an equilibrium description can fail when the underlying adaptation
+re-equilibrates; the adaptive-learning program in macroeconomics showed that stability of
+learning --- E-stability --- governs whether rational-expectations equilibria are attainable at
+all \citep{marcet1989convergence,evans2001learning}; \citet{dogra2024paradoxes} argues the causal
+interpretation of equilibrium economics is paradox-ridden precisely because equilibrium models
+suppress the adjustment process; complexity economics has long insisted that ``equations'' and
+``maps'' are different objects \citep{brock1997rational,pangallo2019best}. On the
+causal-inference side, cyclic SCMs give equilibrium counterfactuals an exact semantics
+\citep{bongers2021foundations}, the ODE-to-SCM construction says when an SCM abstracts an
+underlying dynamical system \citep{mooij2013ordinary,rubenstein2017causal}, and
+\citet{blom2019beyond} prove that equilibria depending on initial conditions are what no plain
+SCM can represent. What none of these provides is an \emph{identification theory}: exactly when
+does the equilibrium $\doop$-operator answer the interventional question posed of the adaptive
+system, what can be salvaged when it does not, and a procedure that checks and says so.
 
 This paper provides that theory for two well-delimited classes --- cyclic SCMs with smooth mean
-fields, and finite games --- together with the instruments that make every condition checkable.
-Concretely, we contribute:
+fields, and finite games --- with instruments that make every condition checkable:
 
 \begin{enumerate}
 \item \textbf{A bridge theorem (Theorems~\ref{thm:t1} and~\ref{thm:t1prime}).} For linear cyclic
 SCMs, point identification of the learning-limit counterfactual by the equilibrium counterfactual
-holds \emph{if and only if} the intervened system is E-stable in the sense of
-\citet{evans2001learning} --- equivalently, iff the mean-dynamics Jacobian is Hurwitz --- with the
-sharp constant-gain threshold $\gstar$ in closed form. The theorem turns ``E-stability'' into a
-statement of causal semantics: \emph{the $\sigma$-solution of the cyclic SCM is the causally
-correct description of the learning population exactly on the E-stable class}. A corollary
-formalizes the equations-vs-maps gap: naive unrolling demands the strictly stronger condition
-$\rho(B)<1$, and the regime in between --- divergent map, convergent learners --- is nonempty and
-certifiable. Theorem~\ref{thm:t1prime} extends both directions to hyperbolic equilibria of smooth
-systems, with explicit noise conditions, at the price of a basin-local scope.
+holds \emph{if and only if} the intervened system is E-stable \citep{evans2001learning}, with the
+sharp constant-gain threshold $\gstar$ in closed form: \emph{the $\sigma$-solution of the cyclic
+SCM is the causally correct description of the learning population exactly on the E-stable
+class}. A corollary formalizes the equations-vs-maps gap (naive unrolling demands the strictly
+stronger $\rho(B)<1$; divergent map with convergent learners is a nonempty, certifiable regime),
+and Theorem~\ref{thm:t1prime} extends both directions to hyperbolic equilibria of smooth systems,
+with explicit noise conditions, at the price of basin-local scope.
 \item \textbf{An identification trichotomy (Theorem~\ref{thm:main}).} For global interventional
 queries posed of learning populations in the two classes, exactly one of three cases holds, each
-decidable by a finite computation and each mapped to a typed certificate: \emph{point}
-identification (\Cid), \emph{set} identification by LP bounds over the
-$\varepsilon_T$-coarse-correlated-equilibrium polytope of the intervened game at the
-\emph{measured} realized regret $\varepsilon_T$ (\Cbd; Theorem~\ref{thm:t2}, which is
-deliberately assumption-free and binds at every finite horizon), and \emph{certified
-non-identification} (\Cem) with diagnostics.
+decidable by a finite computation and mapped to a typed certificate: \emph{point} identification
+(\Cid), \emph{set} identification by LP bounds over the $\varepsilon_T$-CCE polytope of the
+intervened game at the \emph{measured} realized regret (\Cbd; Theorem~\ref{thm:t2},
+assumption-free at every finite horizon), and \emph{certified non-identification} (\Cem) with
+diagnostics.
 \item \textbf{Certified failure rather than silent failure.} In the non-identified case the
-instruments report \emph{why}: a negative stability margin with the proof that no learning rate
-rescues convergence; a vacuous interval, reported as abstention rather than as a bound; or
-multiplicity of stable solutions, where the global interventional object is a basin-mass mixture
---- the causal-constraint-model caveat of \citet{blom2019beyond} operationalized, and, in our
+instruments report \emph{why}: a negative margin no learning rate can rescue; abstention in
+place of a vacuous bound; or multiplicity, where the global object is a basin-mass mixture ---
+the causal-constraint-model caveat of \citet{blom2019beyond} operationalized and, in our
 experiments, \emph{measured}.
-\item \textbf{Instruments and evidence.} All conditions are computed by exact, dependency-free
-instruments we release as an open-source artifact: a stability-margin diagnostic and a
-damped-unrolling comparator for cyclic SCMs, and a CCE-polytope constructor with LP bounds,
-measured-regret certificates, and dual-multiplier sensitivities for finite games. Four experiments exercise every
-rung of the resulting certificate ladder (Section~\ref{sec:experiments}).
+\item \textbf{Instruments and evidence.} Every condition is computed by exact, dependency-free
+instruments released as an open-source artifact (stability-margin diagnostic and damped
+comparator for cyclic SCMs; CCE polytope, LP bounds, measured-regret certificates, and dual
+sensitivities for games); four experiments exercise every rung of the resulting ladder
+(Section~\ref{sec:experiments}).
 \end{enumerate}
 
-\paragraph{What this paper is not.} The individual mathematical ingredients are standard ---
-stochastic-approximation theory on one side, LP duality over equilibrium polytopes on the other
---- and Theorem~\ref{thm:t2} in particular is a rearrangement of the definition of regret. The
-contribution is the synthesis: the two-semantics framing, the bridge that makes E-stability a
-causal-validity condition, the trichotomy that makes ``when can you trust an equilibrium
-counterfactual'' a decidable question with typed answers, and the instruments plus experiments
-that demonstrate the ladder end to end. We state each theorem's provenance next to it, and we
-flag every place where our experimental claims stop short (Section~\ref{sec:limitations}).
+\paragraph{What this paper is not.} The mathematical ingredients are standard ---
+stochastic approximation on one side, LP duality over equilibrium polytopes on the other --- and
+Theorem~\ref{thm:t2} is a rearrangement of the definition of regret. The contribution is the
+synthesis: the two-semantics framing, the bridge, the trichotomy, and the instruments plus
+experiments demonstrating the ladder end to end. We state each theorem's provenance next to it
+and flag every place where our experimental claims stop short (Section~\ref{sec:limitations}).
 
 % ============================================================================
 \section{Two \texorpdfstring{$\doop$}{do} semantics for one query}\label{sec:setup}
@@ -179,12 +167,11 @@ flag every place where our experimental claims stop short (Section~\ref{sec:limi
 
 \subsection{Equilibrium \texorpdfstring{$\doop$}{do}: cyclic SCMs}\label{sec:eqdo}
 
-A cyclic SCM over endogenous variables $x \in \R^n$ and exogenous variables $u$ specifies
-structural equations $x_i = f_i(x_{\mathrm{pa}(i)}, u_i)$ whose dependency graph may contain
-cycles. Its solutions are the fixed points $x = f(x, u)$; \citet{bongers2021foundations} develop
-the measure-theoretic solution-function ($\sigma$-solution) semantics under which such models
-support interventions and counterfactuals. The \textbf{equilibrium $\doop$} of an intervention is
-mutilate-and-re-solve: replace the targeted equations, then solve the intervened fixed-point
+A cyclic SCM over endogenous $x \in \R^n$ and exogenous $u$ specifies structural equations
+$x_i = f_i(x_{\mathrm{pa}(i)}, u_i)$ whose dependency graph may contain cycles; its solutions
+are the fixed points $x = f(x, u)$, given interventional semantics by the solution-function
+($\sigma$-solution) theory of \citet{bongers2021foundations}. The \textbf{equilibrium $\doop$}
+is mutilate-and-re-solve: replace the targeted equations, then solve the intervened fixed-point
 problem. Throughout, our exact linear class is
 \begin{equation}\label{eq:linear-scm}
 x = Bx + u, \qquad
@@ -195,14 +182,14 @@ unique equilibrium counterfactual
 \begin{equation}\label{eq:xstar}
 x^* \;=\; (I - B_{\doop})^{-1}\, \E[u_{\doop}].
 \end{equation}
-We write $\doeq{\cdot}$ for this operator. For finite games (Section~\ref{sec:t2}), the analogous
-equilibrium object is an equilibrium set of the intervened game rather than a point; the
-correlated-equilibrium polytope will play the role of $(I-B)^{-1}$.
+We write $\doeq{\cdot}$ for this operator; for finite games (Section~\ref{sec:t2}) the
+equilibrium object is a set rather than a point, with the correlated-equilibrium polytope
+playing the role of $(I-B)^{-1}$.
 
 \subsection{Learning \texorpdfstring{$\doop$}{do}: adaptive dynamics}\label{sec:lrdo}
 
-The same structural equations, populated by agents who do not solve fixed points but adapt,
-define a process: impose the same mutilation on the \emph{process} and unroll,
+Populated instead by agents who adapt rather than solve fixed points, the same equations define
+a process: impose the same mutilation on the \emph{process} and unroll,
 \begin{equation}\label{eq:sa}
 x_{k+1} \;=\; x_k + \gamma_k \bigl( f_{\doop}(x_k) - x_k + M_{k+1} \bigr),
 \end{equation}
@@ -212,7 +199,7 @@ $\gamma_k \equiv \gamma \in (0,1]$ is the Euler discretization of the \textbf{me
 \dot{x} \;=\; F_{\doop}(x) \;\coloneqq\; f_{\doop}(x) - x,
 \end{equation}
 and decreasing gain ($\sum_k \gamma_k = \infty$, $\sum_k \gamma_k^2 < \infty$) is Robbins--Monro
-stochastic approximation \citep{robbins1951stochastic} --- the regime of least-squares learning in
+stochastic approximation \citep{robbins1951stochastic}, the regime of least-squares learning in
 macroeconomics \citep{marcet1989convergence,evans2001learning}. Equation~\eqref{eq:ode} is the
 E-stability ODE of \citet{evans2001learning} in mean-dynamics form: $f_{\doop}$ is the
 temporary-equilibrium map from expectations to realized outcomes, and E-stability of an
@@ -229,32 +216,26 @@ $B_{\doop} - I$,
 \gstar \;=\; \min_i \frac{-2\operatorname{Re}\nu_i}{|\nu_i|^2},
 \end{equation}
 the \emph{stability margin} (positive iff $B_{\doop}-I$ is Hurwitz) and the \emph{maximal stable
-learning rate} (the sharp constant-gain threshold, Lemma~\ref{lem:gain}). Both are computed
-exactly by the released instruments (Appendix~\ref{app:exp}).
+learning rate} (the sharp constant-gain threshold, Lemma~\ref{lem:gain}).
 
-\subsection{Queries, and what ``identified'' means here}\label{sec:queries}
+\subsection{Queries and certificates}\label{sec:queries}
 
-A \emph{query} is the long-run population value $Q = \E_\mu[h]$ of a functional $h$
-under the intervention, where $\mu$ is the population's long-run occupation law. We distinguish
+A \emph{query} is the long-run population value $Q = \E_\mu[h]$ of a functional $h$ under the
+intervention, where $\mu$ is the population's long-run occupation law. We distinguish
 \emph{global} queries --- the population's long-run behavior, full stop --- from
-\emph{basin-local} queries conditioned on initialization within the basin of a particular stable
-solution. The distinction is not pedantic: Section~\ref{sec:e7} measures a system where every
-basin-local query is point-identified while the global query is not. We say the equilibrium
-counterfactual \emph{point-identifies} the query when $\dolr{\cdot}$ exists as a point and equals
-$\doeq{\cdot}$; \emph{set-identifies} it when a computable set provably contains the realized
-value; and \emph{fails} otherwise.
-
-\subsection{Certificates}\label{sec:certificates}
-
-Every instrument returns a typed certificate: a rung in
-$\{\Cid, \Cbd, \Cem\}$, a claim, a machine-checkable \emph{witness} (spectra, LP values, dual
-multipliers, measured regrets), and \emph{hedges} --- explicit statements of what blocked a
-stronger rung and, when possible, what action would unblock it (e.g.\ ``reduce the learning rate
-below $\gstar$''). The rung ordering is a soundness contract, not a scoring rule: \Cid{} may be
-claimed only under a proof of point identification, \Cbd{} only under a proof of containment, and
-everything else must degrade to \Cem{} with diagnostics rather than fabricate a bound. The
-$\doop$-comparator for cyclic SCMs and the game certifier for finite games implement the
-ladder in Table~\ref{tab:ladder}.
+\emph{basin-local} queries conditioned on initialization within the basin of a stable solution;
+Section~\ref{sec:e7} measures a system where every basin-local query is point-identified while
+the global query is not. The equilibrium counterfactual \emph{point-identifies} the query when
+$\dolr{\cdot}$ exists as a point and equals $\doeq{\cdot}$; \emph{set-identifies} it when a
+computable set provably contains the realized value; and \emph{fails} otherwise.
+\label{sec:certificates}%
+Every instrument returns a typed certificate: a rung in $\{\Cid, \Cbd, \Cem\}$, a claim, a
+machine-checkable \emph{witness} (spectra, LP values, dual multipliers, measured regrets), and
+\emph{hedges} --- what blocked a stronger rung and, when possible, the action that would unblock
+it. The rung ordering is a soundness contract: \Cid{} only under a proof of point
+identification, \Cbd{} only under a proof of containment, everything else degrading to \Cem{}
+with diagnostics rather than fabricating a bound. The $\doop$-comparator for cyclic SCMs and the
+game certifier for finite games implement the ladder in Table~\ref{tab:ladder}.
 
 % ============================================================================
 \section{Point identification: E-stability is causal validity}\label{sec:t1}
@@ -281,9 +262,8 @@ with bounded conditional second moments. The following are equivalent:
 \item[(2)] \emph{constant gain:} for every $\gamma \in (0, \gstar)$ the mean iteration converges
 to $x^*$ from every initial condition, and the stochastic iterates satisfy
 $\limsup_k \E\|x_k - x^*\|^2 = O(\gamma)$;
-\item[(3)] \emph{decreasing gain:} Robbins--Monro learning converges to $x^*$ almost surely (on
-the event that the iterates remain bounded, which under (1) has probability one for the linear
-recursion).
+\item[(3)] \emph{decreasing gain:} Robbins--Monro learning converges to $x^*$ almost surely
+(boundedness of the iterates has probability one under (1) for the linear recursion).
 \end{enumerate}
 Under any of these, $\dolr{\cdot} = \doeq{\cdot}$: the $\sigma$-solution of the intervened cyclic
 SCM is the causally correct description of the learning population's interventional behavior.
@@ -307,29 +287,26 @@ the probability-zero converse \citep{pemantle1990nonconvergence,brandiere1996alg
 Appendix~\ref{app:t1}.
 \end{proof}
 
-Theorem~\ref{thm:t1} is a bridge, and we claim it as such: each direction is classical in its home
-literature (the spectral algebra and the ODE method in stochastic approximation; E-stability in
-\citealp{evans2001learning}), but the equivalence has, to our knowledge, never been stated as a
-statement about the validity of SCM $\doop$-semantics --- ``E-stability'' becomes ``the
-$\sigma$-solution is the causally correct object,'' a sentence neither literature could previously
-parse.
+Theorem~\ref{thm:t1} is a bridge, and we claim it as such: each direction is classical in its
+home literature, but the equivalence has, to our knowledge, never been stated as a statement
+about the validity of SCM $\doop$-semantics --- ``E-stability'' becomes ``the $\sigma$-solution
+is the causally correct object,'' a sentence neither literature could previously parse.
 
 \begin{corollary}[naive unrolling is a strictly stronger demand]\label{cor:maps}
 The literal period-$1$ unrolling $x_{k+1} = B_{\doop} x_k + u$ converges iff
 $\rho(B_{\doop}) < 1$. Since $\rho(B) < 1 \Rightarrow \max_i \operatorname{Re}\lambda_i(B) < 1$
 but not conversely, the regime $\{\rho(B_{\doop}) \geq 1,\ \margin(B_{\doop}) > 0\}$ is nonempty
 (e.g.\ $B = [\,-2\,]$: $\rho = 2$, $\margin = 3$): the map diverges while every sufficiently
-damped adaptive population converges to the equilibrium counterfactual. This is the formal
-content of the equations-vs-maps gap for local interventions in the linear class, and it is
-exactly what the comparator certifies when called with a learning rate below $\gstar$.
+damped adaptive population converges to the equilibrium counterfactual --- the formal content of
+the equations-vs-maps gap in the linear class, certified by the comparator at any
+$\gamma < \gstar$.
 \end{corollary}
 
 \subsection{The nonlinear local statement}\label{sec:t1prime}
 
 Let $F = f - \mathrm{id}$ with $f \in C^1$, and let $x^*$ be a \emph{hyperbolic} zero of $F$ (no
-eigenvalue of $J = DF(x^*)$ on the imaginary axis). The full assumptions (A1)--(A4) ---
-smoothness, martingale noise with conditionally bounded second moments, Robbins--Monro gains, and,
-for the converse, a noise-excitation condition --- are stated in Appendix~\ref{app:t1prime}.
+eigenvalue of $J = DF(x^*)$ on the imaginary axis); assumptions (A1)--(A4) are stated in
+Appendix~\ref{app:t1prime}.
 
 \begin{theorem}[T1$'$: hyperbolic local version]\label{thm:t1prime}
 Under (A1)--(A3):
@@ -347,24 +324,22 @@ no learning-limit counterpart.
 \end{theorem}
 
 \begin{proof}[Proof sketch]
-Hyperbolicity reduces (i) to the linear case via the Hartman--Grobman linearization for the
-deterministic part and the limit-set theorem of stochastic approximation for the almost-sure
-part \citep{kushner2003stochastic,benaim1999dynamics,borkar2008stochastic}; (ii) is the
-nonconvergence-to-unstable-points theorem
-\citep{pemantle1990nonconvergence,brandiere1996algorithmes}. Full proof with the noise conditions
-made explicit: Appendix~\ref{app:t1prime}.
+Hyperbolicity reduces (i) to the linear case via Hartman--Grobman plus the SA limit-set theorem
+\citep{kushner2003stochastic,benaim1999dynamics,borkar2008stochastic}; (ii) is
+nonconvergence-to-unstable-points
+\citep{pemantle1990nonconvergence,brandiere1996algorithmes}. Full proof with explicit noise
+conditions: Appendix~\ref{app:t1prime}.
 \end{proof}
 
 \begin{remark}[the basin qualifier binds]\label{rem:selection}
-T1$'$ is local by nature. When the intervened system has \emph{multiple} stable
-$\sigma$-solutions, every basin-local certificate can be simultaneously correct while the global
-interventional outcome is a \emph{basin-mass mixture} across them --- and interventions move both
-the solutions and the basin boundaries. \citet{blom2019beyond} prove that equilibria depending on
-initial conditions are exactly what plain SCM semantics cannot represent; equilibrium selection
-by learning is that phenomenon, not merely an analogy to it. Section~\ref{sec:e7} measures the
-resulting local-right/global-wrong gap. This is why the trichotomy below is stated for global
-queries and treats multiplicity as certified non-identification with diagnostics rather than as a
-larger point-identified case.
+T1$'$ is local by nature. With \emph{multiple} stable $\sigma$-solutions, every basin-local
+certificate can be simultaneously correct while the global interventional outcome is a
+\emph{basin-mass mixture} across them --- and interventions move both the solutions and the
+basin boundaries. \citet{blom2019beyond} prove that equilibria depending on initial conditions
+are exactly what plain SCM semantics cannot represent; equilibrium selection by learning is that
+phenomenon, not an analogy to it. Section~\ref{sec:e7} measures the resulting gap; hence the
+trichotomy below classifies global queries and treats multiplicity as certified
+non-identification.
 \end{remark}
 
 % ============================================================================
@@ -373,11 +348,10 @@ larger point-identified case.
 
 The second exact class is finite games, where the equilibrium object is a set and the honest
 counterpart of \eqref{eq:xstar} is a polytope. Let $G$ be a finite game with agents $N$, action
-sets $A_i$, and utilities $u_i$; an intervention pins the actions of a subset of agents, inducing
-$G_{\doop}$: profiles restricted to the consistent ones, no-deviation constraints retained only
-for free agents. In the causal-games taxonomy this is a pre-policy intervention for the free
-agents --- their play re-adapts --- and post-policy for the pinned ones
-\citep{hammond2023reasoning,mishra2024causal}. For $\varepsilon = (\varepsilon_i)_{i}$, the
+sets $A_i$, and utilities $u_i$; an intervention pins the actions of a subset of agents,
+inducing $G_{\doop}$ (profiles restricted to the consistent ones, no-deviation constraints only
+for free agents) --- in the causal-games taxonomy, pre-policy for the free agents, whose play
+re-adapts, and post-policy for the pinned ones \citep{hammond2023reasoning,mishra2024causal}. For $\varepsilon = (\varepsilon_i)_{i}$, the
 $\varepsilon$-coarse-correlated-equilibrium polytope is
 \begin{equation}\label{eq:cce}
 \CCE_{\varepsilon}(G_{\doop}) \;=\; \Bigl\{ \mu \in \Delta(\text{profiles}) \;:\;
@@ -385,10 +359,9 @@ $\varepsilon$-coarse-correlated-equilibrium polytope is
 \ \ \forall i \text{ free},\ \forall a_i' \in A_i \Bigr\}.
 \end{equation}
 A population plays $T$ rounds of $G_{\doop}$, producing the empirical joint distribution $\mu_T$;
-agent $i$'s \emph{realized regret} is
+agent $i$'s \emph{realized regret}
 $\varepsilon_T(i) = \max_{a_i'} \frac{1}{T}\sum_{t=1}^{T}
-[\,u_i(a_i', s_{-i,t}) - u_i(s_t)\,]$ clipped at zero --- computable from the trajectory log
-alone.
+[\,u_i(a_i', s_{-i,t}) - u_i(s_t)\,]$, clipped at zero, is computable from the trajectory log.
 
 \begin{theorem}[T2: finite-time containment, assumption-free]\label{thm:t2}
 For every horizon $T$ and every profile functional $h$,
@@ -409,86 +382,59 @@ $\E_{\mu_T}[h]$ between the min and max over the feasible set is then immediate.
 Theorem~\ref{thm:t2} is definitionally true, and we present it as such: the ex post, finite-time
 character of measured-regret sets is folklore in the full-feedback case --- the rationalizable
 set of \citet{nekipelov2015econometrics} already holds for the realized play, as
-\citet{hartline2026economics} emphasizes --- and the containment step is textbook. Its role in
-this paper is to be the \emph{set-identification rung of the trichotomy}, in the certified form
-that binds at the horizon actually run, for whatever the learners actually did, abstaining when
-vacuous. It is horizon-uniform --- it holds at every $T$ simultaneously because each instance is deterministic
-given the log --- which we prefer to the term ``anytime-valid'' and its martingale connotations.
-Its development into a full empirical instrument (sensitivity analysis at scale, and the
-demarcation of which learning families respect the stage-game polytope at long horizons) is
-companion work; here we record the three corollaries the trichotomy needs.
+\citet{hartline2026economics} emphasizes --- and the containment step is textbook. Its role here
+is to be the \emph{set-identification rung of the trichotomy}: binding at the horizon actually
+run, for whatever the learners actually did, abstaining when vacuous, and horizon-uniform
+(deterministic given the log at every $T$). Three corollaries complete the rung.
 
 \begin{corollary}[asymptotic route]\label{cor:asymptotic}
 If the population is no-regret ($\varepsilon_T \to 0$;
 \citealp{foster1997calibrated,hart2000simple}), every limit point of $\{\mu_T\}$ lies in
-$\CCE_0(G_{\doop})$, and since the LP value is a Lipschitz function of the constraint
-right-hand side (with constant given by the optimal dual multipliers), the
-$\varepsilon_T$-bounds converge to the exact-CCE bounds. The classical statement is the
-$\varepsilon \to 0$ limit of the certified one.
+$\CCE_0(G_{\doop})$ and the $\varepsilon_T$-bounds converge to the exact-CCE bounds (the LP
+value is Lipschitz in the right-hand side): the classical statement is the $\varepsilon \to 0$
+limit of the certified one.
 \end{corollary}
 
 \begin{corollary}[degeneracy: when the equilibrium point prediction is safe]\label{cor:degeneracy}
 The equilibrium point prediction of $h$ is valid for every no-regret population iff
 $h$ is constant over $\CCE_0(G_{\doop})$ (LP width $0$) --- a checkable condition, certified
-\Cid. Example: in two-player zero-sum games every CCE achieves the value, so value functionals
-are point-identified for any no-regret population; generic anti-coordination games are not.
+\Cid. Example: every CCE of a two-player zero-sum game achieves the value, so value functionals
+are point-identified; generic anti-coordination games are not.
 \end{corollary}
 
 \begin{corollary}[$\varepsilon$-sensitivity from LP duals]\label{cor:duals}
-Each endpoint of the interval is a concave (max side) or convex (min side) piecewise-linear
-function of $\varepsilon$, and its one-sided derivative at the measured $\varepsilon_T$ is the
-sum of the optimal dual multipliers on the perturbed constraints --- returned by the solver and
-reported in the certificate witness. Reading: multiplied by the population's regret decay rate,
-it prices the marginal certificate tightness bought by running the population longer; an
-interval that is wide while its sensitivity is tiny is \emph{structurally} loose (the game), not
-statistically loose (the learners) --- a distinction no asymptotic statement makes.
+Each endpoint is a concave (max side) or convex (min side) piecewise-linear function of
+$\varepsilon$, with one-sided derivative at the measured $\varepsilon_T$ equal to the sum of the
+optimal dual multipliers on the perturbed constraints --- reported in the certificate witness.
+It prices the marginal tightness bought by running the population longer; an interval that is
+wide while its sensitivity is tiny is \emph{structurally} loose (the game), not statistically
+loose (the learners) --- a distinction no asymptotic statement makes.
 \end{corollary}
 
 \begin{remark}[width is the operational content of ``equilibrium'']\label{rem:width}
-$\mathrm{width}(h, \doop) = \max - \min$ over $\CCE_0(G_{\doop})$ measures how much
-predictive content equilibrium analysis has for adaptive populations under that intervention:
-zero is full point identification; the full payoff range is none, and the certificate then
-\emph{abstains} rather than reporting a vacuous interval.
+$\mathrm{width}(h, \doop) = \max - \min$ over $\CCE_0(G_{\doop})$ measures how much predictive
+content equilibrium analysis has under that intervention: zero is point identification; the
+full payoff range is none --- and the certificate \emph{abstains} rather than report a vacuous
+interval.
 \end{remark}
 
 \begin{remark}[scope: the stage-game polytope]\label{rem:scope}
 $\CCE_{\varepsilon}(G_{\doop})$ is the \emph{stage-game} polytope. Populations with
-history-dependent strategies and intertemporal objectives --- the folk-theorem ingredients, and
-empirically the value-bootstrapping learners of the algorithmic-collusion literature
+history-dependent strategies and intertemporal objectives --- empirically, the
+value-bootstrapping learners of the algorithmic-collusion literature
 \citep{calvano2020artificial} --- can sustain time-averages outside it. Theorem~\ref{thm:t2} is
-not violated: such populations are \emph{detected, not missed}, because their measured
-$\varepsilon_T$ stays bounded away from zero and the certificate inflates or abstains instead of
-endorsing the stage-game analysis. Mapping which learning families escape, and reading the
-measured $\varepsilon_T$ as a diagnostic of what enforcement is forgoing, is the subject of the
-companion paper; the trichotomy below only needs that the containment claim itself is
+not violated: such populations are \emph{detected, not missed} --- their measured
+$\varepsilon_T$ stays bounded away from zero and the certificate inflates or abstains. Mapping
+which families escape is companion work; the trichotomy only needs that containment itself is
 unconditional.
 \end{remark}
 
-\paragraph{Provenance.} Every atomic ingredient of this section exists in some form:
-set-valued counterfactuals over Bayes-correlated-equilibrium polytopes
-\citep{bergemann2022counterfactuals}; LP identified sets over equilibrium polytopes under weak
-informational assumptions, with Bayes correlated equilibrium as the solution concept
-\citep{magnolfi2023estimation,syrgkanis2017inference}; no-regret as the identifying behavioral
-assumption \citep{nekipelov2015econometrics}; set-identification of counterfactual outcome
-distributions in empirical games \citep{kline2024counterfactual}; set-valued interventional
-queries quantified over equilibrium sets in causal games, where returning credal-style bounds
-over the set is explicitly suggested \citep[Def.~21]{hammond2023reasoning}, with arbitrary
-partially-visible interventions characterized by \citet{mishra2024causal}; the
-LP-over-correlated-equilibria machinery itself \citep{papadimitriou2008computing}; and ---
-nearest of all --- $\varepsilon$-CCE set estimation for populations of learning algorithms, with
-support-function LPs and counterfactual bounds \citep{lomys2025estimation}. The delta claimed
-here is therefore \emph{not} set-valued interventional prediction as such --- that is
-\citet{hammond2023reasoning}'s, model-theoretically, and \citet{lomys2025estimation} already
-estimate $\varepsilon$-CCE sets econometrically --- but the conjunction of four choices none of
-these make: $\varepsilon$ is the \emph{measured realized regret} of the actual trajectory, with
-no behavioral or algorithm-class assumption (\citealp{lomys2025estimation} inflate by assumed
-worst-case convergence rates of an algorithm class, and themselves note that realized regrets
-concentrate better in practice); the containment is carried directly to the \emph{intervened}
-game's polytope rather than re-solved from identified primitives; the certificate \emph{abstains}
-when the interval is vacuous; and the LP duals are reported as prices of marginal regret. On top
-of that sit the trichotomy against the cyclic-SCM $\doop$ as two semantics for one query, and
-width as the operational equilibrium-content measure. The LP lives in joint-profile space
-(exponential in the number of players; hardness results exist for succinct games,
+\paragraph{Provenance.} Every atomic ingredient of this section exists in some form, and the
+delta is exactly the conjunction of four choices no adjacent work makes --- $\varepsilon$ from
+\emph{measured} play, containment on the \emph{intervened} game, abstention, dual prices ---
+plus the trichotomy and the width reading; Section~\ref{sec:related} states the claim against
+each neighbor, nearest of which is \citet{lomys2025estimation}. The LP lives in joint-profile
+space (exponential in the number of players; hardness results exist for succinct games,
 \citealp{papadimitriou2008computing}), so exact bounds are for small games; sampled and relaxed
 bounds are the scale path.
 
@@ -496,20 +442,18 @@ bounds are the scale path.
 \section{The main theorem: an identification trichotomy}\label{sec:main}
 % ============================================================================
 
-We now assemble the pieces. The theorem classifies \emph{global} queries
-(Section~\ref{sec:queries}) for systems in one of the stated classes; its honesty hinges on two
-scoping decisions motivated by Remark~\ref{rem:selection}: point identification in the SCM class
-requires \emph{global} uniqueness of the stable $\sigma$-solution, and everything outside the
-stated regularity is routed to the diagnostics case rather than silently assumed away.
+We now assemble the pieces. The theorem classifies \emph{global} queries; per
+Remark~\ref{rem:selection}, point identification requires \emph{global} uniqueness of the stable
+$\sigma$-solution, and everything outside the stated regularity routes to diagnostics.
 
 \begin{assumption}[regularity for the nonlinear SCM class]\label{ass:R}
 The intervened mean field $F_{\doop} = f_{\doop} - \mathrm{id}$ is $C^1$ with (R1) finitely many
 zeros, all hyperbolic; (R2) SA iterates remain in a compact set almost surely (dissipativity);
 (R3) the chain-recurrent set of the mean flow consists of its zeros only (no cycles or chaotic
-sets). (R1)--(R3) hold automatically in the linear class with $\margin \neq 0$, and (R3) is
-automatic for scalar systems with hyperbolic zeros. (R2)--(R3) are not decidable a priori in
-general; the instruments guard them at runtime with trajectory diagnostics (divergence detection
-and a largest-Lyapunov estimate), and their failure routes to case~3 below.
+sets). (R1)--(R3) hold automatically in the linear class with $\margin \neq 0$; (R3) is automatic for
+scalar systems with hyperbolic zeros. (R2)--(R3) are not decidable a priori: the instruments
+guard them at runtime (divergence detection, largest-Lyapunov estimate), and their failure
+routes to case~3 below.
 \end{assumption}
 
 \begin{theorem}[identification trichotomy for learning populations]\label{thm:main}
@@ -537,25 +481,21 @@ Theorem~\ref{thm:t1} converse); Assumption~\ref{ass:R} fails at runtime (diverge
 positive Lyapunov estimate); the $\varepsilon_T$-interval is vacuous (abstention;
 Remark~\ref{rem:width}); or the intervened system has \emph{multiple} stable $\sigma$-solutions,
 so the global learning outcome is a basin-mass mixture over them --- an object plain SCM
-semantics cannot represent \citep{blom2019beyond} --- reported as a selection hedge. In the
-multiplicity case each stable $\sigma$-solution still carries a correct \emph{basin-local}
-case-1 certificate (T1$'$ is local by nature); the trichotomy classifies the global query.
+semantics cannot represent \citep{blom2019beyond} --- reported as a selection hedge (each
+stable $\sigma$-solution still carries a correct \emph{basin-local} case-1 certificate; the
+trichotomy classifies the global query).
 \end{enumerate}
 \end{theorem}
 
 \begin{proof}[Proof sketch (details in Appendix~\ref{app:main})]
-Within classes (a)/(b), enumerate the $\sigma$-solutions (finitely many by (R1); spectral
-computation in (a)) and count the stable ones: zero stable (or (R) failing) routes to case~3;
-exactly one stable with $\margin>0$ routes to case~1(i) via Theorem~\ref{thm:t1}
-(global convergence is automatic in the linear class; in class (b) it follows from (R2)--(R3)
-plus the limit-set theorem and nonconvergence-to-unstable-points, Appendix~\ref{app:main});
-two or more stable routes to case~3 (multiplicity). Within class (c): width $\leq$ tol is
-case~1(ii); otherwise a nonvacuous measured-$\varepsilon_T$ interval is case~2 and a vacuous one
-is case~3. The cases are exhaustive and mutually exclusive by construction --- in particular
-1(i) and 3(multiplicity) cannot co-fire because 1(i) requires global uniqueness, and 1(ii) and 2
-cannot co-fire because they split on width. Each condition is a finite computation given the
-enumerated solutions: margin signs, solution count, LP width, LP vacuity
-(one instrument per row of Table~\ref{tab:ladder}).
+In classes (a)/(b), enumerate the $\sigma$-solutions (finitely many by (R1)) and count the
+stable ones: zero (or (R) failing) $\to$ case~3; exactly one $\to$ case~1(i) via
+Theorem~\ref{thm:t1} (globality is automatic in (a); in (b) it follows from (R2)--(R3) plus the
+limit-set and nonconvergence theorems); two or more $\to$ case~3 (multiplicity). In class (c):
+width $\leq$ tol $\to$ case~1(ii); else a nonvacuous measured-$\varepsilon_T$ interval $\to$
+case~2, vacuous $\to$ case~3. Exhaustiveness and exclusivity are by construction (1(i) requires
+global uniqueness, which case~3's multiplicity clause negates; 1(ii) and 2 split on width), and
+each condition is a finite computation given the enumerated solutions.
 \end{proof}
 
 \begin{table}[t]
@@ -575,40 +515,35 @@ $\margin < 0$ at every $\sigma$-solution & comparator hedge (no rescuing $\gamma
 $I - B_{\doop}$ singular / $\margin \approx 0$ / multiplicity & typed refusal + selection hedge & \Cem{} (selection / CCM caveat) \\
 \bottomrule
 \end{tabular}
-\caption{The certificate ladder as shipped: every rung of Theorem~\ref{thm:main}, the instrument
-that checks it, and the certificate it warrants. ``Actionable'' hedges name the re-run that would
-upgrade the rung (e.g.\ a learning rate below $\gstar$); the last row is a typed
-refusal to fabricate a solution when the equilibrium object is ill-posed or selection-dependent.}
+\caption{The certificate ladder: every rung of Theorem~\ref{thm:main}, its instrument, and the
+certificate warranted. ``Actionable'' hedges name the re-run that would upgrade the rung; the
+last row is a typed refusal to fabricate a solution.}
 \label{tab:ladder}
 \end{table}
 
 \paragraph{Certified failure, not silent failure.} Case~3 is where most of the practical value
-lies, because it is the case existing practice silently mislabels. The instruments report:
-with $\margin < 0$, the geometric divergence rate along the unstable eigenspace and a proof that
-no learning rate rescues it; with $\rho(B_{\doop}) \geq 1$ but $\margin > 0$, the actionable
-hedge that converts an apparent divergence into a certified re-run
-(Corollary~\ref{cor:maps}); with attracting cycles or chaos, a largest-Lyapunov diagnostic and
-the fallback that the \emph{time-averaged} play of a finite-game population still satisfies
-Theorem~\ref{thm:t2} at its measured regrets; with multiplicity or a singular intervened system,
-a typed refusal carrying all stable solutions and --- when trajectories are available ---
-ensemble basin masses (Section~\ref{sec:e7}). \citet{dash2005restructuring} is the causal-side
-precursor: equilibration changes causal structure, so manipulating the equilibrated model
-misleads; the ladder is that warning made operational.
+lies, because it is the case existing practice silently mislabels. The instruments report: with
+$\margin < 0$, the divergence rate and the proof that no learning rate rescues it; with
+$\rho(B_{\doop}) \geq 1$ but $\margin > 0$, the actionable hedge of Corollary~\ref{cor:maps};
+with cycles or chaos, a largest-Lyapunov diagnostic (time-averaged play of a finite-game
+population still satisfies Theorem~\ref{thm:t2}); with multiplicity or singularity, a typed
+refusal carrying all stable solutions and ensemble basin masses (Section~\ref{sec:e7}). The
+ladder is \citet{dash2005restructuring}'s warning --- manipulating the equilibrated model
+misleads --- made operational.
 
 % ============================================================================
 \section{Experiments}\label{sec:experiments}
 % ============================================================================
 
-Four experiments exercise every rung of Table~\ref{tab:ladder}. All numbers below are outputs of
-the released scripts with fixed seeds (parameters in Appendix~\ref{app:exp}); every LP value is
-verified by an independent weak-duality certificate (dual-feasible multipliers with slack
-$\sim 10^{-14}$), so no headline number depends on trusting our simplex implementation.
+Four experiments exercise every rung of Table~\ref{tab:ladder}; all numbers are outputs of the
+released scripts with fixed seeds (Appendix~\ref{app:exp}), and every LP value carries an
+independent weak-duality certificate (slack $\sim 10^{-14}$).
 
 \subsection{E1: the certificate ladder on the canonical stage}\label{sec:e1}
 
 The cobweb market --- demand $D(p) = a - dp$, supply $S(p^e) = c + s p^e$ under naive
-expectations, per-unit tax $\doop(\tau{=}1)$ as the intervention --- is the oldest stage for
-equilibrium-vs-dynamics questions \citep{nerlove1958adaptive,hommes1994dynamics}.
+expectations, per-unit tax $\doop(\tau{=}1)$ --- is the oldest stage for
+equilibrium-vs-dynamics questions \citep{nerlove1958adaptive,hommes1994dynamics};
 Table~\ref{tab:e1} runs one market through four regimes.
 
 \begin{table}[t]
@@ -633,45 +568,35 @@ chaotic (positive Lyapunov exponent).}
 \label{tab:e1}
 \end{table}
 
-Two honesty notes. First, regime D's chaos enters through the adaptive gain itself: with naive
-expectations a monotone cobweb map admits only fixed points and 2-cycles, so the device that
-rescues regime B is the one that produces chaos in the nonlinear class
-\citep{hommes1994dynamics} --- the ladder's two \Cem{} hedges are two ends of the same
-instrument. Second, in regime D the \emph{time-averaged} price ($5.8747$) happens to sit near
-$p^*$ ($5.9562$) because the chaotic attractor is roughly symmetric around the fixed point; the
-pointwise prediction fails completely (the trajectory never settles), and the certificate hedges
-exactly there.
+Regime D's chaos enters through the adaptive gain itself (a monotone naive-expectations cobweb
+map admits only fixed points and 2-cycles; \citealp{hommes1994dynamics}): the device that
+rescues regime B produces chaos in the nonlinear class --- two \Cem{} hedges, one instrument
+(further honesty note in Appendix~\ref{app:exp}).
 
 \subsection{E2: non-convergent learning and the \Cbd{} rung}\label{sec:e2}
 
-The perturbed rock--paper--scissors of \citet{sato2002chaos} (tie payoffs
-$\epsilon_X = 0.5$, $\epsilon_Y = -0.1$ breaking the zero-sum structure) is the canonical game
-in which learning dynamics fail to converge to Nash. We intervene by taxing $X$'s first action
-($\tau = 0.3$), build $G_{\doop}$ explicitly, and run a Hedge population for $T = 200{,}000$
-rounds. The Nash point prediction of $X$'s payoff in $G_{\doop}$ is $0.0667$; the realized
-time-average is $0.1034$ --- a miss of $0.037$. The measured realized regret is
-$\varepsilon_T = 0.0021$, and the measured-$\varepsilon$ interval $[0.0646,\ 0.3120]$ contains
-the realized value, as Theorem~\ref{thm:t2} guarantees by construction. Two readings, both
-honest: the certificate catches what the Nash point misses; and the interval width ($0.24$
-against a payoff range of $\approx 2.3$) \emph{is} the finding --- it is the measured amount of
-predictive content that ``equilibrium'' has for adaptive play in this game
-(Remark~\ref{rem:width}), and the miss it absorbs is small relative to it. We label the regime
-``non-convergent learning'' rather than chaos: \citet{sato2002chaos} prove chaos for replicator
-families, and we did not separately verify a positive Lyapunov exponent for this discrete Hedge
-configuration.
+The perturbed rock--paper--scissors of \citet{sato2002chaos} (tie payoffs $\epsilon_X = 0.5$,
+$\epsilon_Y = -0.1$) is the canonical game in which learning fails to converge to Nash. We tax
+$X$'s first action ($\tau = 0.3$), build $G_{\doop}$ explicitly, and run a Hedge population for
+$T = 200{,}000$ rounds. The Nash point prediction of $X$'s payoff is $0.0667$; the realized
+time-average is $0.1034$, a miss of $0.037$. The measured regret is $\varepsilon_T = 0.0021$ and
+the measured-$\varepsilon$ interval $[0.0646,\ 0.3120]$ contains the realized value, as
+Theorem~\ref{thm:t2} guarantees. Both readings are honest: the certificate catches what Nash
+misses, and the width ($0.24$ against a payoff range $\approx 2.3$) \emph{is} the finding ---
+the measured predictive content of ``equilibrium'' here (Remark~\ref{rem:width}). We write
+``non-convergent learning,'' not chaos: \citet{sato2002chaos} prove chaos for replicator
+families, and we did not verify a positive Lyapunov exponent for this Hedge configuration.
 
 \subsection{E4: the certified policy sign flip}\label{sec:e4}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{figs/fig_e4.pdf}
-\caption{E4. Left: stability margin of the intervened SCM as a function of the policy
-coefficient $\varphi$, crossing zero at $\varphi^* = 0.9667$. Right: under $\doop(u{=}{+}1)$,
-naive-expectations learning paths against the equilibrium predictions (dashed): at
-$\varphi = 1.5$ they agree (\Cid, gap $7 \times 10^{-15}$); at $\varphi = 0.5$ the equilibrium
-predicts $\pi^* = -8.21$ while learning explodes upward ($\pi_{30} = +249.6$) --- the sign of
-the policy conclusion flips, and the certificate reports $\margin = -0.059$ with $\gstar = 0$:
-no learning rate rescues it.}
+\includegraphics[width=0.82\textwidth]{figs/fig_e4.pdf}
+\caption{E4. Left: stability margin of the intervened SCM vs the policy coefficient $\varphi$,
+crossing zero at $\varphi^* = 0.9667$. Right: under $\doop(u{=}{+}1)$, learning paths vs the
+equilibrium predictions (dashed): at $\varphi = 1.5$ they agree (\Cid, gap $7 \times 10^{-15}$);
+at $\varphi = 0.5$ the equilibrium predicts $\pi^* = -8.21$ while learning explodes upward
+($\pi_{30} = +249.6$); the certificate reports $\margin = -0.059$, $\gstar = 0$.}
 \label{fig:e4}
 \end{figure}
 
@@ -679,161 +604,125 @@ A New-Keynesian-style toy in the spirit of \citet{dogra2024paradoxes} reduces to
 expectations recursion $\pi = T(\varphi)\, \pi^e + u'$ with
 $T(\varphi) = (\beta + \kappa\sigma)/(1 + \kappa\sigma\varphi)$, closed by naive expectations
 into the cyclic SCM $B = \bigl[\begin{smallmatrix} 0 & T \\ 1 & 0 \end{smallmatrix}\bigr]$
-($\beta = 0.99$, $\sigma = 1$, $\kappa = 0.3$). E-stability holds iff $T(\varphi) < 1$, i.e.\
+($\beta = 0.99$, $\sigma = 1$, $\kappa = 0.3$). E-stability holds iff
 $\varphi > \varphi^* = 1 - (1-\beta)/(\kappa\sigma) = 0.9667$ --- a Taylor-principle-\emph{type}
-threshold of this bespoke static-timing toy (it recovers the textbook $\varphi > 1$ exactly in
-the patient limit $\beta \to 1$; it is \emph{not} the condition of \citealp{bullard2002learning},
-whose model timing and expectations differ). Figure~\ref{fig:e4} shows the exhibit: under
-$\doop(u{=}{+}1)$ the margin crosses zero at $\varphi^*$ ($-0.0059$ at $\varphi^* - 0.05$,
-$+0.0058$ at $\varphi^* + 0.05$), and on the passive side the sign of the policy conclusion
-flips between the two semantics. An economist may object that nobody trusts comparative statics
-at an E-unstable equilibrium; the reply, following \citet{dogra2024paradoxes} and
-\citet{evans2006adaptive}, is that stability is routinely \emph{not checked} --- the contribution
-is the machine check, not the phenomenon. A standard-timing calibrated New-Keynesian learning
-model is deferred to the economics-facing companion paper.
+threshold of this bespoke static-timing toy (recovering the textbook $\varphi > 1$ as
+$\beta \to 1$; \emph{not} the condition of \citealp{bullard2002learning}, whose timing differs).
+Figure~\ref{fig:e4} shows the exhibit: the margin crosses zero at $\varphi^*$ ($\mp 0.0059$ at
+$\varphi^* \mp 0.05$), and on the passive side the sign of the policy conclusion flips between
+the two semantics. To the objection that nobody trusts comparative statics at an E-unstable
+equilibrium: stability is routinely \emph{not checked}
+\citep{dogra2024paradoxes,evans2006adaptive}, and the contribution is the machine check. A
+standard-timing calibrated New-Keynesian exercise is deferred to the economics-facing companion.
 
 \subsection{E7: locally certified, globally selected}\label{sec:e7}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{figs/fig_e7.pdf}
-\caption{E7. (a) Bistable mean field $F(x) = \tanh(3x) - x + u$: under $\doop(u{=}0.2)$ both
-stable roots move \emph{and} the basin boundary moves ($0 \to -0.105$). (b) Fraction of a
-stochastic-approximation ensemble ($N = 10^5$, $x_0 \sim \mathcal{N}(0, s_0^2)$) crossing the
-basin boundary under the intervention, as a function of initial dispersion $s_0$. (c) The
-population mixture mean under $\doop(u{=}0.2)$ against the equilibrium-tracking prediction
-$x_+^* = +1.199$: the gap persists at every dispersion ($0.67$--$0.97$) and is largest exactly
-when the population starts concentrated near the old boundary.}
+\includegraphics[width=0.9\textwidth]{figs/fig_e7.pdf}
+\caption{E7. (a) Bistable mean field: under $\doop(u{=}0.2)$ both stable roots move \emph{and}
+the basin boundary moves ($0 \to -0.105$). (b) Ensemble mass crossing the boundary vs initial
+dispersion $s_0$. (c) Population mixture mean vs the equilibrium-tracking prediction
+$x_+^* = +1.199$: the gap persists at every dispersion.}
 \label{fig:e7}
 \end{figure}
 
 The bistable mean field $F(x) = \tanh(3x) - x + u$ has two stable equilibria and one unstable
 one. At $u = 0$ the stable roots $\pm 0.995$ carry margins $+0.969$ \emph{each}: both
-basin-local T1$'$ certificates are \Cid, and both are correct. Under $\doop(u{=}0.2)$ the roots
-move to $-0.782$ and $+1.199$ (margins $+0.892$, $+0.991$) and the basin boundary moves from $0$
-to $-0.105$; a stochastic-approximation ensemble ($N = 10^5$, gain $0.05$, noise $0.1$,
-$x_0 \sim \mathcal{N}(0, 1.5^2)$) re-partitions from a $50.2/49.8$ split to $47.4/52.6$ ---
-$2.8\%$ of the population crosses the boundary. Equilibrium-tracking at the positive root
-predicts $+1.199$; the realized population mixture mean is $+0.261$ --- a gap of $0.938$ that no
-basin-local certificate can see (tracking the negative root instead gives $1.04$; the conclusion
-is root-invariant). This is Theorem~\ref{thm:main}'s case-3 multiplicity branch, and the
-\citet{blom2019beyond} caveat, \emph{measured}.
+basin-local T1$'$ certificates are \Cid, correctly. Under $\doop(u{=}0.2)$ the roots
+move to $-0.782$ and $+1.199$ (margins $+0.892$, $+0.991$), the basin boundary moves to
+$-0.105$, and a stochastic-approximation ensemble ($N = 10^5$, gain $0.05$, noise $0.1$,
+$x_0 \sim \mathcal{N}(0, 1.5^2)$) re-partitions from $50.2/49.8$ to $47.4/52.6$: $2.8\%$ of the
+population crosses the boundary. Equilibrium-tracking at the positive root predicts $+1.199$;
+the realized mixture mean is $+0.261$ --- a gap of $0.938$ no basin-local certificate can see
+(tracking the negative root gives $1.04$; the conclusion is root-invariant). This is
+Theorem~\ref{thm:main}'s multiplicity branch, and the \citet{blom2019beyond} caveat,
+\emph{measured}.
 
 Because the basin masses depend on the (arbitrary) initial distribution, we report the whole
-curve rather than one point (Figure~\ref{fig:e7}b,c): as the initial dispersion $s_0$ ranges
-over $0.25$--$3.0$, the crossing mass falls from $16.4\%$ to $1.4\%$, while the gap between the
-tracked root and the mixture mean persists at every dispersion ($0.67$--$0.97$) and is largest
-when the population starts concentrated near the old boundary --- the near-indifference case.
-The selection effect is not an artifact of the initial-condition choice; its \emph{size} is the
-curve. The diagnostic this motivates --- a multiplicity-aware hedge reporting all stable
-$\sigma$-solutions and, when trajectories are available, ensemble basin masses --- is what the
-last row of Table~\ref{tab:ladder} shows and what E7 computes explicitly.
+curve (Figure~\ref{fig:e7}b,c): as $s_0$ ranges over $0.25$--$3.0$ the crossing mass falls from
+$16.4\%$ to $1.4\%$, while the gap to the tracked root persists at every dispersion
+($0.67$--$0.97$) and is largest when the population starts concentrated near the old boundary
+--- the near-indifference case. The selection effect is not an artifact of the initial-condition
+choice; its \emph{size} is the curve. The multiplicity diagnostic this motivates --- all stable
+$\sigma$-solutions plus ensemble basin masses --- is Table~\ref{tab:ladder}'s last row.
 
 % ============================================================================
 \section{Related work}\label{sec:related}
 % ============================================================================
 
-\paragraph{Cyclic SCMs and dynamical abstraction.} \citet{bongers2021foundations} give cyclic
-SCMs their solution-function semantics; \citet{mooij2013ordinary} and \citet{rubenstein2017causal}
-characterize when an SCM is a consistent abstraction of an underlying dynamical system at
-equilibrium, and \citet{bongers2018causal} prove for dynamical systems that equilibration
-commutes with intervention under convergence conditions;
-\citet{blom2019beyond} prove the representational impossibility that our case-3 multiplicity
-branch operationalizes. \citet{iwasaki1994causality} and \citet{dash2005restructuring} are the
-older warnings that equilibration changes causal structure, and \citet{weinberger2023intervening}
-is the philosophical treatment of when equilibrium causal models mispredict interventions. Our
-contribution relative to this line is the learning-theoretic strengthening: not ``when does the
-SCM abstract the dynamics'' but ``when do the dynamics validate the SCM's $\doop$,'' as an
-equivalence (both directions) for expectations-based adaptive learning rather than ODE
-relaxation, with the E-stability characterization and the sharp gain threshold.
+\paragraph{Cyclic SCMs and dynamical abstraction.} \looseness=-1 \citet{bongers2021foundations}
+give cyclic SCMs their solution-function semantics; \citet{mooij2013ordinary} and \citet{rubenstein2017causal}
+characterize when an SCM consistently abstracts a dynamical system at equilibrium, and
+\citet{bongers2018causal} prove that equilibration commutes with intervention under convergence
+conditions; \citet{blom2019beyond} prove the representational impossibility our multiplicity
+branch operationalizes; \citet{iwasaki1994causality}, \citet{dash2005restructuring}, and
+\citet{weinberger2023intervening} warn that equilibrated models mispredict interventions. Our
+delta: not ``when does the SCM abstract the dynamics'' but ``when do the dynamics validate the
+SCM's $\doop$,'' as an equivalence for expectations-based adaptive learning, with the
+E-stability characterization and sharp gain threshold. \citet{white2009settable} extend Pearl's
+model for optimization, equilibrium, and learning (framework-level prior art; our delta is
+theorem-level). On the macro side, E-stability is due to
+\citet{marcet1989convergence,evans2001learning}, applied to policy by \citet{bullard2002learning}
+and connected to the Lucas critique by \citet{evans2006adaptive}: that literature has the
+stability theory but no causal semantics, the cyclic-SCM literature the reverse; T1 is the
+bridge.
 
-\paragraph{Settable systems.} \citet{white2009settable} extend Pearl's causal model explicitly
-for optimization, equilibrium, and learning, with attributes and partitioned settings ---
-framework-level prior art for everything here. The delta is theorem-level: settable systems
-provide the language for interventions on systems with equilibria; we provide identification
-conditions, rates, thresholds, and certificates for when the equilibrium answer is the learning
-answer.
-
-\paragraph{Adaptive learning in macroeconomics.} E-stability and least-squares learning
-convergence are due to \citet{marcet1989convergence} and \citet{evans2001learning};
-\citet{bullard2002learning} apply them to monetary policy rules; \citet{evans2006adaptive}
-connect learning to the Lucas critique. This literature has the stability theory but no causal
-semantics; the cyclic-SCM literature has the semantics but no stability theory. T1 is the
-bridge, and the certificate is its operational form.
-
-\paragraph{Learning in games and econometrics of learning agents.} No-regret convergence to
-coarse correlated equilibria is classical
-\citep{foster1997calibrated,hart2000simple,cesabianchi2006prediction,fudenberg1998theory}.
-\citet{nekipelov2015econometrics} use no-regret as an identifying assumption;
+\paragraph{Learning in games and econometrics of learning agents.} \looseness=-1 No-regret
+convergence to CCE is classical \citep{foster1997calibrated,hart2000simple,cesabianchi2006prediction,fudenberg1998theory};
+\citet{nekipelov2015econometrics} use it as an identifying assumption;
 \citet{bergemann2022counterfactuals}, \citet{magnolfi2023estimation}, and
-\citet{syrgkanis2017inference} compute LP identified sets over equilibrium polytopes.
-\citet{lomys2025estimation} are the nearest econometric neighbors: they prove that asymptotic
-no-regret is equivalent to convergence of time-averaged play to the (Bayes) CCE set and build
-$\varepsilon$-CCE set estimators with LP duality; Section~\ref{sec:t2} details the four choices
-separating our certificate from their estimator. \citet{kline2024counterfactual} set-identify
-counterfactual outcome distributions in empirical games with the point-vs-set boundary driven by
-equilibrium selection; ours is driven by the dynamics (E-stability). Measured regret has also
-been proposed as a regulatory audit statistic for algorithmic pricing
-\citep{hartline2024regulation}.
-\citet{hammond2023reasoning} define pre- and post-policy interventions in causal games with
-set-valued answers quantified over the equilibrium set --- including the credal-network reading
-and $\epsilon$-approximate equilibria via rationality relations --- and explicitly present
-mechanised games as relational cyclic causal models, a semantic bridge we build on;
-\citet{mishra2024causal} characterise a sound-and-complete family of primitive interventions
-subsuming the pre/post dichotomy. What is absent from that line is the identification layer this
-paper supplies: conditions for when the set-valued answer is a point, a computed interval, or
-vacuous; a finite-time route from \emph{measured play} rather than a fully specified model
-(regret does not appear in their corpus); and bounds that are actually computed, with widths
-read as evidence. Section~\ref{sec:t2} states our precise delta against each adjacent result.
-Non-convergence of learning dynamics is likewise classical
-\citep{sato2002chaos,mertikopoulos2018cycles,pangallo2019best}; we use it as the adversarial
-test bed for the \Cbd{} rung rather than as a subject in itself.
-
-\paragraph{Performative prediction.} The single-learner cousin of our question: a predictor
-whose deployment shifts the distribution it predicts, with stability conditions for convergence
-to performatively stable points \citep{perdomo2020performative}. The trichotomy can be read as
-the multi-agent, causal-semantics generalization: performative stability is the analogue of
-case~1, and our case~3 diagnostics have no analogue there because the single-learner setting
-suppresses equilibrium selection.
+\citet{syrgkanis2017inference} compute LP identified sets over equilibrium polytopes;
+\citet{kline2024counterfactual} set-identify counterfactual outcomes in empirical games with the
+point-vs-set boundary driven by equilibrium selection, not dynamics; and measured regret appears
+as a regulatory audit statistic in \citet{hartline2024regulation}. The nearest neighbors are
+\citet{lomys2025estimation}: $\varepsilon$-CCE set estimators for learning populations, with
+support-function LPs, duality, and counterfactual bounds. Four choices separate our certificate
+from their estimator: $\varepsilon$ is the \emph{measured realized regret} of the actual
+trajectory, with no behavioral or algorithm-class assumption (they inflate by assumed worst-case
+algorithm-class rates, themselves noting that realized regrets concentrate better); containment
+is carried directly to the \emph{intervened} game's polytope rather than re-solved from
+identified primitives; the certificate \emph{abstains} when vacuous; and the duals are reported
+as regret prices. In causal games, \citet{hammond2023reasoning} define pre/post-policy
+interventions with set-valued answers quantified over the equilibrium set (including a
+credal-bounds reading) and present mechanised games as relational cyclic causal models, a
+semantic bridge we build on; \citet{mishra2024causal} characterise a sound-and-complete family
+of primitive interventions. Absent from that line is the identification layer supplied here:
+conditions for point/interval/vacuous answers, a finite-time route from \emph{measured play}
+rather than a fully specified model, and bounds actually computed. Non-convergent learning is
+classical \citep{sato2002chaos,mertikopoulos2018cycles,pangallo2019best}; we use it as the
+\Cbd{} rung's test bed. Performative prediction \citep{perdomo2020performative} is the
+single-learner cousin: performative stability is case~1's analogue, and case~3 has no analogue
+there because a single learner suppresses equilibrium selection.
 
 % ============================================================================
 \section{Limitations and open problems}\label{sec:limitations}
 % ============================================================================
 
-\textbf{Exactness class.} T1 is exact for linear cyclic SCMs; T1$'$ is local and requires
-hyperbolicity; the global nonlinear statement leans on Assumption~\ref{ass:R}, parts of which
-((R2)--(R3)) are guarded by runtime diagnostics rather than decided a priori. We view the typed
-degradation to \Cem{} as the honest response, but a sharper decidable characterization for
-structured nonlinear classes (e.g.\ monotone or gradient-like mean fields) is open.
-\textbf{Boundary cases.} $\margin = 0$ and singular $I - B_{\doop}$ are refused, not classified;
-a bifurcation-aware treatment is open. \textbf{Game scale.} The CCE LP is exponential in the
-number of players; sampled and relaxed bounds with certified gaps are the scale path.
-\textbf{Stage-game scope.} Remark~\ref{rem:scope}: the demarcation of which learning families
-escape the stage-game polytope at long horizons --- and the reading of the measured
-$\varepsilon_T$ as an enforcement diagnostic --- is developed in companion work, with the
-robustness battery that claim genuinely needs. \textbf{Economics-facing model.} E4 is a bespoke
-static-timing toy; its threshold is Taylor-principle-\emph{type} only. A standard-timing
-calibrated New-Keynesian learning exercise is required before policy conclusions, and is
-deferred. \textbf{Multiplicity diagnostics.} E7's ensemble basin masses are computed by the
-experiment, not yet by a shipped instrument; promoting the multiplicity-aware hedge into the
-certificate layer (all stable $\sigma$-solutions plus basin-mass estimates) is engineering
-follow-up. \textbf{E2's dynamical label.} We verified non-convergence and containment, not a
-positive Lyapunov exponent for our exact configuration; the diagnostic is cheap and planned.
+\looseness=-1 \textbf{Exactness class.} T1 is exact for the linear class; T1$'$ is local and
+requires hyperbolicity; the global nonlinear statement leans on Assumption~\ref{ass:R}, parts
+of which are guarded at runtime rather than decided a priori --- typed degradation to \Cem{} is
+the honest response, but a sharper decidable characterization for structured nonlinear classes
+is open, as is a bifurcation-aware treatment of the refused boundary cases. \textbf{Game scale.} The CCE LP is exponential in the number of players;
+sampled and relaxed bounds with certified gaps are the scale path. \textbf{Stage-game scope.}
+The demarcation of which learning families escape the stage-game polytope
+(Remark~\ref{rem:scope}) is companion work. \textbf{Economics-facing model.} E4 is a bespoke
+static-timing toy; a standard-timing calibrated New-Keynesian exercise is required before policy
+conclusions. \textbf{Diagnostics not yet shipped.} E7's basin masses are computed by the
+experiment, not a shipped instrument, and E2's ``non-convergent'' label lacks a Lyapunov
+estimate of the learning flow; both are cheap follow-ups.
 
 % ============================================================================
 \section{Conclusion}\label{sec:conclusion}
 % ============================================================================
 
-``When can you trust an equilibrium counterfactual?'' has, for well-delimited classes, a
-three-part answer that a machine can check: \emph{trust it} exactly when the mean dynamics are
-E-stable and the stable solution is globally unique --- E-stability \emph{is} causal validity of
-the $\sigma$-solution; \emph{bound it} by the measured-regret CCE interval when the system is a
-finite game, with no assumptions beyond the trajectory log; \emph{and otherwise do not} --- but
-demand the diagnostics, because certified failure (a negative margin no gain can rescue, an
-abstention in place of a vacuous bound, a basin-mass mixture in place of a fabricated point) is
-itself usable knowledge. The Lucas critique, in this reading, is not a slogan about the
-fragility of equilibrium reasoning but a computable property of an intervened system --- and the
-experiments show it firing, quantitatively, exactly where it should.
+\looseness=-1 ``When can you trust an equilibrium counterfactual?'' has, for well-delimited
+classes, a three-part answer a machine can check: \emph{trust it} exactly when the mean dynamics are
+E-stable and the stable solution is globally unique; \emph{bound it} by the measured-regret CCE
+interval when the system is a finite game, with no assumptions beyond the trajectory log;
+\emph{and otherwise do not} --- but demand the diagnostics, for certified failure is usable
+knowledge: the Lucas critique not as a slogan but as a computable property of an intervened
+system, firing exactly where it should.
 
 % jmlr.cls already sets \bibliographystyle{plainnat}.
 \bibliography{references}
@@ -1048,7 +937,10 @@ then damped $\gamma = 0.4 = \gstar/2$); C trend-extrapolating demand $b = 1.2$; 
 $\arctan$ supply (scale $2.2$, steepness $12$) under adaptive expectations
 $p^e{}' = (1-g)p^e + g\,f(p^e)$, with the chaotic gain $g = 0.14$ found by a Lyapunov scan over
 $g \in [0.08, 0.52]$ and the largest Lyapunov exponent $+0.222$ computed over $8{,}000$ steps.
-The linearized certificate at $p^*$ hedges at $\gstar = 0.073 < g$.
+The linearized certificate at $p^*$ hedges at $\gstar = 0.073 < g$. Honesty note (regime D): the
+\emph{time-averaged} price ($5.8747$) happens to sit near $p^*$ ($5.9562$) because the chaotic
+attractor is roughly symmetric around the fixed point; the pointwise prediction fails completely
+(the trajectory never settles), and the certificate hedges exactly there.
 
 \paragraph{E2 (perturbed RPS).} Payoffs as in \citet{sato2002chaos} with
 $\epsilon_X = 0.5$, $\epsilon_Y = -0.1$; intervention: payoff tax $0.3$ on $X$'s action $0$

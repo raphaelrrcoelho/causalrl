@@ -47,7 +47,7 @@ C_GRAY = "#666666"
 
 def fig_e4() -> None:
     phi_star = 1.0 - (1.0 - e4.BETA) / (e4.KAPPA * e4.SIGMA)
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.6, 3.0))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.6, 2.55))
 
     # Panel A: stability margin vs phi.
     phis = np.linspace(0.3, 1.8, 300)
@@ -99,7 +99,7 @@ def fig_e4() -> None:
 
 
 def fig_e7() -> None:
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(10.8, 3.0))
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(10.8, 2.6))
 
     # Panel A: mean field and roots under u=0 vs do(u=0.2).
     xs = np.linspace(-2.0, 2.0, 600)
