@@ -41,12 +41,33 @@ for games. `THEORY.md` §3 states the unified ladder across both instruments.
 | E7 dispersion curve | RUN 2026-07-15 | selection effect robust across spreads 0.25–3.0 (crossing 16.4%→1.4%, gap to tracked root persists 0.67–0.97) |
 | local torch fix | `uv pip uninstall triton` (broken triton 3.7.0) | torch 2.12+cu130 fully works; reverts on next `uv sync` |
 
+## Paper 1 draft (2026-07-16): the CLeaR-shaped causal-semantics paper
+
+`paper/main.tex` + `paper/references.bib` + `paper/figs/` — full compilable draft of
+**"When Can You Trust an Equilibrium Counterfactual? A certified identification trichotomy for
+interventions on learning systems."** Contents: Main Theorem (trichotomy, global queries, with a
+new explicit regularity Assumption (R) for the nonlinear class — sharper than THEORY.md §0.5,
+which should be read as superseded by the paper's statement), T1 + equations-vs-maps corollary +
+T1′ with FULL noise-condition proofs (appendices A/B: martingale assumptions, Kushner–Yin
+limit-set, Pemantle/Brandière–Duflo converse), T2 as the set-identification rung (compact, with
+provenance paragraph crediting the four adjacent literatures), certificate-ladder table,
+experiments E1/E2/E4/E7 with the honesty notes from ADVERSARIAL_REVIEW.md baked in, related
+work, limitations. Figures regenerated deterministically by `experiments/eqcf/paper_figs.py`
+(E7 numbers reproduced exactly). Paper-split decision: this paper carries semantics+selection
+(E1/E2/E4/E7); the EC-shaped companion carries T2-instrument+demarcation (E6/E8/E3b) and is NOT
+folded in. Pre-submission TODOs are in the main.tex header comment (CLeaR style swap,
+anonymization, owner's residual reading checks, Dogra/Mishra–Fox citation verification).
+
 ## Next (not started)
 
 - Residual pre-submission reading checks listed in PROPOSAL.md (Hammond et al. pre-policy §,
   Mishra–Fox, Magnolfi–Roncoroni ANR, EC 2024–26 scan, CE-complexity citations).
+- Paper 1 polish: CLeaR (PMLR) style swap + anonymization; verify Dogra staff-report number.
+- Paper 2 (EC-shaped) prerequisites: E6 Calvano-scale seeds, off-grid Cournot with unique Nash,
+  optional Lyapunov diagnostic for E2's learning flow.
+- Multiplicity-aware hedge (all stable σ-solutions + ensemble basin masses) promoted from E7
+  into the library's nonlinear-cyclic certificate layer (lib change → goes to main, not here).
 - E3 deep-RL variant (PPO via [examples]/d3rlpy path) on CI or a GPU box — tabular Q stands in.
-- Paper 1 (EC/NeurIPS) draft: T2 finite-time theorem + E2 + certify_cce_do; then T1 + E1/E4.
 - Conformal finite-sample wrappers around the empirical checks (supporting cast; lib already
   ships `certify_conformal_interval`).
 - Merge decision for this branch (owner call; keep out of a release until the docs/paper cut).
