@@ -3,11 +3,12 @@
 % Draft 2026-07-16, branch equilibrium-counterfactuals (local only).
 %
 % PRE-SUBMISSION TODOs (owner):
-%  - Swap documentclass/preamble for the CLeaR (PMLR) style file. The library
-%    is deliberately NOT named in the body (theory-paper identity + double-blind
-%    hygiene + the standing strategy of keeping the library launch separate from
-%    the paper wave); concrete API names live only in Appendix E's artifact note
-%    — swap that note for an anonymized artifact link at submission.
+%  - Swap documentclass/preamble for the CLeaR (PMLR) style file.
+%  - ANONYMIZED: the library is never named and no API identifiers appear
+%    anywhere (theory-paper identity + double-blind hygiene + the standing
+%    strategy of keeping the library launch separate from the paper wave).
+%    Remaining step at submission: attach the anonymized code artifact
+%    (instruments + experiment scripts) referenced in Appendix E.
 %  - Residual reading checks from the due-diligence report (also flagged in
 %    references.bib): Hammond et al. pre-policy section; Mishra--Fox in full;
 %    Magnolfi--Roncoroni published ANR treatment; EC 2024--26 proceedings scan;
@@ -53,7 +54,7 @@
 
 \title{When Can You Trust an Equilibrium Counterfactual?\\
 \large A certified identification trichotomy for interventions on learning systems}
-\author{Anonymous Author(s)\thanks{Draft; author block withheld pending venue anonymization rules.}}
+\author{Anonymous Author(s)\thanks{Anonymized for double-blind review.}}
 \date{July 2026 --- working draft}
 
 \begin{document}
@@ -983,11 +984,12 @@ Assumption~\ref{ass:R}. In class (c) both conditions are single LP solves. \hfil
 
 All experiments are single-file scripts against the released instruments; seeds are fixed
 in-script; every number in Section~\ref{sec:experiments} is pasted from an actual run. LP values
-carry independent weak-duality verification (Appendix~\ref{app:t2}). In the artifact's API
-(library name withheld here; replaced by an anonymized artifact link at submission), the
-instruments are: the comparator \code{compare\_equilibrium\_unrolling}; the spectral diagnostics
-\code{stability\_margin} and \code{max\_stable\_learning\_rate}; and the game instruments
-\code{cce\_polytope}, \code{cce\_bounds}, \code{cce\_regret}, and \code{certify\_cce\_do}.
+carry independent weak-duality verification (Appendix~\ref{app:t2}). The instruments --- one per
+row of Table~\ref{tab:ladder}: the equilibrium-vs-unrolling comparator, the spectral diagnostics
+(stability margin and maximal stable learning rate), and the game instruments (CCE-polytope
+constructor, LP bounds, measured realized regret, certifier) --- and the experiment scripts are
+provided as an anonymized code artifact accompanying the submission; their public API
+identifiers are redacted from this draft for double-blind review.
 
 \paragraph{E1 (cobweb).} Demand $D(p) = 10 - p$, supply intercept $c = 1$, tax
 $\doop(\tau{=}1)$ entering as the supply-intercept shift; SCM
