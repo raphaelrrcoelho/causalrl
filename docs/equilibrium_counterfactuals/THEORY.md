@@ -232,11 +232,20 @@ games; sampled/relaxed bounds are the scale path (E5).
 counterfactuals over BCE (Bergemann–Brooks–Morris 2022); LP identified sets over equilibrium
 polytopes with asymptotic-no-regret justifications (Magnolfi–Roncoroni; Syrgkanis–Tamer–Ziani);
 no-regret as identifying assumption (Nekipelov–Syrgkanis–Tardos 2015); set-valued `do()` over
-equilibrium sets in causal games (Hammond et al. 2023; Mishra–Fox 2024); LP-over-CCE machinery to
-mean-field scale (Campi et al. 2026). The claimed delta is precisely: (i) the finite-time,
-measured-regret certified form above (binds at the run horizon, abstains when vacuous); (ii) the
-point/set/none trichotomy stated against the cyclic-SCM equilibrium `do()` as two semantics for one
-query; (iii) width as the operational equilibrium-content measure.
+equilibrium sets in causal games (Hammond et al. 2023; Mishra–Fox–Wooldridge, UAI 2024 — the
+correct citation for what the proposal called "Mishra–Fox 2024": *Characterising Interventions in
+Causal Games*, PMLR 244:2560–2572); LP-over-CCE machinery to mean-field scale (Campi et al.
+2026); and — found in the 2026-07-17 pre-submission scan, NEAREST of all — **Lomys–Magnolfi (EC
+2025), "Estimation of Games under No Regret"**: asymptotic-no-regret ⇔ CCE-set convergence,
+ε-BCCE set estimators with LP duality, counterfactual LP bounds. The claimed delta is therefore
+narrowed to the conjunction Lomys–Magnolfi do not do: (i) ε = the MEASURED realized regret of the
+actual trajectory (they inflate by assumed worst-case algorithm-class rates, and themselves note
+realized regrets concentrate better); (ii) containment carried directly to the INTERVENED game's
+polytope (they re-solve counterfactuals from identified primitives); (iii) abstention-when-vacuous
+semantics; (iv) LP duals read as prices of marginal regret; plus the trichotomy against the
+cyclic-SCM equilibrium `do()` as two semantics for one query, and width as the operational
+equilibrium-content measure. Paper 1 §4 carries the precise wording; Paper 2's EC positioning
+MUST engage Lomys–Magnolfi head-on.
 
 ## 3. T3 — Certified failure: characterization + diagnostics
 
@@ -288,5 +297,6 @@ Expectations in Macroeconomics); Marcet–Sargent; Evans–Ramey (learning and t
 Hart–Mas-Colell; Foster–Vohra; Mertikopoulos–Papadimitriou–Piliouras (non-convergence);
 Sato–Akiyama–Farmer (PNAS 2002); Hommes; Brock–Hommes; Bergemann–Brooks–Morris (2022);
 Magnolfi–Roncoroni; Syrgkanis–Tamer–Ziani; Nekipelov–Syrgkanis–Tardos (2015); Hammond et al.
-(2023); Mishra–Fox (2024); Perdomo et al. (performative prediction); Dogra (causal interpretation
+(2023); Mishra–Fox–Wooldridge (UAI 2024); Lomys–Magnolfi (EC 2025); Kline–Tamer (2024);
+Hartline (2026 survey); Perdomo et al. (performative prediction); Dogra (causal interpretation
 of equilibrium economics); EECS IV Part I (Geanakoplos; Pangallo).

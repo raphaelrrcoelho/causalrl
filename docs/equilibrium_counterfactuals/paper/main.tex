@@ -3,39 +3,41 @@
 % Draft 2026-07-16, branch equilibrium-counterfactuals (local only).
 %
 % PRE-SUBMISSION TODOs (owner):
-%  - Swap documentclass/preamble for the CLeaR (PMLR) style file.
+%  - STYLE: typeset with the jmlr class in [pmlr] mode (jmlr.cls, jmlrutils.sty,
+%    algorithm2e.sty vendored alongside; CLeaR proceedings are PMLR volumes and
+%    the per-year CLeaR style is a thin wrapper over this class). When the
+%    CLeaR 2027 author kit is released, swap in its wrapper .sty and set the
+%    volume/workshop fields it prescribes.
 %  - ANONYMIZED: the library is never named and no API identifiers appear
 %    anywhere (theory-paper identity + double-blind hygiene + the standing
 %    strategy of keeping the library launch separate from the paper wave).
 %    Remaining step at submission: attach the anonymized code artifact
-%    (instruments + experiment scripts) referenced in Appendix E.
+%    (in ./artifact, zipped as artifact.zip) referenced in Appendix E.
+%  - PAGE BUDGET: main text (through Conclusion) currently ends on p.15 in
+%    this format; CLeaR's historical limit is 12pp excluding references and
+%    appendices. Trim candidates: Related Work prose, Section 5's diagnostics
+%    paragraph, E1 honesty notes (move to Appendix E).
 %  - Residual reading checks from the due-diligence report (also flagged in
 %    references.bib): Hammond et al. pre-policy section; Mishra--Fox in full;
 %    Magnolfi--Roncoroni published ANR treatment; EC 2024--26 proceedings scan;
 %    exact CE-complexity citations.
 %  - Verify Dogra staff-report number/year.
 % ============================================================================
-\documentclass[11pt]{article}
+\documentclass[pmlr]{jmlr}
+% Class auto-loads: amsmath, amssymb, natbib, graphicx, url, xcolor, hyperref, algorithm2e.
 
-\usepackage[margin=1in]{geometry}
-\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{mathtools}
 \usepackage{booktabs}
-\usepackage{graphicx}
 \usepackage{microtype}
-\usepackage{xcolor}
-\usepackage[round]{natbib}
-\usepackage[colorlinks=true,linkcolor=blue!60!black,citecolor=blue!60!black,urlcolor=blue!60!black]{hyperref}
 
-\newtheorem{theorem}{Theorem}[section]
-\newtheorem{lemma}[theorem]{Lemma}
-\newtheorem{corollary}[theorem]{Corollary}
-\newtheorem{proposition}[theorem]{Proposition}
-\theoremstyle{definition}
-\newtheorem{definition}[theorem]{Definition}
+% The class predefines theorem/lemma/corollary/proposition/definition/remark/example
+% (shared counter, jmlrutils); only `assumption` is missing.
+\theorembodyfont{\normalfont}
 \newtheorem{assumption}[theorem]{Assumption}
-\theoremstyle{remark}
-\newtheorem{remark}[theorem]{Remark}
-\newtheorem{example}[theorem]{Example}
+\theorembodyfont{\normalfont\itshape}
+% The class's proof environment takes no optional argument; extend it.
+\renewenvironment{proof}[1][\proofname]%
+  {\par\noindent{\bfseries\upshape #1.\ }}{\jmlrQED}
 
 % --- notation -----------------------------------------------------------------
 \newcommand{\R}{\mathbb{R}}
@@ -52,10 +54,15 @@
 \newcommand{\Cem}{\textsc{Empirical}}
 \newcommand{\code}[1]{\texttt{#1}}
 
-\title{When Can You Trust an Equilibrium Counterfactual?\\
-\large A certified identification trichotomy for interventions on learning systems}
-\author{Anonymous Author(s)\thanks{Anonymized for double-blind review.}}
-\date{July 2026 --- working draft}
+\jmlrvolume{vvv}
+\jmlryear{2027}
+\jmlrworkshop{Conference on Causal Learning and Reasoning (under double-blind review)}
+
+\title[When Can You Trust an Equilibrium Counterfactual?]{When Can You Trust an Equilibrium
+Counterfactual?\titlebreak A Certified Identification Trichotomy for Interventions on Learning
+Systems}
+\author{\Name{Anonymous Author(s)} \Email{anonymous@example.com}\\
+\addr Anonymized for double-blind review}
 
 \begin{document}
 \maketitle
@@ -84,6 +91,11 @@ point misses, a monetary-policy toy where the \emph{sign} of a policy conclusion
 two semantics exactly where the certificate says not to trust the equilibrium, and a bistable
 system where locally correct certificates coexist with a measured global selection gap.
 \end{abstract}
+
+\begin{keywords}
+causal identification; cyclic structural causal models; equilibrium; learning in games;
+coarse correlated equilibrium; E-stability; certificates
+\end{keywords}
 
 % ============================================================================
 \section{Introduction}\label{sec:intro}
@@ -363,7 +375,9 @@ The second exact class is finite games, where the equilibrium object is a set an
 counterpart of \eqref{eq:xstar} is a polytope. Let $G$ be a finite game with agents $N$, action
 sets $A_i$, and utilities $u_i$; an intervention pins the actions of a subset of agents, inducing
 $G_{\doop}$: profiles restricted to the consistent ones, no-deviation constraints retained only
-for free agents. For $\varepsilon = (\varepsilon_i)_{i}$, the
+for free agents. In the causal-games taxonomy this is a pre-policy intervention for the free
+agents --- their play re-adapts --- and post-policy for the pinned ones
+\citep{hammond2023reasoning,mishra2024causal}. For $\varepsilon = (\varepsilon_i)_{i}$, the
 $\varepsilon$-coarse-correlated-equilibrium polytope is
 \begin{equation}\label{eq:cce}
 \CCE_{\varepsilon}(G_{\doop}) \;=\; \Bigl\{ \mu \in \Delta(\text{profiles}) \;:\;
@@ -392,10 +406,13 @@ realized gain, which is at most $\varepsilon_T(i)$ by construction. Containment 
 $\E_{\mu_T}[h]$ between the min and max over the feasible set is then immediate.
 \end{proof}
 
-Theorem~\ref{thm:t2} is definitionally true, and we present it as such: its role in this paper is
-to be the \emph{set-identification rung of the trichotomy}, in the certified form that binds at
-the horizon actually run, for whatever the learners actually did, abstaining when vacuous. It is
-horizon-uniform --- it holds at every $T$ simultaneously because each instance is deterministic
+Theorem~\ref{thm:t2} is definitionally true, and we present it as such: the ex post, finite-time
+character of measured-regret sets is folklore in the full-feedback case --- the rationalizable
+set of \citet{nekipelov2015econometrics} already holds for the realized play, as
+\citet{hartline2026economics} emphasizes --- and the containment step is textbook. Its role in
+this paper is to be the \emph{set-identification rung of the trichotomy}, in the certified form
+that binds at the horizon actually run, for whatever the learners actually did, abstaining when
+vacuous. It is horizon-uniform --- it holds at every $T$ simultaneously because each instance is deterministic
 given the log --- which we prefer to the term ``anytime-valid'' and its martingale connotations.
 Its development into a full empirical instrument (sensitivity analysis at scale, and the
 demarcation of which learning families respect the stage-game polytope at long horizons) is
@@ -449,14 +466,28 @@ unconditional.
 
 \paragraph{Provenance.} Every atomic ingredient of this section exists in some form:
 set-valued counterfactuals over Bayes-correlated-equilibrium polytopes
-\citep{bergemann2022counterfactuals}; LP identified sets over equilibrium polytopes with
-asymptotic no-regret justifications \citep{magnolfi2023estimation,syrgkanis2017inference};
-no-regret as the identifying behavioral assumption \citep{nekipelov2015econometrics}; set-valued
-interventions over equilibrium sets in causal games \citep{hammond2023reasoning,mishra2024causal};
-and the LP-over-correlated-equilibria machinery itself \citep{papadimitriou2008computing}. The
-delta claimed here is exactly: the finite-time \emph{measured-regret certified} form with
-abstention; the trichotomy stated against the cyclic-SCM $\doop$ as two semantics for one query;
-and width as the operational equilibrium-content measure. The LP lives in joint-profile space
+\citep{bergemann2022counterfactuals}; LP identified sets over equilibrium polytopes under weak
+informational assumptions, with Bayes correlated equilibrium as the solution concept
+\citep{magnolfi2023estimation,syrgkanis2017inference}; no-regret as the identifying behavioral
+assumption \citep{nekipelov2015econometrics}; set-identification of counterfactual outcome
+distributions in empirical games \citep{kline2024counterfactual}; set-valued interventional
+queries quantified over equilibrium sets in causal games, where returning credal-style bounds
+over the set is explicitly suggested \citep[Def.~21]{hammond2023reasoning}, with arbitrary
+partially-visible interventions characterized by \citet{mishra2024causal}; the
+LP-over-correlated-equilibria machinery itself \citep{papadimitriou2008computing}; and ---
+nearest of all --- $\varepsilon$-CCE set estimation for populations of learning algorithms, with
+support-function LPs and counterfactual bounds \citep{lomys2025estimation}. The delta claimed
+here is therefore \emph{not} set-valued interventional prediction as such --- that is
+\citet{hammond2023reasoning}'s, model-theoretically, and \citet{lomys2025estimation} already
+estimate $\varepsilon$-CCE sets econometrically --- but the conjunction of four choices none of
+these make: $\varepsilon$ is the \emph{measured realized regret} of the actual trajectory, with
+no behavioral or algorithm-class assumption (\citealp{lomys2025estimation} inflate by assumed
+worst-case convergence rates of an algorithm class, and themselves note that realized regrets
+concentrate better in practice); the containment is carried directly to the \emph{intervened}
+game's polytope rather than re-solved from identified primitives; the certificate \emph{abstains}
+when the interval is vacuous; and the LP duals are reported as prices of marginal regret. On top
+of that sit the trichotomy against the cyclic-SCM $\doop$ as two semantics for one query, and
+width as the operational equilibrium-content measure. The LP lives in joint-profile space
 (exponential in the number of players; hardness results exist for succinct games,
 \citealp{papadimitriou2008computing}), so exact bounds are for small games; sampled and relaxed
 bounds are the scale path.
@@ -705,13 +736,16 @@ last row of Table~\ref{tab:ladder} shows and what E7 computes explicitly.
 \paragraph{Cyclic SCMs and dynamical abstraction.} \citet{bongers2021foundations} give cyclic
 SCMs their solution-function semantics; \citet{mooij2013ordinary} and \citet{rubenstein2017causal}
 characterize when an SCM is a consistent abstraction of an underlying dynamical system at
-equilibrium; \citet{bongers2018causal} treat random dynamical systems;
+equilibrium, and \citet{bongers2018causal} prove for dynamical systems that equilibration
+commutes with intervention under convergence conditions;
 \citet{blom2019beyond} prove the representational impossibility that our case-3 multiplicity
 branch operationalizes. \citet{iwasaki1994causality} and \citet{dash2005restructuring} are the
-older warnings that equilibration changes causal structure. Our contribution relative to this
-line is the learning-theoretic converse direction: not ``when does the SCM abstract the
-dynamics'' but ``when do the dynamics validate the SCM's $\doop$,'' with the E-stability
-equivalence and the sharp gain threshold.
+older warnings that equilibration changes causal structure, and \citet{weinberger2023intervening}
+is the philosophical treatment of when equilibrium causal models mispredict interventions. Our
+contribution relative to this line is the learning-theoretic strengthening: not ``when does the
+SCM abstract the dynamics'' but ``when do the dynamics validate the SCM's $\doop$,'' as an
+equivalence (both directions) for expectations-based adaptive learning rather than ODE
+relaxation, with the E-stability characterization and the sharp gain threshold.
 
 \paragraph{Settable systems.} \citet{white2009settable} extend Pearl's causal model explicitly
 for optimization, equilibrium, and learning, with attributes and partitioned settings ---
@@ -732,9 +766,25 @@ coarse correlated equilibria is classical
 \citep{foster1997calibrated,hart2000simple,cesabianchi2006prediction,fudenberg1998theory}.
 \citet{nekipelov2015econometrics} use no-regret as an identifying assumption;
 \citet{bergemann2022counterfactuals}, \citet{magnolfi2023estimation}, and
-\citet{syrgkanis2017inference} compute LP identified sets over equilibrium polytopes;
-\citet{hammond2023reasoning} and \citet{mishra2024causal} define interventions over equilibrium
-sets in causal games. Section~\ref{sec:t2} states our precise delta against each.
+\citet{syrgkanis2017inference} compute LP identified sets over equilibrium polytopes.
+\citet{lomys2025estimation} are the nearest econometric neighbors: they prove that asymptotic
+no-regret is equivalent to convergence of time-averaged play to the (Bayes) CCE set and build
+$\varepsilon$-CCE set estimators with LP duality; Section~\ref{sec:t2} details the four choices
+separating our certificate from their estimator. \citet{kline2024counterfactual} set-identify
+counterfactual outcome distributions in empirical games with the point-vs-set boundary driven by
+equilibrium selection; ours is driven by the dynamics (E-stability). Measured regret has also
+been proposed as a regulatory audit statistic for algorithmic pricing
+\citep{hartline2024regulation}.
+\citet{hammond2023reasoning} define pre- and post-policy interventions in causal games with
+set-valued answers quantified over the equilibrium set --- including the credal-network reading
+and $\epsilon$-approximate equilibria via rationality relations --- and explicitly present
+mechanised games as relational cyclic causal models, a semantic bridge we build on;
+\citet{mishra2024causal} characterise a sound-and-complete family of primitive interventions
+subsuming the pre/post dichotomy. What is absent from that line is the identification layer this
+paper supplies: conditions for when the set-valued answer is a point, a computed interval, or
+vacuous; a finite-time route from \emph{measured play} rather than a fully specified model
+(regret does not appear in their corpus); and bounds that are actually computed, with widths
+read as evidence. Section~\ref{sec:t2} states our precise delta against each adjacent result.
 Non-convergence of learning dynamics is likewise classical
 \citep{sato2002chaos,mertikopoulos2018cycles,pangallo2019best}; we use it as the adversarial
 test bed for the \Cbd{} rung rather than as a subject in itself.
@@ -785,7 +835,7 @@ itself usable knowledge. The Lucas critique, in this reading, is not a slogan ab
 fragility of equilibrium reasoning but a computable property of an intervened system --- and the
 experiments show it firing, quantitatively, exactly where it should.
 
-\bibliographystyle{plainnat}
+% jmlr.cls already sets \bibliographystyle{plainnat}.
 \bibliography{references}
 
 \clearpage
@@ -840,7 +890,7 @@ $\gamma_k = \Theta(k^{-\alpha})$, $\alpha \in (1/2, 1]$, the nonconvergence theo
 (3) $\Rightarrow$ (1). For the constant-gain converse, Lemma~\ref{lem:gain} gives
 $|1 + \gamma\nu_i| > 1$ for every $\gamma > 0$, so the mean iteration diverges for every initial
 condition with a nonzero component in the corresponding invariant subspace --- all but a proper
-(measure-zero) subspace. \hfill $\qed$
+(measure-zero) subspace. \hfill\BlackBox
 
 % ============================================================================
 \section{Assumptions and proof of Theorem~\ref{thm:t1prime}}\label{app:t1prime}
@@ -896,7 +946,7 @@ the mean flow. Under (A2)--(A4), \citet{pemantle1990nonconvergence} (repellers) 
 $\Prob(x_k \to x^*) = 0$. The excitation condition (A4) is what rules out the degenerate case of
 noise supported on the stable manifold; it is satisfied, e.g., by any noise with a density
 bounded below on a neighborhood of the origin, and in particular by the Gaussian noise used in
-Section~\ref{sec:e7}. \hfill $\qed$
+Section~\ref{sec:e7}. \hfill\BlackBox
 
 % ============================================================================
 \section{Proofs for Section~\ref{sec:t2}}\label{app:t2}
@@ -911,7 +961,7 @@ Lipschitz, function of the constraint right-hand side, with one-sided derivative
 optimal dual multipliers (standard LP sensitivity). If $\varepsilon_T \to 0$, any weak limit
 $\mu_\infty$ of $\{\mu_T\}$ satisfies $G\mu_\infty \leq 0$ by continuity of
 $\mu \mapsto G\mu$ on the simplex, so $\mu_\infty \in \CCE_0(G_{\doop})$, and the LP values at
-$\varepsilon_T$ converge to the values at $0$ by the Lipschitz property. \hfill $\qed$
+$\varepsilon_T$ converge to the values at $0$ by the Lipschitz property. \hfill\BlackBox
 
 \paragraph{Corollary~\ref{cor:degeneracy}.} If $h$ is constant over $\CCE_0$, the interval
 is a point and contains the limit of $\E_{\mu_T}[h]$ for any no-regret population by
@@ -921,7 +971,7 @@ population playing i.i.d.\ draws from $\mu$ is no-regret (its realized regrets c
 nonpositive expected deviation gains) and its time-average converges to $\E_\mu[h]$.
 Zero-sum example: for any $\mu \in \CCE_0$ of a two-player zero-sum game, the no-deviation
 constraints give $\E_\mu[u_1] \geq \max_{a_1'} \E_\mu[u_1(a_1', s_2)] \geq v$ and symmetrically
-$\E_\mu[u_1] \leq v$, so every CCE achieves the value $v$. \hfill $\qed$
+$\E_\mu[u_1] \leq v$, so every CCE achieves the value $v$. \hfill\BlackBox
 
 \paragraph{Corollary~\ref{cor:duals}.} Parametric LP: the max-side value
 $V(\varepsilon) = \max\{c^\top \mu : \mu \in \CCE_\varepsilon\}$ is concave and piecewise-linear
@@ -931,7 +981,7 @@ inflation direction $\varepsilon = \varepsilon_0 + t\mathbf{1}$, at any $t$ wher
 dual is unique the derivative is $\sum_j y_j^*$, the sum of the optimal dual multipliers on the
 inflated constraints; at kinks the one-sided derivatives are the extreme values of that sum over
 the optimal dual face. The min side is the max side of $-h$, hence convex with the symmetric
-statement. \hfill $\qed$
+statement. \hfill\BlackBox
 
 \begin{remark}
 Our LP solver returns the dual vector alongside the primal optimum, and the shipped
@@ -976,7 +1026,7 @@ impossibility of \citet{blom2019beyond} for the multiplicity clause.
 In class (b) the theorem is decidable \emph{given} the enumeration of zeros (available by
 bisection for the scalar systems used here, and by homotopy or interval methods more
 generally); (R2)--(R3) are guarded, not decided --- the honest scope stated in
-Assumption~\ref{ass:R}. In class (c) both conditions are single LP solves. \hfill $\qed$
+Assumption~\ref{ass:R}. In class (c) both conditions are single LP solves. \hfill\BlackBox
 
 % ============================================================================
 \section{Experimental details and reproducibility}\label{app:exp}

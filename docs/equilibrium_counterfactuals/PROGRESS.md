@@ -58,11 +58,40 @@ work, limitations. Figures regenerated deterministically by `experiments/eqcf/pa
 folded in. Pre-submission TODOs are in the main.tex header comment (CLeaR style swap,
 anonymization, owner's residual reading checks, Dogra/Mishra–Fox citation verification).
 
+## Pre-submission round (2026-07-17): style, artifact, reading checks — DONE
+
+- **CLeaR/PMLR style swap done**: main.tex now typesets under `jmlr` class `[pmlr]` mode
+  (jmlr.cls + jmlrutils.sty + algorithm2e.sty vendored in `paper/`); 22pp, 0 errors,
+  0 undefined refs. Swap to the CLeaR 2027 wrapper .sty when its author kit is released
+  (CFP not yet up). **Page budget**: main text ends p.15; CLeaR's historical limit is 12pp
+  excl. references/appendix — ~2.5pp of trimming remains (candidates in main.tex header).
+- **Anonymized code artifact built**: `paper/artifact/` (+ artifact.zip) — `eqcert/` = minimal
+  24-file closure of the four experiments, package renamed, CausalRLError→EqcertError,
+  identification engine replaced by a Domain stub, identity scan clean; e1/e2/e4/e7 reproduce
+  the paper's numbers standalone (README documents the runs).
+- **Reading checks done via web research (3 agents), results folded into the paper**:
+  - "Mishra–Fox 2024" was WRONG: actual = Mishra, Fox & Wooldridge, "Characterising
+    Interventions in Causal Games", UAI 2024, PMLR 244:2560–2572. Fixed in bib + prose.
+  - Dogra = FRBNY Staff Report **1093**, March 2024. Magnolfi–Roncoroni REStud 90(4):2006–2041,
+    assumption = **BCE** (not no-regret) — prose corrected. STZ still unpublished (working
+    paper). P–R JACM 55(3), optimize-over-CE NP-hardness confirmed in that same paper.
+  - Hammond et al. read in full: their Def. 21 IS model-theoretic set-valued interventional
+    prediction over equilibrium sets (credal-bounds remark; ε-equilibria via rationality
+    relations; explicit cyclic-SCM bridge). §4 delta re-scoped to the identification layer;
+    related work expanded; pin-the-action mapped to their pre/post-policy taxonomy.
+  - **EC 2024–26 scan found the nearest neighbor the DD missed: Lomys–Magnolfi (EC 2025),
+    "Estimation of Games under No Regret"** — ANR⇔CCE-set convergence, ε-BCCE set estimators,
+    LP duality, counterfactual bounds. T2's delta re-anchored on the 4 surviving choices:
+    measured realized regret (no algorithm-class assumption), containment on the INTERVENED
+    game, abstention, duals as regret prices. Also added: Kline–Tamer 2024, Hartline 2026
+    survey (NST ex-post folklore made explicit), Hartline et al. 2024 (regret audits),
+    Weinberger 2023 (equilibrium-causal-models philosophy). **Paper 2's EC positioning must
+    engage Lomys–Magnolfi head-on.** Deltas B (trichotomy) and C (E-stability bridge) came
+    back CLEAR of direct overlap.
+
 ## Next (not started)
 
-- Residual pre-submission reading checks listed in PROPOSAL.md (Hammond et al. pre-policy §,
-  Mishra–Fox, Magnolfi–Roncoroni ANR, EC 2024–26 scan, CE-complexity citations).
-- Paper 1 polish: CLeaR (PMLR) style swap + anonymization; verify Dogra staff-report number.
+- Paper 1 trim to CLeaR page budget (~2.5pp); swap in CLeaR 2027 wrapper when kit released.
 - Paper 2 (EC-shaped) prerequisites: E6 Calvano-scale seeds, off-grid Cournot with unique Nash,
   optional Lyapunov diagnostic for E2's learning flow.
 - Multiplicity-aware hedge (all stable σ-solutions + ensemble basin masses) promoted from E7
