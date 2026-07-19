@@ -12,13 +12,21 @@ recovers the true optimum, which a naive marginal agent cannot.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
+
+import numpy as np
 
 from causalrl.agents.baselines import NaiveOffline
 from causalrl.agents.dovi import DOVI
-from causalrl.agents.mbrl import BackdoorAdjustedAgent, DiscoveryBackdoorAgent
+from causalrl.agents.mbrl import (
+    BackdoorAdjustedAgent,
+    DiscoveryBackdoorAgent,
+    TransportBackdoorAgent,
+)
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition, generate_logs
 from causalrl.envs.suite.seq_dtr import SequentialDTREnv
 from causalrl.envs.suite.simpson_bandit import SimpsonBandit
+from causalrl.envs.suite.transport_bandit import TransportableConfoundedBandit
 from causalrl.eval.benchmark import BenchmarkEstimate
 from causalrl.eval.harness import run_episodes
 
@@ -140,3 +148,92 @@ def run_m1b_dtr_gate(
         name: BenchmarkEstimate.from_values(name, seeds=seeds, values=values)
         for name, values in rows.items()
     }
+
+
+@dataclass(frozen=True)
+class PhaseDiagram:
+    """A 2-D (gamma x shift) sweep of the causal-minus-naive post-shift gap.
+
+    ``gap``/``causal``/``naive`` are per-cell :class:`BenchmarkEstimate`s keyed ``(gamma, shift)``;
+    ``gap_grid`` is the mean-gap matrix (rows=``gammas``, cols=``shifts``); the two ``monotone_*``
+    flags say whether that matrix is nondecreasing (within ``mono_tol``) along each axis.
+    """
+
+    gammas: tuple[float, ...]
+    shifts: tuple[float, ...]
+    gap: dict[tuple[float, float], BenchmarkEstimate]
+    causal: dict[tuple[float, float], BenchmarkEstimate]
+    naive: dict[tuple[float, float], BenchmarkEstimate]
+    gap_grid: list[list[float]]
+    monotone_in_gamma: bool
+    monotone_in_shift: bool
+
+
+def run_m2_phase_diagram(
+    *,
+    gammas: Sequence[float] = (0.0, 0.25, 0.5, 0.75, 1.0),
+    shifts: Sequence[float] = (0.0, 0.25, 0.5, 0.75, 1.0),
+    seeds: Sequence[int] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+    n: int = 6000,
+    mono_tol: float = 0.02,
+) -> PhaseDiagram:
+    """M2: 2-D phase diagram of the causal-minus-naive post-shift gap over ``gamma`` x ``shift``.
+
+    Per cell, a :class:`~causalrl.agents.mbrl.TransportBackdoorAgent` (deconfound + transport) and
+    a ``NaiveOffline`` marginal agent are fit on SOURCE logs and evaluated at the TARGET; the gap is
+    ``causal_target - naive_target``. Returns per-cell :class:`BenchmarkEstimate`s keyed by
+    ``(gamma, shift)`` plus the mean-gap grid and whether it is monotone nondecreasing (within
+    ``mono_tol``) in each axis -- the "confounding bites where theory predicts" signature.
+    """
+    gammas = tuple(gammas)
+    shifts = tuple(shifts)
+    seeds = tuple(seeds)
+    gap: dict[tuple[float, float], BenchmarkEstimate] = {}
+    causal: dict[tuple[float, float], BenchmarkEstimate] = {}
+    naive: dict[tuple[float, float], BenchmarkEstimate] = {}
+    for g in gammas:
+        for s in shifts:
+            causal_vals: list[float] = []
+            naive_vals: list[float] = []
+            gap_vals: list[float] = []
+            for seed in seeds:
+                env = TransportableConfoundedBandit(gamma=g, shift=s, seed=seed)
+                source = env.sample(n, domain="source", seed=seed)
+                target_w = env.sample(n, domain="target", seed=seed + 10_000)["W"]
+                agent = TransportBackdoorAgent(env.n_actions, graph=env.graph, transport=("W",))
+                agent.fit(source, target_covariates={"W": target_w})
+                causal_target = env.true_action_value(agent.act({"state": 0}), domain="target")
+
+                transitions = [
+                    Transition(0, int(a), float(y), 0, True)
+                    for a, y in zip(source["A"], source["Y"], strict=True)
+                ]
+                dataset = ConfoundedTrajectoryDataset(transitions, n_states=1, n_actions=2)
+                marginal = NaiveOffline(env.n_states, env.n_actions)
+                marginal.ingest_offline(dataset)
+                naive_target = env.true_action_value(marginal.act({"state": 0}), domain="target")
+
+                causal_vals.append(causal_target)
+                naive_vals.append(naive_target)
+                gap_vals.append(causal_target - naive_target)
+            key = (g, s)
+            causal[key] = BenchmarkEstimate.from_values(
+                f"causal_g{g}_s{s}", seeds=seeds, values=causal_vals
+            )
+            naive[key] = BenchmarkEstimate.from_values(
+                f"naive_g{g}_s{s}", seeds=seeds, values=naive_vals
+            )
+            gap[key] = BenchmarkEstimate.from_values(f"gap_g{g}_s{s}", seeds=seeds, values=gap_vals)
+    grid = np.array([[gap[(g, s)].mean for s in shifts] for g in gammas])
+    mono_gamma = bool(np.all(np.diff(grid, axis=0) >= -mono_tol)) if len(gammas) > 1 else True
+    mono_shift = bool(np.all(np.diff(grid, axis=1) >= -mono_tol)) if len(shifts) > 1 else True
+    return PhaseDiagram(
+        gammas=gammas,
+        shifts=shifts,
+        gap=gap,
+        causal=causal,
+        naive=naive,
+        gap_grid=grid.tolist(),
+        monotone_in_gamma=mono_gamma,
+        monotone_in_shift=mono_shift,
+    )

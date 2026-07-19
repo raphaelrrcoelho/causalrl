@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from causalrl.agents.baselines import NaiveOffline
 from causalrl.agents.mbrl import (
     BackdoorAdjustedAgent,
     CertifiedPolicyAgent,
     DiscoveryBackdoorAgent,
+    TransportBackdoorAgent,
 )
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition
 from causalrl.envs.suite.simpson_bandit import SimpsonBandit
+from causalrl.envs.suite.transport_bandit import TransportableConfoundedBandit
 
 
 def _clean_improvement_dataset() -> ConfoundedTrajectoryDataset:
@@ -83,3 +86,37 @@ def test_discovery_agent_learns_structure_and_recovers_optimum() -> None:
         # Skeleton discovery + temporal tiers -> back-door set {Z}, reliably across seeds.
         assert agent.adjustment == ("Z",)
         assert agent.act({"state": 0}) == 1
+
+
+def test_transport_agent_beats_fooled_naive_under_confounding_and_shift() -> None:
+    # Strong (overlap-preserving) confounding + a large covariate shift: the naive marginal is
+    # fooled into the harmful arm 1; the deconfound+transport agent keeps the safe, optimal arm 0.
+    env = TransportableConfoundedBandit(gamma=1.0, shift=0.6, seed=0)
+    source = env.sample(20_000, domain="source", seed=0)
+    target_w = env.sample(20_000, domain="target", seed=1)["W"]
+
+    agent = TransportBackdoorAgent(env.n_actions, graph=env.graph, transport=("W",))
+    agent.fit(source, target_covariates={"W": target_w})
+    assert agent.adjustment == ("Z",)
+    assert agent.act({"state": 0}) == env.optimal_action(domain="target") == 0
+
+    transitions = [
+        Transition(0, int(a), float(y), 0, True)
+        for a, y in zip(source["A"], source["Y"], strict=True)
+    ]
+    dataset = ConfoundedTrajectoryDataset(transitions, n_states=1, n_actions=2)
+    naive = NaiveOffline(env.n_states, env.n_actions)
+    naive.ingest_offline(dataset)
+    assert naive.act({"state": 0}) == 1  # confounded marginal picks the trap
+
+    # The causal agent's realized target value strictly exceeds the naive agent's.
+    causal_value = env.true_action_value(agent.act({"state": 0}), domain="target")
+    naive_value = env.true_action_value(naive.act({"state": 0}), domain="target")
+    assert causal_value > naive_value
+
+
+def test_transport_effect_is_identifiable() -> None:
+    # The target effect P*(Y | do(A)) is transportable via S-admissible adjustment on {Z, W}.
+    env = TransportableConfoundedBandit(gamma=0.5, shift=0.5)
+    agent = TransportBackdoorAgent(env.n_actions, graph=env.graph, transport=("W",))
+    assert agent.transportable is True

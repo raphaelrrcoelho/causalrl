@@ -20,6 +20,7 @@ from causalrl.agents.base import Agent
 from causalrl.data.dataset import ConfoundedTrajectoryDataset
 from causalrl.discovery import discover
 from causalrl.identification.criteria import backdoor_adjustment_set
+from causalrl.identification.id_algorithm import is_transportable_effect
 from causalrl.scale import certify_policy
 from causalrl.scm.graph import CausalGraph
 
@@ -46,6 +47,57 @@ def _backdoor_value(
         # On a positivity gap (action unseen in a stratum) fall back to the stratum-marginal mean.
         outcome_mean = float(y[in_az].mean()) if in_az.any() else float(y[in_z].mean())
         total += p_z * outcome_mean
+    return total
+
+
+def _match(
+    data: Mapping[str, np.ndarray], variables: tuple[str, ...], combo: tuple[object, ...]
+) -> np.ndarray:
+    """Boolean mask over ``data`` where every ``variables[i] == combo[i]`` (all-true if empty)."""
+    length = len(next(iter(data.values())))
+    mask = np.ones(length, dtype=bool)
+    for variable, value in zip(variables, combo, strict=True):
+        mask &= np.asarray(data[variable]) == value
+    return mask
+
+
+def _transport_value(
+    action: int,
+    source: Mapping[str, np.ndarray],
+    treatment: str,
+    outcome: str,
+    adjust: tuple[str, ...],
+    transport: tuple[str, ...],
+    target_covariates: Mapping[str, np.ndarray],
+) -> float:
+    """Transport formula ``Σ_s Σ_t P_src(s) · P_tgt(t) · E_src[Y | action, s, t]``.
+
+    ``adjust`` are back-door confounders weighted by the SOURCE marginal; ``transport`` are the
+    selection variables weighted by the TARGET marginal (from ``target_covariates``). Assumes the
+    adjust and transport blocks are independent (the transportable-by-S-admissible-adjustment case).
+    """
+    a = np.asarray(source[treatment])
+    y = np.asarray(source[outcome], dtype=float)
+    adj_levels = [np.unique(np.asarray(source[v])) for v in adjust]
+    tr_levels = [np.unique(np.asarray(target_covariates[v])) for v in transport]
+    total = 0.0
+    for adj_combo in itertools.product(*adj_levels):
+        src_adj = _match(source, adjust, adj_combo)
+        p_adj = float(src_adj.mean())
+        if p_adj == 0.0:
+            continue
+        for tr_combo in itertools.product(*tr_levels):
+            p_tr = float(_match(target_covariates, transport, tr_combo).mean())
+            if p_tr == 0.0:
+                continue
+            cell = src_adj & _match(source, transport, tr_combo) & (a == action)
+            if cell.any():
+                mean_y = float(y[cell].mean())
+            else:
+                # Positivity gap: fall back to the stratum mean ignoring the action.
+                stratum = src_adj & _match(source, transport, tr_combo)
+                mean_y = float(y[stratum].mean()) if stratum.any() else 0.0
+            total += p_adj * p_tr * mean_y
     return total
 
 
@@ -131,6 +183,71 @@ class BackdoorAdjustedAgent(Agent):
 
     def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
         """Fixed action from the fitted adjustment; no online update."""
+
+
+class TransportBackdoorAgent(Agent):
+    """Deconfound + transport: back-door-adjust for the confounders (source weighting) and reweight
+    the selection variables by the target distribution, then ship the argmax of the transported
+    interventional value ``E_target[Y | do(A=a)]``. The M2 upgrade of :class:`BackdoorAdjustedAgent`
+    that carries a policy across a covariate shift where a correlational agent cannot.
+
+    The back-door set comes from ``graph`` via :func:`~causalrl.backdoor_adjustment_set` (minus the
+    declared ``transport`` variables); the estimand's transportability is confirmed up front with
+    :func:`~causalrl.is_transportable_effect` (dogfooding the identification layer). Fitted on
+    columnar source logs plus unlabeled target draws of the transport variables via :meth:`fit`.
+    """
+
+    def __init__(
+        self,
+        n_actions: int,
+        *,
+        graph: CausalGraph,
+        treatment: str = "A",
+        outcome: str = "Y",
+        transport: Sequence[str] = ("W",),
+    ) -> None:
+        self.n_actions = n_actions
+        self.treatment = treatment
+        self.outcome = outcome
+        self.transport = tuple(transport)
+        adjust = set(backdoor_adjustment_set(graph, treatment, outcome)) - set(self.transport)
+        self.adjustment: tuple[str, ...] = tuple(sorted(adjust))
+        self.transportable = is_transportable_effect(
+            graph, {treatment}, {outcome}, set(self.transport)
+        )
+        self._best_action = 0
+        self.values: list[float] = [0.0] * n_actions
+
+    def fit(
+        self,
+        source: Mapping[str, np.ndarray],
+        *,
+        target_covariates: Mapping[str, np.ndarray],
+    ) -> None:
+        """Estimate each action's transported interventional value and select the argmax.
+
+        ``source`` is columnar ``{treatment, outcome, *adjustment, *transport}``;
+        ``target_covariates`` supplies unlabeled target draws of the ``transport`` variables.
+        """
+        self.values = [
+            _transport_value(
+                a,
+                source,
+                self.treatment,
+                self.outcome,
+                self.adjustment,
+                self.transport,
+                target_covariates,
+            )
+            for a in range(self.n_actions)
+        ]
+        self._best_action = int(np.argmax(np.asarray(self.values)))
+
+    def act(self, observation: dict[str, Any]) -> int:
+        return int(self._best_action)
+
+    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
+        """Fixed action from the fitted transport estimate; no online update."""
 
 
 class DiscoveryBackdoorAgent(Agent):
