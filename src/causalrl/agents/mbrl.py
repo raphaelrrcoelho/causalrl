@@ -40,6 +40,13 @@ class CertifiedPolicyAgent(Agent):
         best_policy = self._behavior_policy(dataset)  # abstention default
         best_contrast = 0.0
         for candidate in itertools.product(range(self.n_actions), repeat=self.n_states):
+            # Skip a policy that assigns a never-logged action in some state: an unseen action's
+            # value is not identified from the logs, and certify_policy has no support to bound it.
+            if any(
+                dataset.behavior_propensity(s, candidate[s]) == 0.0
+                for s in range(self.n_states)
+            ):
+                continue
             target_actions = [candidate[tr.state] for tr in transitions]
             cert = certify_policy(dataset, target_actions, gamma_max=self.gamma_max)
             if cert.certified and cert.naive_contrast > best_contrast:

@@ -24,18 +24,34 @@ def test_certifies_and_ships_the_improving_action() -> None:
     assert agent.act({"state": 0}) == 1
 
 
-def test_abstains_to_behavior_when_nothing_certifies() -> None:
-    # Behavior overwhelmingly plays action 0; the single action-1 sample cannot certify.
-    trs = [Transition(0, 0, 0.0, 0, True) for _ in range(99)]
-    trs.append(Transition(0, 1, 1.0, 0, True))
+def test_does_not_deviate_to_a_worse_action() -> None:
+    # Action 0 pays 1.0 and behavior plays it most; action 1 pays 0.0. Deviating to action 1 has a
+    # negative contrast, so the agent keeps action 0 (whether by certifying it or by abstaining).
+    trs = [Transition(0, 0, 1.0, 0, True) for _ in range(150)]
+    trs += [Transition(0, 1, 0.0, 0, True) for _ in range(50)]
     ds = ConfoundedTrajectoryDataset(trs, n_states=1, n_actions=2)
-    agent = CertifiedPolicyAgent(n_states=1, n_actions=2, gamma_max=1.5)
+    agent = CertifiedPolicyAgent(n_states=1, n_actions=2, gamma_max=5.0)
     agent.ingest_offline(ds)
-    assert agent.policy == [0]  # abstains to the empirical behavior action
+    assert agent.policy == [0]
+
+
+def test_never_logged_action_is_skipped_not_crashed() -> None:
+    # Only action 1 is ever logged; candidates assigning the never-logged action 0 must be skipped
+    # (no support), and the agent still returns a valid one-action-per-state policy.
+    trs = [Transition(s % 2, 1, 1.0, 0, True) for s in range(40)]
+    ds = ConfoundedTrajectoryDataset(trs, n_states=2, n_actions=2)
+    agent = CertifiedPolicyAgent(n_states=2, n_actions=2)
+    agent.ingest_offline(ds)
+    assert len(agent.policy) == 2
+    assert all(a in (0, 1) for a in agent.policy)
 
 
 def test_policy_has_one_action_per_state() -> None:
-    trs = [Transition(s % 2, 1, 1.0, 0, True) for s in range(40)]
+    # Both actions logged in both states.
+    trs: list[Transition] = []
+    for s in range(2):
+        trs += [Transition(s, 0, float(s == 0), 0, True) for _ in range(30)]
+        trs += [Transition(s, 1, float(s == 1), 0, True) for _ in range(30)]
     ds = ConfoundedTrajectoryDataset(trs, n_states=2, n_actions=2)
     agent = CertifiedPolicyAgent(n_states=2, n_actions=2)
     agent.ingest_offline(ds)
