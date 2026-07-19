@@ -97,7 +97,15 @@ build-backend = "hatchling.build"
 # force the dev lock to build scikit-learn from source (CI failure). Override to a wheel-available
 # version: the [interop] extra is never installed in CI, and pip ignores this override for end users
 # (`pip install causalrl[interop]` still respects econml's real constraint).
-override-dependencies = ["scikit-learn>=1.7,<1.9"]
+# triton is pulled in as a torch dependency but its 3.7.0 wheel is broken against torch 2.12+cu130
+# (`AttributeError: module 'triton' has no attribute 'language'` at torch._dynamo import time).
+# Nothing in causalrl or its tests uses torch.compile, so exclude it from the dev lock entirely
+# (the impossible marker drops it from resolution). pip end users are unaffected: overrides are
+# uv-only and never reach the published wheel metadata.
+override-dependencies = [
+    "scikit-learn>=1.7,<1.9",
+    "triton; sys_platform == 'never'",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/causalrl"]
