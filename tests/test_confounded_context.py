@@ -29,8 +29,10 @@ def test_shift_flips_the_optimal_action() -> None:
 def test_behavior_policy_tracks_the_confounder() -> None:
     env = make_confounded_context_env(gamma=1.0, seed=1)
     obs, _ = env.reset(seed=1)
-    # With gamma=1 the logged action equals the (hidden) confounder u for that episode.
-    assert env.behavior_policy(obs) == env._u  # noqa: SLF001 - white-box check of confounding
+    # gamma=1: the logged action equals the episode's hidden confounder, exposed in step info.
+    a = env.behavior_policy(obs)
+    _, _, _, _, info = env.step(a)
+    assert a == info["u"]
 
 
 def test_env_exposes_scm_and_shapes() -> None:

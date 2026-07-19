@@ -29,7 +29,7 @@ class CertifiedPolicyAgent(Agent):
         self.policy: list[int] = [0] * n_states
 
     def _behavior_policy(self, dataset: ConfoundedTrajectoryDataset) -> list[int]:
-        """The empirical behavior policy: the most-logged action in each state (abstention target)."""
+        """Empirical behavior policy: the most-logged action per state (abstention target)."""
         return [
             max(range(self.n_actions), key=lambda a: dataset.behavior_propensity(s, a))
             for s in range(self.n_states)

@@ -100,12 +100,13 @@ class ConfoundedContextualBandit(CausalEnv):
         return {"state": self._c}, reward, True, False, {"u": self._u}
 
     def true_policy_value(self, policy: Sequence[int]) -> float:
-        """Exact interventional value of a per-context deterministic ``policy`` (marginalizing U)."""
-        vals = [
-            0.5 * (self._reward_prob(c, int(policy[c]), 0) + self._reward_prob(c, int(policy[c]), 1))
-            for c in range(self.n_states)
-        ]
-        return float(np.mean(vals))
+        """Exact interventional value of a deterministic ``policy`` (marginalizing U)."""
+
+        def _q(c: int) -> float:
+            a = int(policy[c])
+            return 0.5 * (self._reward_prob(c, a, 0) + self._reward_prob(c, a, 1))
+
+        return float(np.mean([_q(c) for c in range(self.n_states)]))
 
 
 def make_confounded_context_env(
