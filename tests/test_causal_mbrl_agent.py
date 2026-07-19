@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from causalrl.agents.causal_mbrl import CausalMBRLAgent
@@ -52,6 +53,20 @@ def test_function_approx_route_handles_a_continuous_confounder() -> None:
     assert agent.strategy == "function_approx"
     assert agent.act({"state": 0}) == env.optimal_action() == 0
     assert "confounder=Z" in agent.explain()
+
+
+def test_g_formula_route_deconfounds_many_covariates() -> None:
+    rng = np.random.default_rng(0)
+    n = 4000
+    x = rng.normal(0.0, 1.0, (n, 2))
+    a = (rng.random(n) < 1.0 / (1.0 + np.exp(-(1.2 * x[:, 0] - 0.8 * x[:, 1])))).astype(int)
+    y = 2.0 * a + 3.0 * x[:, 0] - 1.5 * x[:, 1] + rng.normal(0.0, 1.0, n)
+    data = {"A": a, "Y": y, "X0": x[:, 0], "X1": x[:, 1]}
+    agent = CausalMBRLAgent(2, covariates=("X0", "X1"))
+    agent.fit(data)
+    assert agent.strategy == "g_formula"
+    assert agent.act({"state": 0}) == 1  # action 1 has the positive true effect
+    assert "covariates=" in agent.explain()
 
 
 def test_sequential_route_fits_logs_and_acts() -> None:

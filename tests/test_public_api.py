@@ -107,3 +107,9 @@ def test_m3_symbols_exported():
     ):
         assert name in causalrl.__all__
         assert getattr(causalrl, name) is not None
+
+
+def test_agent_frontdoor_symbols_exported():
+    for name in ("CausalMBRLAgent", "GFormulaBackdoorAgent"):
+        assert name in causalrl.__all__
+        assert getattr(causalrl, name) is not None
