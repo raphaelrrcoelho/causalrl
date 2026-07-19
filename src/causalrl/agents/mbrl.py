@@ -48,8 +48,7 @@ class CertifiedPolicyAgent(Agent):
             # Skip a policy that assigns a never-logged action in some state: an unseen action's
             # value is not identified from the logs, and certify_policy has no support to bound it.
             if any(
-                dataset.behavior_propensity(s, candidate[s]) == 0.0
-                for s in range(self.n_states)
+                dataset.behavior_propensity(s, candidate[s]) == 0.0 for s in range(self.n_states)
             ):
                 continue
             target_actions = [candidate[tr.state] for tr in transitions]

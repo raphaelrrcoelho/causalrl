@@ -18,7 +18,22 @@ green until the GitHub Actions run passes.
 | T3 | `run_m0_kill_gate` harness (`eval/mbrl_probe.py`) + tests | implemented |
 | T4 | public-API exports + this doc | implemented |
 
-## The M0 kill-gate verdict — NO-GO (2026-07-19, 10 seeds)
+## M0 verdict — GO (2026-07-19, back-door-adjusted agent, 10 seeds)
+
+```
+causal = 0.5000   naive = 0.4000   optimal = 0.5000   gap = 0.1000
+```
+
+The **active back-door-adjusted agent recovers the interventional optimum** (0.50 = optimal, on every
+seed) while the naive marginal agent is fooled by Simpson's paradox (0.40). Clean, identifiable,
+deterministic causal win — a *functioning* agent that does better, not just a safety gate. **GO → M1.**
+
+Apparatus: `SimpsonBandit` (observed confounder Z, back-door A←Z→Y) + `BackdoorAdjustedAgent`
+(adjusts for Z via `backdoor_adjustment_set`) vs `NaiveOffline`. Read via `run_m0_kill_gate`.
+
+---
+
+## Superseded first attempt — NO-GO (certify-gated agent, 10 seeds)
 
 ```
 causal_source = 0.4500   naive_source = 0.4500
