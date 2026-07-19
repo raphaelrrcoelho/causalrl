@@ -18,6 +18,21 @@ green until the GitHub Actions run passes.
 | T3 | `run_m0_kill_gate` harness (`eval/mbrl_probe.py`) + tests | implemented |
 | T4 | public-API exports + this doc | implemented |
 
+## M1a verdict — GO (2026-07-19, discovery agent, 10 seeds)
+
+```
+discovery = 0.46   naive = 0.40   optimal = 0.50   gap = +0.06   (recovered adjustment = {Z})
+```
+
+`DiscoveryBackdoorAgent` runs interventional discovery (do(A), do(Z)) to orient Z→A→Y, derives the
+back-door set `{Z}` itself, adjusts, and beats naive (CI [0.428, 0.492] sits above naive's flat
+0.40). **Honest caveat: 0.46, not the handed-graph 0.50** — interventional discovery is imperfect at
+finite n (recovers `{Z}` on a majority of seeds, falls back to the naive set on the rest), so
+learning the structure carries a real finite-sample cost. Follow-up: improve discovery reliability;
+then M1b (sequential DTR/medicine instance).
+
+---
+
 ## M0 verdict — GO (2026-07-19, back-door-adjusted agent, 10 seeds)
 
 ```
