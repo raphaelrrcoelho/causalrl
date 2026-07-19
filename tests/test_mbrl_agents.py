@@ -1,9 +1,10 @@
-"""CertifiedPolicyAgent: certify-gated policy selection with abstention to behavior."""
+"""CertifiedPolicyAgent (certify-gated) and BackdoorAdjustedAgent (active deconfounding)."""
 
 from __future__ import annotations
 
-from causalrl.agents.mbrl import CertifiedPolicyAgent
+from causalrl.agents.mbrl import BackdoorAdjustedAgent, CertifiedPolicyAgent
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition
+from causalrl.envs.suite.simpson_bandit import SimpsonBandit
 
 
 def _clean_improvement_dataset() -> ConfoundedTrajectoryDataset:
@@ -57,3 +58,13 @@ def test_policy_has_one_action_per_state() -> None:
     agent.ingest_offline(ds)
     assert len(agent.policy) == 2
     assert all(a in (0, 1) for a in agent.policy)
+
+
+def test_backdoor_agent_recovers_the_interventional_optimum() -> None:
+    env = SimpsonBandit(seed=3)
+    data = env.sample(50_000, seed=3)
+    agent = BackdoorAdjustedAgent(env.n_actions, graph=env.graph)
+    agent.fit(data)
+    # Back-door adjustment for the observed Z recovers do(A=1) > do(A=0): pick the true optimum.
+    assert agent.adjustment == ("Z",)
+    assert agent.act({"state": 0}) == 1
