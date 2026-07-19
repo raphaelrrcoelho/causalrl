@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from causalrl.agents.mbrl import BackdoorAdjustedAgent, CertifiedPolicyAgent
+from causalrl.agents.mbrl import (
+    BackdoorAdjustedAgent,
+    CertifiedPolicyAgent,
+    DiscoveryBackdoorAgent,
+)
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition
 from causalrl.envs.suite.simpson_bandit import SimpsonBandit
 
@@ -66,5 +70,19 @@ def test_backdoor_agent_recovers_the_interventional_optimum() -> None:
     agent = BackdoorAdjustedAgent(env.n_actions, graph=env.graph)
     agent.fit(data)
     # Back-door adjustment for the observed Z recovers do(A=1) > do(A=0): pick the true optimum.
+    assert agent.adjustment == ("Z",)
+    assert agent.act({"state": 0}) == 1
+
+
+def test_discovery_agent_learns_structure_and_recovers_optimum() -> None:
+    env = SimpsonBandit(seed=7)
+    observational = env.sample(20_000, seed=7)
+    interventions = {
+        "A": env.sample_do({"A": 1}, 20_000, seed=8),
+        "Z": env.sample_do({"Z": 1}, 20_000, seed=9),
+    }
+    agent = DiscoveryBackdoorAgent(env.n_actions, variables=("Z", "A", "Y"))
+    agent.discover_and_fit(observational, interventions)
+    # Interventional discovery orients Z->A, Z->Y, A->Y, so the back-door set is {Z}.
     assert agent.adjustment == ("Z",)
     assert agent.act({"state": 0}) == 1

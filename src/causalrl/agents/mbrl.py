@@ -11,16 +11,42 @@ a backdoor ``A <- U -> Y``.
 from __future__ import annotations
 
 import itertools
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
 
 from causalrl.agents.base import Agent
 from causalrl.data.dataset import ConfoundedTrajectoryDataset
+from causalrl.discovery import discover_interventional
 from causalrl.identification.criteria import backdoor_adjustment_set
 from causalrl.scale import certify_policy
 from causalrl.scm.graph import CausalGraph
+
+
+def _backdoor_value(
+    action: int,
+    data: Mapping[str, np.ndarray],
+    treatment: str,
+    outcome: str,
+    adjustment: tuple[str, ...],
+) -> float:
+    """Back-door formula: sum over adjustment strata of P(z) * E[Y | treatment=action, z]."""
+    a = np.asarray(data[treatment])
+    y = np.asarray(data[outcome], dtype=float)
+    if not adjustment:
+        sel = y[a == action]
+        return float(sel.mean()) if sel.size else 0.0
+    strata = np.stack([np.asarray(data[z]) for z in adjustment], axis=1)
+    total = 0.0
+    for stratum in np.unique(strata, axis=0):
+        in_z = np.all(strata == stratum, axis=1)
+        p_z = float(in_z.mean())
+        in_az = in_z & (a == action)
+        # On a positivity gap (action unseen in a stratum) fall back to the stratum-marginal mean.
+        outcome_mean = float(y[in_az].mean()) if in_az.any() else float(y[in_z].mean())
+        total += p_z * outcome_mean
+    return total
 
 
 class CertifiedPolicyAgent(Agent):
@@ -98,22 +124,60 @@ class BackdoorAdjustedAgent(Agent):
         self._best_action = int(np.argmax(np.asarray(self.values)))
 
     def _adjusted_value(self, action: int, data: Mapping[str, np.ndarray]) -> float:
-        a = np.asarray(data[self.treatment])
-        y = np.asarray(data[self.outcome], dtype=float)
-        if not self.adjustment:
-            sel = y[a == action]
-            return float(sel.mean()) if sel.size else 0.0
-        strata = np.stack([np.asarray(data[z]) for z in self.adjustment], axis=1)
-        total = 0.0
-        for stratum in np.unique(strata, axis=0):
-            in_z = np.all(strata == stratum, axis=1)
-            p_z = float(in_z.mean())
-            in_az = in_z & (a == action)
-            # Back-door term; on a positivity gap (action unseen in a stratum) fall back to the
-            # stratum-marginal outcome so the sum stays a proper P(z)-weighted average.
-            outcome_mean = float(y[in_az].mean()) if in_az.any() else float(y[in_z].mean())
-            total += p_z * outcome_mean
-        return total
+        return _backdoor_value(action, data, self.treatment, self.outcome, self.adjustment)
+
+    def act(self, observation: dict[str, Any]) -> int:
+        return int(self._best_action)
+
+    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
+        """Fixed action from the fitted adjustment; no online update."""
+
+
+class DiscoveryBackdoorAgent(Agent):
+    """Learns the structure: runs interventional causal discovery to orient the graph, reads the
+    back-door adjustment set from it, then adjusts; the M1 upgrade of the handed-the-graph
+    :class:`BackdoorAdjustedAgent`. Fitted with :meth:`discover_and_fit`."""
+
+    def __init__(
+        self,
+        n_actions: int,
+        *,
+        variables: Sequence[str],
+        treatment: str = "A",
+        outcome: str = "Y",
+    ) -> None:
+        self.n_actions = n_actions
+        self.variables = tuple(variables)
+        self.treatment = treatment
+        self.outcome = outcome
+        self.adjustment: tuple[str, ...] = ()
+        self._best_action = 0
+        self.values: list[float] = [0.0] * n_actions
+
+    def discover_and_fit(
+        self,
+        observational: Mapping[str, np.ndarray],
+        interventions: Mapping[str, Mapping[str, np.ndarray]],
+        *,
+        shift_threshold: float = 0.02,
+    ) -> None:
+        """Orient the graph from observational + do-samples, read the adjustment set, then adjust.
+
+        ``shift_threshold`` is the invariance-test cutoff; the default sits below the A->Y marginal
+        shift (~0.05) and above sampling noise, so every edge of the triangle orients.
+        """
+        cpdag = discover_interventional(
+            observational, interventions, self.variables, shift_threshold=shift_threshold
+        )
+        graph = cpdag.to_causal_graph()
+        self.adjustment = tuple(
+            sorted(backdoor_adjustment_set(graph, self.treatment, self.outcome))
+        )
+        self.values = [
+            _backdoor_value(a, observational, self.treatment, self.outcome, self.adjustment)
+            for a in range(self.n_actions)
+        ]
+        self._best_action = int(np.argmax(np.asarray(self.values)))
 
     def act(self, observation: dict[str, Any]) -> int:
         return int(self._best_action)

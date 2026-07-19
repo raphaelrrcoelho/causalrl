@@ -14,6 +14,8 @@ Naive marginal reverses to prefer action 0.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import numpy as np
 
 from causalrl.scm.graph import CausalGraph
@@ -36,9 +38,23 @@ class SimpsonBandit:
 
     def sample(self, n: int, *, seed: int | None = None) -> dict[str, np.ndarray]:
         """Draw ``n`` confounded observations as columnar arrays ``{"Z", "A", "Y"}``."""
+        return self.sample_do({}, n, seed=seed)
+
+    def sample_do(
+        self, do: Mapping[str, int], n: int, *, seed: int | None = None
+    ) -> dict[str, np.ndarray]:
+        """Draw ``n`` samples under the mutilated model ``do`` (``{}`` = observational).
+
+        Supports interventions on ``Z`` and/or ``A``; unset variables follow their mechanism, so
+        interventional causal discovery can orient the graph by the invariance principle.
+        """
         rng = np.random.default_rng(seed) if seed is not None else self._rng
         z = (rng.random(n) < 0.5).astype(int)
+        if "Z" in do:
+            z = np.full(n, do["Z"], dtype=int)
         a = (rng.random(n) < _P_TREAT[z]).astype(int)
+        if "A" in do:
+            a = np.full(n, do["A"], dtype=int)
         y = (rng.random(n) < _P_REWARD[a, z]).astype(float)
         return {"Z": z, "A": a, "Y": y}
 
