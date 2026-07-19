@@ -7,16 +7,70 @@ certify → transport). See `DESIGN.md` (M0–M3) and `plans/2026-07-19-m0-kill-
 
 ## Status (2026-07-19)
 
-**M0 apparatus implemented (Tasks 1–4), verification pending CI.** Local runs on the `/mnt/c` WSL2
-mount are impractically slow (multi-minute imports), so **CI is the verifier** — nothing is claimed
-green until the GitHub Actions run passes.
+**M0–M3 all GO and CI-green.** Local runs on the `/mnt/c` WSL2 mount are slow, so **CI is the
+verifier** — nothing is claimed green until the GitHub Actions run passes.
 
-| Task | Deliverable | State |
+| Milestone | What | Verdict |
 |---|---|---|
-| T1 | `ConfoundedContextualBandit` oracle env (`envs/suite/confounded_context.py`) + tests | implemented |
-| T2 | `CertifiedPolicyAgent` certify-gated agent (`agents/mbrl.py`) + tests | implemented |
-| T3 | `run_m0_kill_gate` harness (`eval/mbrl_probe.py`) + tests | implemented |
-| T4 | public-API exports + this doc | implemented |
+| M0 | back-door-adjusted agent on the Simpson bandit | GO — 0.50 vs naive 0.40 |
+| M1a | discovery agent (skeleton + temporal tiering) | GO — 0.50, `{Z}` on 10/10 |
+| M1b | deconfounded DOVI on the sequential medicine DTR | GO — 1.04 vs 0.85 |
+| M2 | 2-D phase diagram (γ × shift), transport agent | GO — monotone both axes, gap → 0.200 |
+| M3 | function-approx tier (ridge-RBF back-door, continuous Z) | GO — 0.50 vs 0.381 |
+
+Full per-milestone verdicts below (reverse-chronological).
+
+## M3 verdict — GO (2026-07-19, function-approximation tier, 10 seeds)
+
+```
+causal = 0.500   naive = 0.381   optimal = 0.500   gap = +0.119   (gamma = 1)
+```
+
+On `ContinuousConfoundedBandit` — a CONTINUOUS observed confounder `Z ~ Uniform(0,1)` with a
+nonlinear arm-1 reward bump and an overlap-preserving confounded behavior policy that over-samples
+arm 1 near the bump — `FunctionApproxBackdoorAgent` fits `qhat(a,z)` by per-action ridge regression
+on RBF features and back-door-adjusts by Monte-Carlo integrating it over the observed `Z`. It
+recovers the true low value of arm 1 (`E[Y|do(1)] ≈ 0.38`) and keeps the safe optimal arm 0 on every
+seed, while the confounded marginal `NaiveOffline` is fooled into the harmful arm 1 (0.381). Carries
+the discover→adjust recipe PAST the tabular regime to a learned continuous estimator — the
+function-approximation credibility tier, self-contained so it runs in CI. Read via
+`run_m3_function_approx_gate` (CI green `85f967d`).
+
+**External tier deferred (honest, out of CI).** The DESIGN's CartPoleWind + d3rlpy CQL tier is NOT
+run here: there is no `causalrl.interop.from_causal_gym` seam yet, and d3rlpy carries a known numpy-2
+risk deliberately kept out of CI (DESIGN §6). Rather than claim an unverifiable external result, M3
+ships a self-contained function-approximation tier that CI actually verifies; the d3rlpy/CausalGym
+bridge remains future work.
+
+---
+
+## M2 verdict — GO (2026-07-19, 2-D phase diagram γ × shift, 10 seeds)
+
+```
+causal-minus-naive post-shift gap (rows gamma 0..1, cols shift 0..1):
+          s=0.00  0.25   0.50   0.75   1.00
+g=0.00:   0.000  0.000  0.000  0.017  0.140
+g=0.25:   0.000  0.013  0.105  0.175  0.200
+g=0.50:   0.080  0.125  0.150  0.175  0.200
+g=0.75:   0.100  0.125  0.150  0.175  0.200
+g=1.00:   0.100  0.125  0.150  0.175  0.200
+monotone_in_gamma = True   monotone_in_shift = True
+null corner (g=0,s=0) = 0.000     high corner (g=1,s=1) = 0.200  [CI 0.200, 0.200]
+```
+
+The gap is monotone nondecreasing in BOTH confounding strength `gamma` and covariate-shift magnitude,
+zero along the no-confounding edge (`gamma=0` = honest null: causal machinery adds nothing when there
+is nothing to deconfound), and grows to 0.200 at the high corner — the "confounding bites where theory
+predicts" signature. The two failure modes sit on ORTHOGONAL variables (confounder `Z` drives the γ
+axis; a separate shift variable `W` drives the covariate-shift axis, additive on the safe arm), so the
+diagram does not entangle them; a 0.4 propensity slope preserves positivity even at `gamma=1` (a
+deterministic `A=Z` would make the effect unidentifiable and is avoided). `TransportableConfoundedBandit`
++ `TransportBackdoorAgent` (deconfound `Z` + transport `W` by the target `P(W)`, dogfooding
+`backdoor_adjustment_set` + `is_transportable_effect`) vs `NaiveOffline`. Read via
+`run_m2_phase_diagram` (CI green `f9e6de6`). The design was verified end-to-end at finite sample
+before implementation (`scratchpad` prototypes), including the tight-overlap `gamma=1` edge.
+
+---
 
 ## M1b verdict — GO (2026-07-19, sequential DTR / medicine, 5 seeds)
 
@@ -101,11 +155,17 @@ print(json.dumps({k:{'mean':v.mean,'lo':v.ci95_low,'hi':v.ci95_high} for k,v in 
 
 ## Resume here
 
-1. Watch CI on `causal-mbrl-agent`; fix forward any red (likely candidates: the `gamma_max` values
-   in `tests/test_mbrl_agents.py`, which encode a guess about when `certify_policy` certifies — flip
-   between low/high if the certify/abstain assertions fail).
-2. On green, run the verdict above; record the four means + CIs here.
-3. Decide GO → M1 (full discover→plan→certify loop on the DTR/medicine instance) or iterate.
+**M0–M3 are all GO and CI-green** on `causal-mbrl-agent` (PR #28). The DESIGN's milestone spine is
+complete. Open options (none started — await direction):
+
+- **Merge** PR #28 (flip draft → ready), or keep iterating on the branch.
+- **External-credibility tier** (the one piece of DESIGN M3 not shipped): build a
+  `causalrl.interop.from_causal_gym` seam + a d3rlpy CQL comparison on CartPoleWind, kept out of CI
+  (numpy-2 risk). Deferred deliberately, not forgotten.
+- **Write-up**: a short results note pulling the five verdicts together.
+
+Re-run any verdict from the exported harnesses: `run_m0_kill_gate`, `run_m1_discovery_gate`,
+`run_m1b_dtr_gate`, `run_m2_phase_diagram`, `run_m3_function_approx_gate`.
 
 ## Notes / decisions
 
