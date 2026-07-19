@@ -157,16 +157,22 @@ print(json.dumps({k:{'mean':v.mean,'lo':v.ci95_low,'hi':v.ci95_high} for k,v in 
 
 ## Resume here
 
-**M0–M3 are all GO and CI-green** on `causal-mbrl-agent` (PR #28). The DESIGN's milestone spine is
-complete. Open options (none started — await direction):
+**M0–M3 landed on main** (PR #28, merge `22639b5`), plus the `from_causal_gym` interop seam and
+`RESULTS.md`. The unified **`CausalMBRLAgent` front-door** — one class routing back-door / discovery
+/ transport / function-approx / sequential behind `fit → act → explain`, with a README quickstart —
+is **PR #29**. Open directions (await direction):
 
-- **Merge** PR #28 (flip draft → ready), or keep iterating on the branch.
-- **External-credibility tier** — the `from_causal_gym` seam is built + tested; the remaining piece
-  is a d3rlpy CQL comparison on CartPoleWind, out of CI (numpy-2 risk). Deferred deliberately.
-- **Write-up** — done: `RESULTS.md` pulls all five verdicts together.
+- **Real-data demo** — take the agent to a real confounded dataset (a medicine DTR or a public
+  bandit): decision-flip + certificate, honest about identifiability. The credibility leap past the
+  synthetic oracle worlds; frame as a method, not a "we beat sepsis" claim.
+- **Adoption push** — blog + X-thread / reddit / HN from the `launch/` drafts (outward-facing; needs
+  the user to host/post).
+- **External-credibility tier** — `from_causal_gym` seam is built + tested; the remaining piece is a
+  d3rlpy CQL comparison on CartPoleWind, out of CI (numpy-2 risk). Deferred deliberately.
 
 Re-run any verdict from the exported harnesses: `run_m0_kill_gate`, `run_m1_discovery_gate`,
-`run_m1b_dtr_gate`, `run_m2_phase_diagram`, `run_m3_function_approx_gate`.
+`run_m1b_dtr_gate`, `run_m2_phase_diagram`, `run_m3_function_approx_gate`. The agents are usable via
+the `CausalMBRLAgent` front-door (README quickstart) or the specialized classes directly.
 
 ## Notes / decisions
 
