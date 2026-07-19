@@ -18,18 +18,39 @@ green until the GitHub Actions run passes.
 | T3 | `run_m0_kill_gate` harness (`eval/mbrl_probe.py`) + tests | implemented |
 | T4 | public-API exports + this doc | implemented |
 
-## The M0 kill-gate verdict — PENDING
+## The M0 kill-gate verdict — NO-GO (2026-07-19, 10 seeds)
 
-Run once CI is green:
+```
+causal_source = 0.4500   naive_source = 0.4500
+causal_shifted = 0.4500  naive_shifted = 0.4500   gap = 0.0000
+```
+
+The certify-gated agent did NOT beat naive — both land at 0.45.
+
+**Diagnosis (two layers):**
+1. *Env symmetry:* the reward is symmetric (q(0,0)=q(1,1)=0.55, q(0,1)=q(1,0)=0.35), so every
+   constant/mixed policy averages 0.45; only the context-dependent optimal [0,1]=0.55 differs, and
+   neither agent finds it.
+2. *Deeper — the real lesson:* the **certify-gated planner is a safety mechanism whose ceiling is
+   the behavior policy.** Under strong confounding it cannot certify the true optimum, so it abstains
+   to a (noisy) behavior default rather than recovering it. Naive is fooled to [1,1]=0.45; abstention
+   is also ≈0.45 → no gap. This agent avoids harm; it does not *perform* better — which is exactly
+   the "only a certificate" limitation the whole program set out to move past.
+
+**Fork:**
+- (a) Recalibrate the env once so the confounder-fooled policy is strictly *worse* than behavior →
+  causal-via-abstention beats naive, but only a modest "don't ship a confounded loser" win.
+- (b) **Swap the planner** to one that actively *optimizes* under confounding (DOVI /
+  `msm_policy_value_bounds` value-maximizer) — a functioning agent, not a safety gate. Aligns with
+  the program's actual goal. **← recommended.**
+- (c) Accept the honest negative: the certify-gated agent's ceiling is the behavior policy.
+
+Reproduce:
 ```bash
 python -c "from causalrl import run_m0_kill_gate; import json; \
 r = run_m0_kill_gate(seeds=tuple(range(10))); \
 print(json.dumps({k:{'mean':v.mean,'lo':v.ci95_low,'hi':v.ci95_high} for k,v in r.items()}, indent=2))"
 ```
-Read: **GO** if `causal_shifted.mean > naive_shifted.mean` (CIs roughly non-overlapping) and
-`causal_source ≥ naive_source` → proceed to M1. **NO-GO / iterate** otherwise: calibrate the knobs
-(`gamma`, reward coefficients, `gamma_max`) once; if still no gap, swap the certify-gated rule for a
-DOVI / `msm_policy_value_bounds` planner before declaring the thesis dead.
 
 ## Resume here
 
