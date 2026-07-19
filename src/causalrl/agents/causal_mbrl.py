@@ -9,7 +9,7 @@ planner remains available directly for full control.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -18,6 +18,7 @@ from causalrl.agents.mbrl import (
     BackdoorAdjustedAgent,
     DiscoveryBackdoorAgent,
     FunctionApproxBackdoorAgent,
+    GFormulaBackdoorAgent,
     TransportBackdoorAgent,
 )
 from causalrl.scm.graph import CausalGraph
@@ -34,6 +35,7 @@ class CausalMBRLAgent:
     ``horizon=...``                ``"sequential"`` — deconfounded value iteration (``DOVI``)
     ``transport=(...)``            ``"transport"`` — deconfound + transport by the target ``P``
     ``continuous_confounder``      ``"function_approx"`` — ridge-RBF back-door on a continuous Z
+    ``covariates=[...]``           ``"g_formula"`` — multivariate standardization (real datasets)
     ``graph=None``                 ``"discovery"`` — skeleton discovery + temporal tiers, adjust
     otherwise (``graph`` given)    ``"backdoor"`` — back-door adjust an observed confounder
     ============================  ============================================================
@@ -55,6 +57,8 @@ class CausalMBRLAgent:
         outcome: str = "Y",
         transport: Sequence[str] | None = None,
         continuous_confounder: bool = False,
+        covariates: Sequence[str] | None = None,
+        outcome_model: Callable[[], Any] | None = None,
         horizon: int | None = None,
         n_states: int | None = None,
         seed: int = 0,
@@ -88,6 +92,15 @@ class CausalMBRLAgent:
             self.strategy = "function_approx"
             self._planner = FunctionApproxBackdoorAgent(
                 n_actions, graph=graph, treatment=treatment, outcome=outcome
+            )
+        elif covariates is not None:
+            self.strategy = "g_formula"
+            self._planner = GFormulaBackdoorAgent(
+                n_actions,
+                covariates=covariates,
+                treatment=treatment,
+                outcome=outcome,
+                outcome_model=outcome_model,
             )
         elif graph is None:
             if variables is None or tiers is None:
@@ -157,4 +170,6 @@ class CausalMBRLAgent:
             parts.append(f"transportable={getattr(self._planner, 'transportable', None)}")
         if self.strategy == "function_approx":
             parts.append(f"confounder={getattr(self._planner, 'confounder', None)}")
+        if self.strategy == "g_formula":
+            parts.append(f"covariates={list(getattr(self._planner, 'covariates', ()))}")
         return "CausalMBRLAgent(" + ", ".join(parts) + ")"

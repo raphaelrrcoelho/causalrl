@@ -11,7 +11,7 @@ a backdoor ``A <- U -> Y``.
 from __future__ import annotations
 
 import itertools
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -390,3 +390,90 @@ class FunctionApproxBackdoorAgent(Agent):
 
     def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
         """Fixed action from the fitted function approximator; no online update."""
+
+
+def _standardize(fit_x: np.ndarray, apply_x: np.ndarray) -> np.ndarray:
+    """Z-score ``apply_x`` by the column mean/std of ``fit_x`` (ridge conditioning)."""
+    mean = fit_x.mean(axis=0)
+    std = fit_x.std(axis=0) + 1e-8
+    return (apply_x - mean) / std
+
+
+class GFormulaBackdoorAgent(Agent):
+    """Multivariate g-formula (standardization) back-door for many, mixed-type covariates.
+
+    Fits a per-action outcome model ``Ehat_a[Y | X]`` over ALL covariates X (a T-learner), then
+    standardizes ``E[Y | do(a)] = mean_i Ehat_a(X_i)`` and ships the argmax. This is the strategy
+    for the realistic confounding of real datasets, where per-stratum adjustment degenerates (each
+    stratum has ~1 row) and a single-confounder RBF is too narrow. The default outcome model is a
+    numpy ridge over ``[1, standardized X]`` (dependency-free); pass ``outcome_model`` — a factory
+    returning a fresh sklearn-style estimator (``fit``/``predict``) — for a flexible offline model.
+    """
+
+    def __init__(
+        self,
+        n_actions: int,
+        *,
+        covariates: Sequence[str],
+        treatment: str = "A",
+        outcome: str = "Y",
+        outcome_model: Callable[[], Any] | None = None,
+        ridge: float = 1.0,
+    ) -> None:
+        self.n_actions = n_actions
+        self.covariates = tuple(covariates)
+        self.treatment = treatment
+        self.outcome = outcome
+        self._outcome_model = outcome_model
+        self.ridge = ridge
+        self._best_action = 0
+        self.values: list[float] = [0.0] * n_actions
+
+    def fit(self, data: Mapping[str, np.ndarray]) -> GFormulaBackdoorAgent:
+        """Fit the per-action outcome model, standardize to ``E[Y|do(a)]``, select the argmax."""
+        covariate_matrix = np.column_stack(
+            [np.asarray(data[c], dtype=float) for c in self.covariates]
+        )
+        treatment = np.asarray(data[self.treatment])
+        outcome = np.asarray(data[self.outcome], dtype=float)
+        self.values = [
+            self._standardized_value(action, covariate_matrix, treatment, outcome)
+            for action in range(self.n_actions)
+        ]
+        self._best_action = int(np.argmax(np.asarray(self.values)))
+        return self
+
+    def _standardized_value(
+        self, action: int, x: np.ndarray, treatment: np.ndarray, outcome: np.ndarray
+    ) -> float:
+        mask = treatment == action
+        if not mask.any():
+            return 0.0
+        x_a, y_a = x[mask], outcome[mask]
+        if self._outcome_model is not None:
+            model = self._outcome_model()
+            model.fit(x_a, y_a)
+            predictions = np.asarray(model.predict(x), dtype=float)
+        else:
+            phi_a = self._design(x_a, x_a)
+            gram = phi_a.T @ phi_a + self.ridge * np.eye(phi_a.shape[1])
+            weights = np.linalg.solve(gram, phi_a.T @ y_a)
+            predictions = self._design(x_a, x) @ weights
+        return float(predictions.mean())
+
+    def _design(self, fit_x: np.ndarray, apply_x: np.ndarray) -> np.ndarray:
+        standardized = _standardize(fit_x, apply_x)
+        return np.hstack([np.ones((standardized.shape[0], 1)), standardized])
+
+    @property
+    def contrast(self) -> float:
+        """``E[Y|do(1)] - E[Y|do(0)]`` (the ATE) for a binary treatment."""
+        if self.n_actions != 2:
+            raise ValueError("contrast is defined only for a binary treatment")
+        return self.values[1] - self.values[0]
+
+    def act(self, observation: dict[str, Any]) -> int:
+        return int(self._best_action)
+
+    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
+        """Fixed action from the fitted g-formula; no online update."""
