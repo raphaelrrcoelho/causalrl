@@ -97,3 +97,13 @@ def test_m2_symbols_exported():
     ):
         assert name in causalrl.__all__
         assert getattr(causalrl, name) is not None
+
+
+def test_m3_symbols_exported():
+    for name in (
+        "ContinuousConfoundedBandit",
+        "FunctionApproxBackdoorAgent",
+        "run_m3_function_approx_gate",
+    ):
+        assert name in causalrl.__all__
+        assert getattr(causalrl, name) is not None

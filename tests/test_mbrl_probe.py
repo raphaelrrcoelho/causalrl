@@ -8,6 +8,7 @@ from causalrl.eval.mbrl_probe import (
     run_m1_discovery_gate,
     run_m1b_dtr_gate,
     run_m2_phase_diagram,
+    run_m3_function_approx_gate,
 )
 
 
@@ -54,3 +55,14 @@ def test_m2_phase_diagram_shows_the_confounding_signature() -> None:
     # The advantage grows (weakly) along both axes -- the phase-diagram signature.
     assert report.monotone_in_gamma is True
     assert report.monotone_in_shift is True
+
+
+def test_m3_function_approx_gate_reports_causal_naive_optimal() -> None:
+    report = run_m3_function_approx_gate(seeds=(0, 1), n=3000)
+    assert set(report) == {"causal", "naive", "optimal"}
+    for est in report.values():
+        assert isinstance(est, BenchmarkEstimate)
+        assert 0.0 <= est.mean <= 1.0
+        assert len(est.values) == 2
+    # The function-approx back-door agent keeps the optimum; the confounded marginal does not.
+    assert report["causal"].mean > report["naive"].mean

@@ -21,9 +21,11 @@ from causalrl.agents.dovi import DOVI
 from causalrl.agents.mbrl import (
     BackdoorAdjustedAgent,
     DiscoveryBackdoorAgent,
+    FunctionApproxBackdoorAgent,
     TransportBackdoorAgent,
 )
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition, generate_logs
+from causalrl.envs.suite.continuous_confounded import ContinuousConfoundedBandit
 from causalrl.envs.suite.seq_dtr import SequentialDTREnv
 from causalrl.envs.suite.simpson_bandit import SimpsonBandit
 from causalrl.envs.suite.transport_bandit import TransportableConfoundedBandit
@@ -237,3 +239,42 @@ def run_m2_phase_diagram(
         monotone_in_gamma=mono_gamma,
         monotone_in_shift=mono_shift,
     )
+
+
+def run_m3_function_approx_gate(
+    *,
+    seeds: Sequence[int] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+    gamma: float = 1.0,
+    n: int = 6000,
+) -> dict[str, BenchmarkEstimate]:
+    """M3: a continuous-confounder function-approximation agent vs naive on a nonlinear reward.
+
+    On ``ContinuousConfoundedBandit`` (continuous ``Z ~ Uniform``, a nonlinear arm-1 bump, and
+    behavior that over-samples arm 1 near the bump), a ``FunctionApproxBackdoorAgent`` (ridge
+    on RBF features + back-door integration) recovers the true low value of arm 1 and keeps the safe
+    arm 0; the ``NaiveOffline`` marginal is fooled into arm 1. Keys: ``causal``, ``naive``,
+    ``optimal``. GO iff ``causal.mean > naive.mean``.
+    """
+    rows: dict[str, list[float]] = {"causal": [], "naive": [], "optimal": []}
+    for seed in seeds:
+        env = ContinuousConfoundedBandit(gamma=gamma, seed=seed)
+        data = env.sample(n, seed=seed)
+
+        agent = FunctionApproxBackdoorAgent(env.n_actions, graph=env.graph)
+        agent.fit(data)
+
+        transitions = [
+            Transition(0, int(a), float(y), 0, True)
+            for a, y in zip(data["A"], data["Y"], strict=True)
+        ]
+        dataset = ConfoundedTrajectoryDataset(transitions, n_states=1, n_actions=2)
+        naive = NaiveOffline(env.n_states, env.n_actions)
+        naive.ingest_offline(dataset)
+
+        rows["causal"].append(env.true_action_value(agent.act({"state": 0})))
+        rows["naive"].append(env.true_action_value(naive.act({"state": 0})))
+        rows["optimal"].append(env.optimal_value())
+    return {
+        name: BenchmarkEstimate.from_values(name, seeds=seeds, values=values)
+        for name, values in rows.items()
+    }

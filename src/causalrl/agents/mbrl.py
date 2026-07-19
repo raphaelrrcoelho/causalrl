@@ -307,3 +307,86 @@ class DiscoveryBackdoorAgent(Agent):
 
     def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
         """Fixed action from the fitted adjustment; no online update."""
+
+
+def _rbf_features(z: np.ndarray, centers: np.ndarray, bandwidth: float) -> np.ndarray:
+    """Design matrix ``[1, exp(-(z - c_k)^2 / (2 bandwidth^2))]`` for RBF ridge regression."""
+    z = np.asarray(z, dtype=float).reshape(-1, 1)
+    phi = np.exp(-((z - centers.reshape(1, -1)) ** 2) / (2.0 * bandwidth**2))
+    return np.hstack([np.ones((z.shape[0], 1)), phi])
+
+
+class FunctionApproxBackdoorAgent(Agent):
+    """Function-approximation back-door: fit ``qhat(a, z)`` by ridge regression on RBF features of a
+    CONTINUOUS confounder, then back-door-adjust by Monte-Carlo integrating ``qhat(a, .)`` over the
+    observed confounder sample, and ship the argmax. The M3 upgrade that carries the deconfounding
+    recipe past the tabular regime to a learned continuous estimator.
+
+    The single continuous confounder is read from ``graph`` via
+    :func:`~causalrl.backdoor_adjustment_set`. Fit on columnar
+    ``{confounder, treatment, outcome}`` via :meth:`fit`.
+    """
+
+    def __init__(
+        self,
+        n_actions: int,
+        *,
+        graph: CausalGraph,
+        treatment: str = "A",
+        outcome: str = "Y",
+        n_centers: int = 12,
+        bandwidth: float = 0.08,
+        ridge: float = 1e-2,
+    ) -> None:
+        adjustment = sorted(backdoor_adjustment_set(graph, treatment, outcome))
+        if len(adjustment) != 1:
+            raise ValueError(
+                "FunctionApproxBackdoorAgent supports a single continuous confounder; "
+                f"graph gives adjustment set {adjustment}"
+            )
+        self.n_actions = n_actions
+        self.treatment = treatment
+        self.outcome = outcome
+        self.confounder = adjustment[0]
+        self.n_centers = n_centers
+        self.bandwidth = bandwidth
+        self.ridge = ridge
+        self._best_action = 0
+        self.values: list[float] = [0.0] * n_actions
+
+    def fit(self, data: Mapping[str, np.ndarray]) -> None:
+        """Fit the per-action RBF-ridge outcome model and select the back-door-adjusted argmax."""
+        z = np.asarray(data[self.confounder], dtype=float)
+        a = np.asarray(data[self.treatment])
+        y = np.asarray(data[self.outcome], dtype=float)
+        centers = np.linspace(float(z.min()), float(z.max()), self.n_centers)
+        phi_all = _rbf_features(z, centers, self.bandwidth)
+        self.values = [
+            self._adjusted_value(action, z, a, y, centers, phi_all)
+            for action in range(self.n_actions)
+        ]
+        self._best_action = int(np.argmax(np.asarray(self.values)))
+
+    def _adjusted_value(
+        self,
+        action: int,
+        z: np.ndarray,
+        a: np.ndarray,
+        y: np.ndarray,
+        centers: np.ndarray,
+        phi_all: np.ndarray,
+    ) -> float:
+        """Back-door value: mean over Z of ``qhat(action, .)`` fit on that action's rows."""
+        mask = a == action
+        if not mask.any():
+            return 0.0
+        phi = _rbf_features(z[mask], centers, self.bandwidth)
+        gram = phi.T @ phi + self.ridge * np.eye(phi.shape[1])
+        weights = np.linalg.solve(gram, phi.T @ y[mask])
+        return float((phi_all @ weights).mean())
+
+    def act(self, observation: dict[str, Any]) -> int:
+        return int(self._best_action)
+
+    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
+        """Fixed action from the fitted function approximator; no online update."""

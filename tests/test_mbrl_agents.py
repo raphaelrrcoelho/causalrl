@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import pytest
+
 from causalrl.agents.baselines import NaiveOffline
 from causalrl.agents.mbrl import (
     BackdoorAdjustedAgent,
     CertifiedPolicyAgent,
     DiscoveryBackdoorAgent,
+    FunctionApproxBackdoorAgent,
     TransportBackdoorAgent,
 )
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition
+from causalrl.envs.suite.continuous_confounded import ContinuousConfoundedBandit
 from causalrl.envs.suite.simpson_bandit import SimpsonBandit
 from causalrl.envs.suite.transport_bandit import TransportableConfoundedBandit
+from causalrl.scm.graph import CausalGraph
 
 
 def _clean_improvement_dataset() -> ConfoundedTrajectoryDataset:
@@ -120,3 +125,33 @@ def test_transport_effect_is_identifiable() -> None:
     env = TransportableConfoundedBandit(gamma=0.5, shift=0.5)
     agent = TransportBackdoorAgent(env.n_actions, graph=env.graph, transport=("W",))
     assert agent.transportable is True
+
+
+def test_function_approx_agent_beats_fooled_naive_on_continuous_confounder() -> None:
+    # Continuous confounder + nonlinear reward: ridge-RBF back-door recovers arm 1's true low value
+    # and keeps the safe arm 0, while the confounded marginal is fooled into the harmful arm 1.
+    env = ContinuousConfoundedBandit(gamma=1.0, seed=0)
+    data = env.sample(6000, seed=0)
+
+    agent = FunctionApproxBackdoorAgent(env.n_actions, graph=env.graph)
+    agent.fit(data)
+    assert agent.confounder == "Z"
+    assert agent.values[1] < 0.45  # true E[Y|do(1)] ~ 0.38, comfortably below arm 0's 0.5
+    assert agent.act({"state": 0}) == env.optimal_action() == 0
+
+    transitions = [
+        Transition(0, int(a), float(y), 0, True) for a, y in zip(data["A"], data["Y"], strict=True)
+    ]
+    dataset = ConfoundedTrajectoryDataset(transitions, n_states=1, n_actions=2)
+    naive = NaiveOffline(env.n_states, env.n_actions)
+    naive.ingest_offline(dataset)
+    assert naive.act({"state": 0}) == 1  # confounded marginal picks the trap
+
+
+def test_function_approx_agent_requires_a_single_confounder() -> None:
+    # The RBF outcome model is 1-D; a graph with a 2-variable back-door set is rejected up front.
+    graph = CausalGraph(
+        directed_edges=[("U1", "A"), ("U1", "Y"), ("U2", "A"), ("U2", "Y"), ("A", "Y")]
+    )
+    with pytest.raises(ValueError):
+        FunctionApproxBackdoorAgent(2, graph=graph)
