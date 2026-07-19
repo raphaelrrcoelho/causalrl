@@ -81,3 +81,9 @@ assert DTREnv is not None
         [sys.executable, "-c", source], check=False, capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_m0_symbols_exported():
+    for name in ("ConfoundedContextualBandit", "CertifiedPolicyAgent", "run_m0_kill_gate"):
+        assert name in causalrl.__all__
+        assert getattr(causalrl, name) is not None
