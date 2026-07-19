@@ -1,11 +1,11 @@
 """M0 kill-gate (b): does an ACTIVE deconfounded agent beat a naive marginal one on a Simpson's-
 paradox bandit — recovering the interventional optimum from confounded logs?
 
-Reports each agent's exact interventional value plus the oracle optimum. The verdict is READ from the
+Reports each agent's interventional value plus the oracle optimum. The verdict is READ from the
 report (``causal.mean`` vs ``naive.mean``), not asserted here.
 
 Supersedes the certify-gated attempt (NO-GO: an abstention rule tops out at the behavior policy). An
-active back-door-adjusting agent has no such ceiling — given an observed admissible adjustment set it
+active back-door agent has no such ceiling — given an observed admissible adjustment set it
 recovers the true optimum, which a naive marginal agent cannot.
 """
 

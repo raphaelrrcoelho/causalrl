@@ -73,7 +73,7 @@ class BackdoorAdjustedAgent(Agent):
 
     Unlike the certify-gated agent (whose ceiling is the behavior policy), this *recovers* the
     interventional optimum from confounded logs, given an observed admissible adjustment set. It is
-    fitted on columnar data ``{treatment, outcome, *adjustment}`` (a mapping of equal-length arrays).
+    fitted on columnar data ``{treatment, outcome, *adjustment}`` (equal-length arrays).
     """
 
     def __init__(

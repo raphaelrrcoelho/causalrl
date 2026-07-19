@@ -1,9 +1,9 @@
 """Simpson's-paradox bandit: an OBSERVED confounder Z on a back-door path A <- Z -> Y.
 
-A single-decision bandit where action 1 is better within each Z stratum and interventionally, yet the
-naive marginal ``E[Y | A]`` *reverses* (action 0 looks better) because Z confounds the logged action.
+A one-shot bandit where action 1 is better within each Z stratum and interventionally, yet the
+naive marginal ``E[Y | A]`` *reverses* (action 0 looks better) because Z confounds the action.
 An agent that back-door-adjusts for the observed Z recovers the interventional optimum; a naive
-marginal agent is fooled. This is the M0 (b) substrate — the identifiable causal win that an *active*
+marginal agent is fooled. This is the M0 (b) substrate: the causal win an *active*
 deconfounded optimizer can achieve (unlike the certify-gated agent, whose ceiling is the behavior
 policy).
 

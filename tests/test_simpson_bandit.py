@@ -16,7 +16,7 @@ def test_interventional_oracle_prefers_action_1() -> None:
 
 
 def test_naive_marginal_reverses_to_action_0() -> None:
-    # The confounded logs make E[Y|A=0] > E[Y|A=1] even though do(A=1) is better (Simpson's paradox).
+    # The confounded logs make E[Y|A=0] > E[Y|A=1] even though do(A=1) is truly better.
     env = SimpsonBandit(seed=1)
     data = env.sample(200_000, seed=1)
     a, y = data["A"], data["Y"]
