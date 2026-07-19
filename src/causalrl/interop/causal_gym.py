@@ -1,3 +1,4 @@
+# pyright: reportUnknownVariableType=false, reportUnknownArgumentType=false, reportUnknownMemberType=false
 """Causal-Gymnasium (CausalAILab) → :class:`~causalrl.data.dataset.ConfoundedTrajectoryDataset`
 adapter (DESIGN §7).
 
