@@ -21,15 +21,18 @@ green until the GitHub Actions run passes.
 ## M1a verdict — GO (2026-07-19, discovery agent, 10 seeds)
 
 ```
-discovery = 0.46   naive = 0.40   optimal = 0.50   gap = +0.06   (recovered adjustment = {Z})
+discovery = 0.50   naive = 0.40   optimal = 0.50   gap = +0.10   (recovers {Z} on 10/10 seeds)
 ```
 
-`DiscoveryBackdoorAgent` runs interventional discovery (do(A), do(Z)) to orient Z→A→Y, derives the
-back-door set `{Z}` itself, adjusts, and beats naive (CI [0.428, 0.492] sits above naive's flat
-0.40). **Honest caveat: 0.46, not the handed-graph 0.50** — interventional discovery is imperfect at
-finite n (recovers `{Z}` on a majority of seeds, falls back to the naive set on the rest), so
-learning the structure carries a real finite-sample cost. Follow-up: improve discovery reliability;
-then M1b (sequential DTR/medicine instance).
+`DiscoveryBackdoorAgent` discovers the causal skeleton from data and orients it with the temporal
+tier order (covariates ≺ treatment ≺ outcome — standard in DTR/medicine), derives the back-door set
+`{Z}` itself on **10/10 seeds**, adjusts, and **matches the handed-graph optimum (0.50)**, beating
+naive (0.40).
+
+Reliability history (Thread 1): pure interventional edge-orientation was unreliable here — ~6/10,
+with *deterministic* orientation flips (Z→A/Z→Y ↔ A→Z/Y→Z) that did NOT improve with n (5k/20k/50k
+all ≈6/10). Switching to skeleton discovery + temporal tiering fixed it to 10/10 and 0.50. Next:
+M1b (sequential DTR/medicine instance).
 
 ---
 

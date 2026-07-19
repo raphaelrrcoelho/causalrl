@@ -18,7 +18,7 @@ import numpy as np
 
 from causalrl.agents.base import Agent
 from causalrl.data.dataset import ConfoundedTrajectoryDataset
-from causalrl.discovery import discover_interventional
+from causalrl.discovery import discover
 from causalrl.identification.criteria import backdoor_adjustment_set
 from causalrl.scale import certify_policy
 from causalrl.scm.graph import CausalGraph
@@ -134,9 +134,10 @@ class BackdoorAdjustedAgent(Agent):
 
 
 class DiscoveryBackdoorAgent(Agent):
-    """Learns the structure: runs interventional causal discovery to orient the graph, reads the
-    back-door adjustment set from it, then adjusts; the M1 upgrade of the handed-the-graph
-    :class:`BackdoorAdjustedAgent`. Fitted with :meth:`discover_and_fit`."""
+    """Learns the structure: discovers the causal skeleton from data, orients it with the known
+    temporal tier order (covariates precede treatment precede outcome — standard in DTR/medicine),
+    takes the treatment's earlier-tier neighbours as the back-door set, then adjusts. The M1 upgrade
+    of the handed-the-graph :class:`BackdoorAdjustedAgent`. Fitted with :meth:`discover_and_fit`."""
 
     def __init__(
         self,
@@ -156,25 +157,30 @@ class DiscoveryBackdoorAgent(Agent):
 
     def discover_and_fit(
         self,
-        observational: Mapping[str, np.ndarray],
-        interventions: Mapping[str, Mapping[str, np.ndarray]],
+        data: Mapping[str, np.ndarray],
         *,
-        shift_threshold: float = 0.02,
+        tiers: Sequence[Sequence[str]],
+        threshold: float = 0.01,
     ) -> None:
-        """Orient the graph from observational + do-samples, read the adjustment set, then adjust.
+        """Discover the skeleton, orient it by the temporal ``tiers`` (ordered groups, earliest
+        first), take the treatment's earlier-tier neighbours as the back-door set, and adjust.
 
-        ``shift_threshold`` is the invariance-test cutoff; the default sits below the A->Y marginal
-        shift (~0.05) and above sampling noise, so every edge of the triangle orients.
+        Temporal tiering is standard domain knowledge in DTR / medicine and makes adjustment-set
+        recovery reliable (pure interventional edge-orientation was not, on this graph).
         """
-        cpdag = discover_interventional(
-            observational, interventions, self.variables, shift_threshold=shift_threshold
-        )
-        graph = cpdag.to_causal_graph()
-        self.adjustment = tuple(
-            sorted(backdoor_adjustment_set(graph, self.treatment, self.outcome))
-        )
+        cpdag = discover(data, self.variables, threshold=threshold)
+        neighbours: set[str] = set()
+        for a, b in cpdag.directed_edges:
+            if self.treatment in (a, b):
+                neighbours.update({a, b} - {self.treatment})
+        for edge in cpdag.undirected_edges:
+            if self.treatment in edge:
+                neighbours.update(v for v in edge if v != self.treatment)
+        tier_of = {v: i for i, group in enumerate(tiers) for v in group}
+        adj = [v for v in neighbours if tier_of[v] < tier_of[self.treatment]]
+        self.adjustment = tuple(sorted(adj))
         self.values = [
-            _backdoor_value(a, observational, self.treatment, self.outcome, self.adjustment)
+            _backdoor_value(a, data, self.treatment, self.outcome, self.adjustment)
             for a in range(self.n_actions)
         ]
         self._best_action = int(np.argmax(np.asarray(self.values)))

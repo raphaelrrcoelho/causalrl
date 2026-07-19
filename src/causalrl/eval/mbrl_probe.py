@@ -72,10 +72,6 @@ def run_m1_discovery_gate(
     for seed in seeds:
         env = SimpsonBandit(seed=seed)
         observational = env.sample(n, seed=seed)
-        interventions = {
-            "A": env.sample_do({"A": 1}, n, seed=seed + 100),
-            "Z": env.sample_do({"Z": 1}, n, seed=seed + 200),
-        }
         transitions = [
             Transition(0, int(a), float(y), 0, True)
             for a, y in zip(observational["A"], observational["Y"], strict=True)
@@ -85,7 +81,7 @@ def run_m1_discovery_gate(
         naive.ingest_offline(dataset)
 
         agent = DiscoveryBackdoorAgent(env.n_actions, variables=("Z", "A", "Y"))
-        agent.discover_and_fit(observational, interventions)
+        agent.discover_and_fit(observational, tiers=(("Z",), ("A",), ("Y",)))
 
         rows["discovery"].append(env.true_action_value(agent.act({"state": 0})))
         rows["naive"].append(env.true_action_value(naive.act({"state": 0})))
