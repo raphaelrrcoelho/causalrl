@@ -192,6 +192,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "cce_regret": ("causalrl.magames", "cce_regret"),
     "certify_cce_do": ("causalrl.magames", "certify_cce_do"),
     "pettingzoo_to_trajectory_log": ("causalrl.interop.pettingzoo", "pettingzoo_to_trajectory_log"),
+    "from_causal_gym": ("causalrl.interop.causal_gym", "from_causal_gym"),
     "MLPMechanism": ("causalrl.scm.continuous.mechanisms", "MLPMechanism"),
     "LocationScaleMechanism": ("causalrl.scm.continuous.mechanisms", "LocationScaleMechanism"),
     "ConditionalFlowMechanism": (
@@ -460,6 +461,7 @@ __all__ = [
     "estimate_transported_effect",
     "factored_advantage",
     "finite_horizon_regret",
+    "from_causal_gym",
     "generate_logs",
     "identify_effect",
     "identify_effect_certified",

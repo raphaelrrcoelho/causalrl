@@ -36,11 +36,13 @@ the discover→adjust recipe PAST the tabular regime to a learned continuous est
 function-approximation credibility tier, self-contained so it runs in CI. Read via
 `run_m3_function_approx_gate` (CI green `85f967d`).
 
-**External tier deferred (honest, out of CI).** The DESIGN's CartPoleWind + d3rlpy CQL tier is NOT
-run here: there is no `causalrl.interop.from_causal_gym` seam yet, and d3rlpy carries a known numpy-2
-risk deliberately kept out of CI (DESIGN §6). Rather than claim an unverifiable external result, M3
-ships a self-contained function-approximation tier that CI actually verifies; the d3rlpy/CausalGym
-bridge remains future work.
+**External tier — seam built, heavy comparison deferred (honest).** The
+`causalrl.interop.from_causal_gym` seam **is now built and unit-tested** (duck-typed on the
+Gymnasium API, external package never imported; `tests/test_interop_causal_gym.py`), so causalrl
+agents can consume external Causal-Gymnasium rollouts as a `ConfoundedTrajectoryDataset`. The heavier
+CartPoleWind + **d3rlpy CQL** comparison is NOT run: d3rlpy carries a known numpy-2 risk deliberately
+kept out of CI (DESIGN §6), so it stays a user-runnable, unverified example rather than a fabricated
+result. A results write-up spanning all five verdicts lives in `RESULTS.md`.
 
 ---
 
@@ -159,10 +161,9 @@ print(json.dumps({k:{'mean':v.mean,'lo':v.ci95_low,'hi':v.ci95_high} for k,v in 
 complete. Open options (none started — await direction):
 
 - **Merge** PR #28 (flip draft → ready), or keep iterating on the branch.
-- **External-credibility tier** (the one piece of DESIGN M3 not shipped): build a
-  `causalrl.interop.from_causal_gym` seam + a d3rlpy CQL comparison on CartPoleWind, kept out of CI
-  (numpy-2 risk). Deferred deliberately, not forgotten.
-- **Write-up**: a short results note pulling the five verdicts together.
+- **External-credibility tier** — the `from_causal_gym` seam is built + tested; the remaining piece
+  is a d3rlpy CQL comparison on CartPoleWind, out of CI (numpy-2 risk). Deferred deliberately.
+- **Write-up** — done: `RESULTS.md` pulls all five verdicts together.
 
 Re-run any verdict from the exported harnesses: `run_m0_kill_gate`, `run_m1_discovery_gate`,
 `run_m1b_dtr_gate`, `run_m2_phase_diagram`, `run_m3_function_approx_gate`.
