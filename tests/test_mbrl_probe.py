@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from causalrl.eval.benchmark import BenchmarkEstimate
-from causalrl.eval.mbrl_probe import run_m0_kill_gate, run_m1_discovery_gate
+from causalrl.eval.mbrl_probe import run_m0_kill_gate, run_m1_discovery_gate, run_m1b_dtr_gate
 
 
 def test_harness_reports_causal_naive_optimal() -> None:
@@ -22,3 +22,12 @@ def test_m1_discovery_harness_reports_discovery_naive_optimal() -> None:
         assert isinstance(est, BenchmarkEstimate)
         assert 0.0 <= est.mean <= 1.0
         assert len(est.values) == 2
+
+
+def test_m1b_dtr_harness_reports_causal_naive_optimal() -> None:
+    report = run_m1b_dtr_gate(seeds=(0,), horizon=2, n_episodes=800)
+    assert set(report) == {"causal", "naive", "optimal"}
+    for est in report.values():
+        assert isinstance(est, BenchmarkEstimate)
+        assert est.mean >= 0.0
+        assert len(est.values) == 1

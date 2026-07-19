@@ -14,10 +14,13 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from causalrl.agents.baselines import NaiveOffline
+from causalrl.agents.dovi import DOVI
 from causalrl.agents.mbrl import BackdoorAdjustedAgent, DiscoveryBackdoorAgent
-from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition
+from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition, generate_logs
+from causalrl.envs.suite.seq_dtr import SequentialDTREnv
 from causalrl.envs.suite.simpson_bandit import SimpsonBandit
 from causalrl.eval.benchmark import BenchmarkEstimate
+from causalrl.eval.harness import run_episodes
 
 
 def run_m0_kill_gate(
@@ -87,6 +90,52 @@ def run_m1_discovery_gate(
         rows["naive"].append(env.true_action_value(naive.act({"state": 0})))
         rows["optimal"].append(env.optimal_value)
 
+    return {
+        name: BenchmarkEstimate.from_values(name, seeds=seeds, values=values)
+        for name, values in rows.items()
+    }
+
+
+def run_m1b_dtr_gate(
+    *,
+    seeds: Sequence[int] = (0, 1, 2, 3, 4),
+    horizon: int = 2,
+    n_episodes: int = 8000,
+) -> dict[str, BenchmarkEstimate]:
+    """M1b: deconfounded sequential planning vs naive on the confounded medicine DTR.
+
+    On ``SequentialDTREnv`` (a hidden comorbidity U, a confounded clinician who plays ``a = U``, and
+    a foresight gap), the deconfounded value-iteration agent ``DOVI`` (an existing library agent) is
+    trained on confounded logs and rolled out; ``NaiveOffline`` is the confounded baseline. Keys:
+    ``causal`` (DOVI late-window mean return), ``naive``, ``optimal``. GO iff ``causal > naive``.
+    """
+    n_states = SequentialDTREnv(horizon=horizon).n_states
+    optimal = SequentialDTREnv(horizon=horizon).optimal_value
+    tail = max(1, n_episodes // 4)
+    rows: dict[str, list[float]] = {"causal": [], "naive": [], "optimal": []}
+    for seed in seeds:
+        logs = generate_logs(
+            SequentialDTREnv(horizon=horizon, seed=seed + 11), n_episodes=n_episodes, seed=seed + 11
+        )
+        dovi = DOVI(
+            n_states=n_states,
+            n_actions=2,
+            horizon=horizon,
+            seed=seed,
+            transition_assumption="unconfounded",
+        )
+        dovi.ingest_offline(logs)
+        dovi_returns = run_episodes(
+            dovi, SequentialDTREnv(horizon=horizon, seed=seed), n_episodes=n_episodes, seed=seed
+        )
+        naive = NaiveOffline(n_states=n_states, n_actions=2)
+        naive.ingest_offline(logs)
+        naive_returns = run_episodes(
+            naive, SequentialDTREnv(horizon=horizon, seed=seed), n_episodes=n_episodes, seed=seed
+        )
+        rows["causal"].append(sum(dovi_returns[-tail:]) / tail)
+        rows["naive"].append(sum(naive_returns) / len(naive_returns))
+        rows["optimal"].append(optimal)
     return {
         name: BenchmarkEstimate.from_values(name, seeds=seeds, values=values)
         for name, values in rows.items()

@@ -18,6 +18,20 @@ green until the GitHub Actions run passes.
 | T3 | `run_m0_kill_gate` harness (`eval/mbrl_probe.py`) + tests | implemented |
 | T4 | public-API exports + this doc | implemented |
 
+## M1b verdict — GO (2026-07-19, sequential DTR / medicine, 5 seeds)
+
+```
+causal (DOVI) = 1.04   naive = 0.85   optimal = 1.05   gap = +0.19
+```
+
+On `SequentialDTREnv` — a multi-stage confounded dynamic treatment regime (hidden comorbidity U, a
+clinician who plays a=U, and a foresight gap) — the deconfounded value-iteration agent `DOVI`
+(existing lib agent, `transition_assumption="unconfounded"`), trained on confounded logs, reaches
+near-optimal (1.04 of 1.05) and beats the confounded naive baseline (0.85) by ~0.19. Shows the
+causal-MBRL program extends to the sequential / **medicine** setting via `run_m1b_dtr_gate`.
+
+---
+
 ## M1a verdict — GO (2026-07-19, discovery agent, 10 seeds)
 
 ```
