@@ -1,23 +1,25 @@
-"""Put CausalMBRLAgent on a real confounded decision: the LaLonde job-training program.
+"""CausalMBRLAgent vs STRONG contenders on the LaLonde job-training program.
 
-Out-of-CI demo (needs network for the dataset; scikit-learn is optional). Run it:
+Out-of-CI demo (needs network for the dataset; scikit-learn for the contenders). Run it:
 
     uv run python examples/causal_mbrl_lalonde.py
 
-The observational LaLonde data (Dehejia & Wahba) pairs NSW *trainees* with non-experimental PSID
-controls, so the naive treated-minus-control earnings comparison is negative -- training looks
-harmful. The randomized NSW experiment says the truth is about +$1,794. A correlational agent kills
-the program; the causal agent back-door-adjusts (g-formula standardization over the observed
-covariates) and recovers the decision -- the confounded/offline regime where causal beats naive.
+The observational LaLonde data (Dehejia & Wahba) pairs NSW trainees with non-experimental PSID
+controls; the randomized NSW experiment says the truth is about +$1,794. We benchmark the causal
+agent against REAL contenders -- IPW, doubly-robust AIPW, propensity stratification -- not just a
+naive difference-in-means.
 
-Note (honest): on this famously hard dataset the estimate is model-sensitive -- the linear g-formula
-recovers the right sign near the experimental truth, while a flexible gradient-boosted model does
-not. Both are printed; the sign-flip to the correct decision is the robust claim, not the exact kg.
+Honest read: this is a famously pathological dataset. The naive strawman gets the sign wrong, and so
+do some STRONG methods (propensity stratification lands negative here); estimates scatter from about
+-$600 to +$1,050. No single point estimate is trustworthy -- which is the argument for a
+confounding certificate over a confident number, not for trusting any one estimator (see
+causal_mbrl_certificate.py).
 """
 
 from __future__ import annotations
 
 import pandas as pd
+from _causal_baselines import aipw_ate, ipw_ate, propensity_strata_ate
 
 from causalrl import CausalMBRLAgent
 
@@ -26,37 +28,33 @@ URL = "https://raw.githubusercontent.com/robjellis/lalonde/master/lalonde_data.c
 COVARIATES = ["age", "educ", "black", "hispan", "married", "nodegree", "re74", "re75"]
 
 
-def _contrast(data: dict[str, object], outcome_model: object = None) -> float:
-    agent = CausalMBRLAgent(2, covariates=COVARIATES, outcome_model=outcome_model).fit(data)
-    return agent.planner.contrast
-
-
 def main() -> None:
     df = pd.read_csv(URL)
-    data: dict[str, object] = {"A": df["treat"].to_numpy(), "Y": df["re78"].to_numpy()}
+    a, y = df["treat"].to_numpy(), df["re78"].to_numpy()
+    x = df[COVARIATES].to_numpy(dtype=float)
+    data: dict[str, object] = {"A": a, "Y": y}
     for column in COVARIATES:
         data[column] = df[column].to_numpy()
 
-    y, a = df["re78"].to_numpy(), df["treat"].to_numpy()
+    gformula = CausalMBRLAgent(2, covariates=COVARIATES).fit(data).planner.contrast
     rows = [
-        ("randomized-experiment truth", RCT_BENCHMARK),
-        ("naive correlational (confounded)", float(y[a == 1].mean() - y[a == 0].mean())),
-        ("causal g-formula (linear)", _contrast(data)),
+        ("randomized-experiment truth", RCT_BENCHMARK, "target"),
+        ("naive diff-in-means", float(y[a == 1].mean() - y[a == 0].mean()), "strawman"),
+        ("ours: g-formula (linear)", gformula, "ours"),
+        ("strong: IPW", ipw_ate(x, a, y), "contender"),
+        ("strong: AIPW (doubly-robust)", aipw_ate(x, a, y), "contender"),
+        ("strong: propensity strata", propensity_strata_ate(x, a, y), "contender"),
     ]
-    try:
-        from sklearn.ensemble import GradientBoostingRegressor
-
-        rows.append(
-            ("causal g-formula (boosted)", _contrast(data, lambda: GradientBoostingRegressor()))
-        )
-    except ImportError:
-        pass
 
     print(f"n = {len(df)}  ({int(a.sum())} trained, {int((1 - a).sum())} PSID controls)\n")
-    for label, value in rows:
-        gap = "" if label.endswith("truth") else f"   gap {value - RCT_BENCHMARK:+,.0f}"
-        decision = "ASSIGN training" if value > 0 else "kill the program"
-        print(f"{label:34s} {value:+9,.0f}   [{decision}]{gap}")
+    for label, value, kind in rows:
+        gap = "" if kind == "target" else f"   gap {value - RCT_BENCHMARK:+,.0f}"
+        decision = "assign" if value > 0 else "KILL  "
+        print(f"{label:32s} {value:+9,.0f}  [{decision}]{gap}")
+    print(
+        "\nHonest read: point estimates scatter and even a strong method (propensity strata) gets"
+    )
+    print("the sign wrong. No single number is trustworthy here -- the case for a certificate.")
 
 
 if __name__ == "__main__":
