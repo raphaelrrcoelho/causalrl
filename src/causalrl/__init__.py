@@ -50,6 +50,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "CausalImitator": ("causalrl.imitation", "CausalImitator"),
     "CausalRLError": ("causalrl.exceptions", "CausalRLError"),
     "CausalThompsonSampling": ("causalrl.agents.bandits", "CausalThompsonSampling"),
+    "CausalMBRLAgent": ("causalrl.agents.causal_mbrl", "CausalMBRLAgent"),
     "CertifiedPolicyAgent": ("causalrl.agents.mbrl", "CertifiedPolicyAgent"),
     "ConfoundedContextualBandit": (
         "causalrl.envs.suite.confounded_context",
@@ -332,6 +333,7 @@ __all__ = [
     "CausalGraphError",
     "CausalImitator",
     "CausalInterfaceUnavailableError",
+    "CausalMBRLAgent",
     "CausalRLError",
     "CausalThompsonSampling",
     "Certificate",

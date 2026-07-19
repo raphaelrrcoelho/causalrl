@@ -59,11 +59,35 @@ for _ in range(8000):
 # since both arms share an interventional mean.
 ```
 
+**Offline, confounded — one agent routes it.** Given confounded logs, `CausalMBRLAgent` picks the
+right causal planner (back-door-adjust an observed confounder, discover the structure first,
+transport across a covariate shift, handle a continuous confounder, or plan a sequential regime)
+behind one `fit → act` surface, and tells you the identification it relied on.
+
+```python
+from causalrl import CausalMBRLAgent
+from causalrl.envs.suite.simpson_bandit import SimpsonBandit
+
+env = SimpsonBandit(seed=3)                       # observed confounder Z on a back-door A <- Z -> Y
+agent = CausalMBRLAgent(env.n_actions, graph=env.graph)
+agent.fit(env.sample(50_000, seed=3))             # columnar {Z, A, Y} logs
+agent.act({"state": 0})                           # -> 1, the interventional optimum
+agent.explain()  # "CausalMBRLAgent(strategy=backdoor, adjustment_set={Z})"
+# A confounding-naive marginal is fooled by Simpson's paradox and ships the worse arm.
+```
+
+Same class, other regimes: `graph=None` with `variables`/`tiers` discovers the structure first;
+`transport=("W",)` carries the policy across a covariate shift; `continuous_confounder=True` fits a
+function approximator over a continuous confounder; `horizon=…` plans a confounded sequential regime
+(the medicine DTR). The wins are confined to the confounded / offline / transfer regime by design —
+see the [causal-MBRL results note](docs/causal_mbrl_agent/RESULTS.md).
+
 ## What it does
 
 | Task (taxonomy) | Capability | Key entry points |
 | --- | --- | --- |
 | Decision under confounding | Counterfactual Thompson sampling on the MABUC | `CausalThompsonSampling` |
+| Confounded offline agent | One front-door → back-door / discovery / transport / function-approx / sequential | `CausalMBRLAgent` |
 | 1 — Offline→online | Learn from confounded logs via causal bounds | `UCDTR`, `DOVI`, `DeepDeconfoundedQ` |
 | 2 — Where to intervene | POMIS / MIS, incl. non-manipulable variables | `pomis`, `minimal_intervention_sets` |
 | 3 — Counterfactual policy | Act on `E[Y_do(a) \| intent]` | `CounterfactualOptimalPolicy` |
