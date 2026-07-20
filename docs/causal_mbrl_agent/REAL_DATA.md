@@ -50,6 +50,26 @@ so OPE is unconfounded and the top estimators are unbiased — nothing to deconf
 - **Certificate:** a correct *true-negative* on the clean known-propensity logs. It cannot show its
   edge on OBD, because "a good item beats random" is clear-cut, not a marginal decision.
 
+## Selection bias / MNAR recsys — vs IPS / SNIPS / DR (`examples/causal_mbrl_coat.py`)
+
+You only see ratings for items users *chose* to engage with, so the observed data is Missing Not At
+Random and a naive average is biased high. Coat (Schnabel et al.) ships the biased self-selected data,
+an unbiased randomly-assigned test set (ground truth), and the observation propensities.
+
+| method | avg rating | error vs truth |
+|---|---:|---:|
+| TRUE (MCAR test) | 2.229 | — |
+| naive (biased) | 2.611 | +0.383 |
+| IPS | 2.424 | +0.195 |
+| SNIPS | 2.331 | +0.102 |
+| doubly-robust | 2.336 | +0.107 |
+
+This is the suite's **cleanest debiasing win**: the top MNAR techniques cut ~50–75% of the selection
+bias, landing far closer to the truth than naive (and at parity with each other). **But** it hinges
+entirely on the propensity model — the sensitivity band shows that if the propensities are off by even
+Γ=1.3, the debiased estimate swings to [1.86, 3.15]. The number is only as trustworthy as the
+selection model you assume; the band is the honest part.
+
 ## The certificate — the one place causal clearly earns its keep (`examples/causal_mbrl_certificate.py`)
 
 On LaLonde, where every point estimate (ours and the strong contenders) is untrustworthy,
@@ -66,6 +86,7 @@ NHEFS also ~Γ1.33.)
 | LaLonde | confounded decision | **all methods fragile**; a strong one gets the sign wrong |
 | Twins | individual ITE | **all methods tie** a constant at the noise floor (unlearnable) |
 | OBD | off-policy eval | top OPE **unbiased on clean logs**, fooled by confounding, sample-limited |
+| Coat | MNAR selection bias | debiasing **works** (closest to truth) — but only if the propensity model is right |
 
 Point estimates — causal or strong — are reliable only when the problem is well-behaved and are
 fragile, noisy, or near-unlearnable on hard real data. The value causalrl adds is not a better point
