@@ -70,3 +70,24 @@ def propensity_strata_ate(x: np.ndarray, a: np.ndarray, y: np.ndarray, n_strata:
         total += weight * (y_s[a_s == 1].mean() - y_s[a_s == 0].mean())
         total_weight += weight
     return float(total / total_weight) if total_weight else float("nan")
+
+
+def slearner_cate(x: np.ndarray, a: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """S-learner CATE: one model with treatment as a feature, differenced at a=1 vs a=0."""
+    from sklearn.ensemble import GradientBoostingRegressor
+
+    model = GradientBoostingRegressor(random_state=0).fit(np.column_stack([x, a]), y)
+    ones, zeros = np.ones(len(x)), np.zeros(len(x))
+    return model.predict(np.column_stack([x, ones])) - model.predict(np.column_stack([x, zeros]))
+
+
+def xlearner_cate(x: np.ndarray, a: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """X-learner CATE (Kunzel et al.): cross-fitted imputed effects, propensity-weighted."""
+    from sklearn.ensemble import GradientBoostingRegressor as GBR
+
+    mu0 = GBR(random_state=0).fit(x[a == 0], y[a == 0])
+    mu1 = GBR(random_state=0).fit(x[a == 1], y[a == 1])
+    tau1 = GBR(random_state=0).fit(x[a == 1], y[a == 1] - mu0.predict(x[a == 1]))
+    tau0 = GBR(random_state=0).fit(x[a == 0], mu1.predict(x[a == 0]) - y[a == 0])
+    e = _propensity(x, a)
+    return e * tau0.predict(x) + (1.0 - e) * tau1.predict(x)
