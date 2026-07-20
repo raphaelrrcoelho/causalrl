@@ -69,3 +69,32 @@ def test_contrast_requires_binary_treatment() -> None:
     agent = GFormulaBackdoorAgent(3, covariates=("X",))
     with pytest.raises(ValueError):
         _ = agent.contrast
+
+
+def test_cate_recovers_heterogeneous_effect() -> None:
+    rng = np.random.default_rng(0)
+    n = 4000
+    x = rng.normal(0.0, 1.0, (n, 2))
+    a = (rng.random(n) < 1.0 / (1.0 + np.exp(-x[:, 0]))).astype(int)  # confounded
+    tau = 1.0 + x[:, 1]  # the individual effect varies with x1
+    y = tau * a + 2.0 * x[:, 0] + rng.normal(0.0, 0.5, n)
+    data = {"A": a, "Y": y, "X0": x[:, 0], "X1": x[:, 1]}
+    agent = GFormulaBackdoorAgent(2, covariates=("X0", "X1")).fit(data)
+    cate = agent.cate(data)
+    assert cate.shape == (n,)
+    assert np.corrcoef(cate, tau)[0, 1] > 0.9  # tracks the true heterogeneity
+    assert abs(float(cate.mean()) - agent.contrast) < 1e-6  # averages to the ATE
+
+
+def test_cate_requires_binary_and_both_arms() -> None:
+    with pytest.raises(ValueError):
+        GFormulaBackdoorAgent(3, covariates=("X",)).cate(
+            {"A": np.array([0, 1]), "Y": np.array([0.0, 1.0]), "X": np.array([0.0, 1.0])}
+        )
+    one_arm = {
+        "A": np.array([1, 1, 1]),
+        "Y": np.array([1.0, 0.0, 1.0]),
+        "X": np.array([0.0, 1.0, 2.0]),
+    }
+    with pytest.raises(ValueError):
+        GFormulaBackdoorAgent(2, covariates=("X",)).cate(one_arm)

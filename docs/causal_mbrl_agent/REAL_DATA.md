@@ -1,90 +1,75 @@
 # Causal MBRL Agent — Real-Data Demonstrations
 
-Can `CausalMBRLAgent` solve real problems? **Yes — and the honest story is more interesting than
-"causal beats naive."** These demos benchmark the causal agent against *strong* contenders — IPW,
-doubly-robust AIPW, propensity-score stratification (what a competent practitioner actually uses, and
-what DoWhy/EconML compute) — on real data, checked against ground truth. The scripts are out-of-CI
-(they need network / `causaldata` / scikit-learn); run them yourself.
+Can `CausalMBRLAgent` solve real problems? We benchmark it against **strong contenders** — the methods
+a competent practitioner actually uses — across four real datasets and three regimes (confounded
+decisions, individual counterfactuals, off-policy evaluation), always checked against ground truth.
+The honest verdict is more valuable than a strawman win, and it is the headline of this page:
 
-## The engine: multivariate g-formula
+> **On real data, causal point estimates do not reliably beat strong contenders. They tie on
+> well-behaved problems and are as fragile as everyone else on hard ones. causalrl's defensible edge
+> is not a better number — it is the certificate that tells you when to distrust the number.**
 
-Real problems carry many mixed-type covariates, where per-stratum back-door adjustment degenerates
-and a single-confounder RBF is too narrow. `GFormulaBackdoorAgent` — routed by
-`CausalMBRLAgent(covariates=[...])` — fits a per-action outcome model over **all** covariates and
-standardizes to `E[Y | do(a)]` (dependency-free numpy ridge default; optional sklearn factory hook).
+The scripts are out-of-CI (network / `causaldata` / `obp` / scikit-learn); run them yourself.
 
-## The honest benchmark against strong contenders
+## The engine
 
-### NHEFS smoking → weight — parity with the strong methods (well-behaved)
+`GFormulaBackdoorAgent` (routed by `CausalMBRLAgent(covariates=[...])`) fits a per-action outcome
+model over all covariates and standardizes to `E[Y | do(a)]`; `.cate(data)` returns the per-unit
+effect (a T-learner). Numpy-ridge default (dependency-free); optional sklearn factory hook.
+`examples/_causal_baselines.py` holds the strong contenders: IPW, doubly-robust AIPW, propensity
+stratification, and the S-/X-learner ITE meta-learners.
 
-`examples/causal_mbrl_nhefs.py` — Hernán & Robins, *What If* (needs `causaldata`).
+## Confounded decisions — vs IPW / AIPW / propensity stratification
 
-| method | effect (kg) |
-|---|---:|
-| established adjusted (textbook) | +3.4 to +3.5 |
-| naive diff-in-means (strawman) | +2.54 |
-| **ours: g-formula (linear)** | **+3.41** |
-| strong: IPW | +3.28 |
-| strong: AIPW (doubly-robust) | +3.33 |
-| strong: propensity stratification | +3.23 |
+**NHEFS smoking → weight (`examples/causal_mbrl_nhefs.py`) — parity on well-behaved data.** g-formula
++3.41, IPW +3.28, AIPW +3.33, strata +3.23 kg — all agree, all clear the confounded naive +2.54, all
+near the textbook +3.4/+3.5. We sit in the pack of serious methods; no win claimed.
 
-On well-behaved data the causal agent **agrees with the strong contenders** (all ~+3.3 kg), all
-clearing the confounded naive. Honest parity — a member of the serious-methods family, not a strawman
-win.
+**LaLonde job-training (`examples/causal_mbrl_lalonde.py`) — fragility on hard data.** Truth (RCT) is
++$1,794. Estimates scatter: g-formula +1,053, AIPW +508, IPW +231, naive −635, **propensity strata
+−597 (wrong sign)**. A *strong* method gets the decision backwards; no point estimate is trustworthy.
 
-### LaLonde job-training — everyone is fragile (pathological)
+## Individual counterfactuals — vs the S-/T-/X-learner (`examples/causal_mbrl_twins.py`)
 
-`examples/causal_mbrl_lalonde.py` — truth = the NSW randomized experiment, +$1,794.
+Twins carries both potential outcomes, so the per-pair effect is known exactly. Estimating individual
+effects is something DRL structurally cannot do — but on real, sparse, binary mortality it is
+near-unlearnable for the top causal methods too. PEHE (lower better): constant-ATE 0.320, ours
+(T-learner) 0.322, S-learner 0.320, **X-learner 0.318** — every method ties with a constant at the
+noise floor. The population ATE (−0.025) is recoverable; the per-unit effect is not. An honest null.
 
-| method | effect ($) | decision |
-|---|---:|---|
-| randomized-experiment truth | +1,794 | assign |
-| naive diff-in-means (strawman) | −635 | kill ✗ |
-| **ours: g-formula (linear)** | **+1,053** | assign |
-| strong: IPW | +231 | assign |
-| strong: AIPW (doubly-robust) | +508 | assign |
-| strong: propensity stratification | −597 | kill ✗ |
+## Off-policy evaluation — vs IPS / SNIPS (`examples/causal_mbrl_obd.py`)
 
-Point estimates scatter from −$597 to +$1,053, and a **strong** method (propensity stratification)
-gets the sign *wrong*. No single number is trustworthy here.
+The Open Bandit Dataset logs a real recommender under a uniform-random policy (known propensity 1/80),
+so OPE is unconfounded and the top estimators are unbiased — nothing to deconfound.
 
-## The certificate — where causalrl actually adds value
+- **Canonical task** (random-policy value from BTS logs): IPS 0.00236, SNIPS 0.00233 vs on-policy
+  ground truth 0.00380 — the top estimators agree and are in the ballpark, sample-limited on the 10k
+  slice (accurate on the full dataset).
+- **Controlled confounding illustration:** induce outcome-selection and IPS balloons from 0.0240 to
+  0.0792 (3×) — the top OPE estimator is structurally fooled by confounding.
+- **Certificate:** a correct *true-negative* on the clean known-propensity logs. It cannot show its
+  edge on OBD, because "a good item beats random" is clear-cut, not a marginal decision.
 
-`examples/causal_mbrl_certificate.py`. When point estimates are fragile, the honest move is not a
-better number — it's quantifying the fragility. `certify_decision` reports the odds-ratio Γ of
-unmeasured confounding at which the decision tips:
+## The certificate — the one place causal clearly earns its keep (`examples/causal_mbrl_certificate.py`)
 
-```
-naive decision  : prefer control  (contrast −635)
-certified robust: False
-tips at         : Γ≈1.27   (unmeasured confounding this strong overturns it)
-randomized-experiment truth: +1,794  (prefer treated — the OPPOSITE sign)
-```
+On LaLonde, where every point estimate (ours and the strong contenders) is untrustworthy,
+`certify_decision` **refuses to trust** the naive kill-the-program decision (tips at Γ≈1.27), and the
+randomized experiment **vindicates the refusal** — the true effect is the opposite sign. No point
+estimator, strong or weak, gives you that honest "don't trust this." (It is conservative by design:
+NHEFS also ~Γ1.33.)
 
-The certificate **refuses to trust** the naive kill-the-program decision (tips at a modest Γ=1.27),
-and the randomized experiment **vindicates the refusal**: the true effect is the opposite sign. A
-confident point estimate — strong or naive — ships the wrong call; the certificate flags it. (It is
-conservative by design: NHEFS's cleaner decision also carries a moderate Γ≈1.33 — an honest "proceed
-with caution", not a false all-clear.)
+## The honest meta-lesson
 
-## Honest bottom line
+| Dataset | Regime | Result |
+|---|---|---|
+| NHEFS | confounded effect | causal **ties** the strong contenders (well-behaved) |
+| LaLonde | confounded decision | **all methods fragile**; a strong one gets the sign wrong |
+| Twins | individual ITE | **all methods tie** a constant at the noise floor (unlearnable) |
+| OBD | off-policy eval | top OPE **unbiased on clean logs**, fooled by confounding, sample-limited |
 
-- On observed-confounder problems, causalrl **ties** the strong contenders where the data is
-  well-behaved (NHEFS) and is **as fragile as everyone else** where it isn't (LaLonde) — no
-  point-estimate edge, and we say so.
-- causalrl's real edge is the **decision + certificate** layer none of them provide: an honest
-  robustness score that correctly flags untrustworthy decisions (LaLonde, vindicated by the RCT).
-
-## Where RL/DRL is fooled — the suite (roadmap)
-
-| Failure mode | Causal edge | Dataset | Status |
-|---|---|---|---|
-| Offline decision from confounded logs | g-formula + certificate | LaLonde | ✓ done (RCT-verified) |
-| Confounded medical effect | g-formula + certificate | NHEFS | ✓ done (textbook-verified) |
-| Off-policy evaluation under confounding | MSM bounds | Open Bandit Dataset | planned |
-| Individual / counterfactual decisions | potential outcomes | Twins / IHDP | planned |
-| Selection bias / MNAR feedback | deconfounded value | Coat / KuaiRec | planned |
-
-**Guardrail:** benchmarked against strong contenders (not strawmen); parity claimed only where it
-holds; negatives reported. No SOTA claims — the point is that correlational RL/DRL and confident point
-estimators alike are *structurally* fooled or overconfident here, and the certificate is not.
+Point estimates — causal or strong — are reliable only when the problem is well-behaved and are
+fragile, noisy, or near-unlearnable on hard real data. The value causalrl adds is not a better point
+estimate (it usually isn't); it is the **decision + certificate** layer none of the contenders
+provide — an honest robustness score that correctly flags untrustworthy decisions (LaLonde, vindicated
+by the RCT). No SOTA claims. The point is that correlational RL/DRL and confident point estimators
+alike are structurally fooled or overconfident on hard real data, and the certificate is not.

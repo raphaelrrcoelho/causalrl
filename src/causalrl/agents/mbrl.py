@@ -443,27 +443,47 @@ class GFormulaBackdoorAgent(Agent):
         self._best_action = int(np.argmax(np.asarray(self.values)))
         return self
 
-    def _standardized_value(
+    def _action_predictions(
         self, action: int, x: np.ndarray, treatment: np.ndarray, outcome: np.ndarray
-    ) -> float:
+    ) -> np.ndarray | None:
+        """Fit action's outcome model on its rows; predict on all rows (None if never played)."""
         mask = treatment == action
         if not mask.any():
-            return 0.0
+            return None
         x_a, y_a = x[mask], outcome[mask]
         if self._outcome_model is not None:
             model = self._outcome_model()
             model.fit(x_a, y_a)
-            predictions = np.asarray(model.predict(x), dtype=float)
-        else:
-            phi_a = self._design(x_a, x_a)
-            gram = phi_a.T @ phi_a + self.ridge * np.eye(phi_a.shape[1])
-            weights = np.linalg.solve(gram, phi_a.T @ y_a)
-            predictions = self._design(x_a, x) @ weights
-        return float(predictions.mean())
+            return np.asarray(model.predict(x), dtype=float)
+        phi_a = self._design(x_a, x_a)
+        gram = phi_a.T @ phi_a + self.ridge * np.eye(phi_a.shape[1])
+        weights = np.linalg.solve(gram, phi_a.T @ y_a)
+        return self._design(x_a, x) @ weights
+
+    def _standardized_value(
+        self, action: int, x: np.ndarray, treatment: np.ndarray, outcome: np.ndarray
+    ) -> float:
+        predictions = self._action_predictions(action, x, treatment, outcome)
+        return float(predictions.mean()) if predictions is not None else 0.0
 
     def _design(self, fit_x: np.ndarray, apply_x: np.ndarray) -> np.ndarray:
         standardized = _standardize(fit_x, apply_x)
         return np.hstack([np.ones((standardized.shape[0], 1)), standardized])
+
+    def cate(self, data: Mapping[str, np.ndarray]) -> np.ndarray:
+        """Per-unit CATE ``Ehat_1(X_i) - Ehat_0(X_i)`` for each row of ``data`` (the T-learner
+        individual-effect estimate; binary treatment). ``data`` carries the covariates plus the
+        observed ``treatment``/``outcome`` the per-action models are fit on."""
+        if self.n_actions != 2:
+            raise ValueError("cate is defined only for a binary treatment")
+        x = np.column_stack([np.asarray(data[c], dtype=float) for c in self.covariates])
+        treatment = np.asarray(data[self.treatment])
+        outcome = np.asarray(data[self.outcome], dtype=float)
+        mu0 = self._action_predictions(0, x, treatment, outcome)
+        mu1 = self._action_predictions(1, x, treatment, outcome)
+        if mu0 is None or mu1 is None:
+            raise ValueError("both treatment arms must appear in the data to estimate CATE")
+        return mu1 - mu0
 
     @property
     def contrast(self) -> float:
