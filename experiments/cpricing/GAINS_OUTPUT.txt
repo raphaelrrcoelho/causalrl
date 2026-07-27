@@ -1,0 +1,44 @@
+==================================================================================
+G2  variance reduction: paired counterfactual vs independent resampling
+==================================================================================
+  small_perturbation (vol 0.20 -> 0.2020, a vega)
+      estimate_independent                 -0.0689639
+      se_independent                       0.021523
+      estimate_paired                      -0.0780396
+      se_paired                            0.000503067
+      variance_ratio_=_compute_multiple    1830.44
+  large_intervention (vol 0.15 -> 0.45, regime flip)
+      estimate_independent                 -12.0025
+      se_independent                       0.116679
+      estimate_paired                      -11.5204
+      se_paired                            0.109661
+      variance_ratio_=_compute_multiple    1.13208
+
+==================================================================================
+G1  does inversion error compound?   [ILLUSTRATIVE eps, not a real DDIM benchmark]
+==================================================================================
+  eps_per_step = 0.001
+   steps      constant-vol   state-dependent   (relative terminal error)
+      10         3.672e-04         3.829e-04
+      25         3.726e-04         3.543e-04
+      50         3.583e-04         3.542e-04
+     100         3.637e-04         3.551e-04
+     200         3.616e-04         3.522e-04
+  growth 10->200 steps, constant vol       0.98x
+  growth 10->200 steps, state-dependent    0.92x
+  state-dependence penalty at 200 steps    1.0x
+  exact inversion round-trip error is 0.0 in both columns, at every horizon.
+  VERDICT: the compounding hypothesis is FALSE. Errors average out as O(eps*sqrt(T)).
+
+==================================================================================
+G1b  what approximate abduction actually costs: it destroys the pairing gain
+==================================================================================
+  perturbation = 1% vol bump (a vega-shaped query)
+  se_independent (non-causal baseline)  0.0219388
+   inversion eps     se_paired   variance ratio      estimate
+           0e+00     5.101e-04           1849.7      -0.08035
+           1e-04     5.101e-04           1850.0      -0.08035
+           1e-03     5.120e-04           1836.2      -0.08031
+           1e-02     7.149e-04            941.7      -0.07973
+           1e-01     4.504e-03             23.7      -0.12137
+           1e+00     3.233e-02              0.5      -3.42767

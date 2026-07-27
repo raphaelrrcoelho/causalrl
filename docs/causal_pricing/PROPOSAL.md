@@ -6,6 +6,12 @@
 > (`experiments/cpricing/poc_ladder.py`, output in `POC_OUTPUT.txt`). Novelty claims below are
 > from a *preliminary* search only; the residual checks are listed explicitly in
 > "Positioning" and must be completed before any of this is written up.
+>
+> **This document argues for identification and honesty. It does not argue for accuracy.** For
+> the question "where does causal machinery beat a non-causal diffusion on a metric?" — with two
+> measured gains, two refuted hypotheses, and the applied claims stated as untested — see
+> [`GAINS.md`](GAINS.md). Read that one first if you care about performance rather than
+> semantics.
 
 ## The pitch
 
