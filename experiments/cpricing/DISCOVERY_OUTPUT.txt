@@ -1,0 +1,27 @@
+==================================================================================
+TEST 1  observational PC on an efficient (fully arbitraged) market
+==================================================================================
+  CMI(News ; IV)          = 0.00025   <- marginal, ~0 because the paths cancel
+  CMI(News ; IV | Flow)   = 0.57082   <- reappears once Flow is blocked
+  discovered edges        : [('IV', 'Flow'), ('News', 'Flow')]
+  News--IV edge recovered : False   (ground truth: the edge EXISTS)
+  VERDICT: PC DELETED A REAL CAUSAL EDGE
+  same system, HALF-arbitraged (arb_strength=0.5): News--IV recovered = True
+  -> the better the market works, the worse discovery works. That is the problem.
+
+==================================================================================
+TEST 2  discover_interventional with do(Flow) -- a scheduled event severs the channel
+==================================================================================
+  discovered edges        : [('IV', 'Flow'), ('News', 'Flow')]
+  News--IV edge recovered : False
+  VERDICT: STILL MISSING -- interventional discovery ORIENTS existing edges,
+           it does not re-test the skeleton, so a faithfulness deletion survives.
+
+==================================================================================
+TEST 3  is the dependence visible INSIDE the do(Flow) regime?
+==================================================================================
+  CMI(News ; IV) under do(Flow=1) = 0.95982
+  CMI(News ; IV) observational    = 0.00025
+  VERDICT: the information IS present in interventional data -- the skeleton phase simply
+           never looks at it. Concrete library gap: let `discover` pool or test
+           independence per-regime, not just orient afterwards.

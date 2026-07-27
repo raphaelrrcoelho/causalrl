@@ -38,5 +38,24 @@ uv run python -m experiments.cpricing.poc_gains
 Output in [`GAINS_OUTPUT.txt`](GAINS_OUTPUT.txt). The `eps` in G1/G1b is *assumed*, not measured
 from a trained diffusion — calibrating it is the experiment that decides the claim.
 
+## poc_discovery.py — can we learn the market's SCM?
+
+Supports [`docs/causal_pricing/SCM_FROM_MARKET.md`](../../docs/causal_pricing/SCM_FROM_MARKET.md).
+Tests whether the shipped discovery tools survive contact with an efficient market, by modelling
+arbitrage as what it is: a mechanism that cancels exploitable dependence, i.e. a faithfulness
+violation.
+
+| Test | Result |
+| --- | --- |
+| 1 | Observational PC **deletes a real causal edge** (`CMI(News;IV) = 0.00025` vs `0.571` given `Flow`) and returns a **reversed** arrow in its place. The *half*-arbitraged version recovers the edge — the better the market works, the worse discovery works. |
+| 2 | `discover_interventional` does **not** repair it: it orients existing edges, never re-tests the skeleton. |
+| 3 | The dependence is overwhelming inside the intervened regime (`0.960` vs `0.00025`, ~3800×) — the skeleton phase just never looks. Names the library gap. |
+
+```bash
+uv run python -m experiments.cpricing.poc_discovery
+```
+
+Output in [`DISCOVERY_OUTPUT.txt`](DISCOVERY_OUTPUT.txt).
+
 Finance vocabulary is confined to this directory and to `docs/causal_pricing/` — `tools/generality_lint.py`
 keeps it out of `src/causalrl` (invariant I7).
