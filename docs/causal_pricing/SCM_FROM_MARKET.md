@@ -127,18 +127,60 @@ benchmark**, where they report counterfactual L1 distances of 0.03–0.10 agains
 OU-inspired synthetic models. Prediction: exact inversion cuts that materially. Runnable,
 falsifiable, against a published baseline. Best single next step.
 
-**2. Bound-based validation — the conceptual contribution.** TNCM-VAE validated on *synthetic* models
-where ground-truth counterfactuals exist. **On real markets there is never a ground-truth
-counterfactual** — that is what makes it a counterfactual. So how does anyone validate a causal
-market simulator on real data? Nobody has a good answer, and it is the field's central
-methodological hole.
+**2. Bound-based validation — ~~the conceptual contribution~~ RETRACTED as a novelty claim.**
 
-The library has one: **partial identification.** You cannot compare a counterfactual to truth, but
-you *can* check whether it falls inside a certified bound (Manski, MSM, or the gain-loss interval
-from T2). A simulator whose counterfactual lands outside the bound is **falsified** under stated
-assumptions. That converts an unfalsifiable generative claim into a testable one, and it is a
-general evaluation protocol for causal market simulators rather than a critique of one. If any
-single idea in this whole line is the paper, it is this one.
+> **Retraction (July 2026).** An earlier revision of this document claimed that validating a causal
+> simulator against partial-identification bounds was novel, that "nobody has a good answer" to
+> validating counterfactuals without ground truth, and that "if any single idea in this whole line
+> is the paper, it is this one." **All three claims are false.** The correction is kept visible.
+
+The general method — *derive an inequality constraint from the causal model, check the data or the
+claim against it, falsify if violated* — is the *standard* falsification paradigm in causal
+inference and roughly thirty years old:
+
+- **Pearl's instrumental inequality** (1995) is a testable necessary condition whose violation
+  falsifies an IV model. **Balke & Pearl (1997)** give necessary *and sufficient* conditions for an
+  observed distribution to be compatible with a binary IV model — literally "outside the bound ⇒
+  falsified."
+- **An empty identified set falsifies the model** is textbook partial identification.
+- The general machinery for deriving such constraints is an active line:
+  [Deriving Bounds and Inequality Constraints Using Logical Relations Among Counterfactuals](https://arxiv.org/pdf/2007.00628),
+  [testability in continuous IV models](https://economics.sas.upenn.edu/system/files/2019-01/Gunsilius_JMP.pdf),
+  [Salvaging Falsified Instrumental Variable Models](https://arxiv.org/pdf/1812.11598),
+  [Falsification of Unconfoundedness by Testing Independence of Causal Mechanisms](https://arxiv.org/html/2502.06231v2).
+  **Bell's inequality is the same structure**, which is a good hint at how old the idea is.
+
+It is also **already productised**, which is the part that most clearly kills a novelty claim:
+**DoWhy ships `gcm.falsify_graph`**, plus a suite of refutation tests (placebo treatment, random
+common cause, data subset), documented under "graph refutations"; see also
+[Toward Falsifying Causal Graphs Using a Permutation-Based Test](https://arxiv.org/pdf/2305.09565)
+and [DoWhy-GCM](https://arxiv.org/pdf/2206.06821).
+
+And "nobody has a good answer to evaluating counterfactuals without ground truth" is simply wrong —
+the counterfactual-generation community has **several**, and treats it as a named open problem with
+an active benchmark literature: [Benchmarking Counterfactual Image Generation](https://arxiv.org/html/2403.20287)
+defines metrics for *composition, effectiveness, minimality and realism*;
+[Synthetic Ground Truth Counterfactuals](https://papers.miccai.org/miccai-2025/0894-Paper2090.html)
+(MICCAI 2025) builds synthetic ground truth precisely to evaluate causal generative models;
+[The Causal Round Trip](https://arxiv.org/pdf/2511.05236) attacks information loss in the abduction
+round-trip.
+
+That last one stings usefully: **"composition"** — apply a null intervention and check you recover
+the original — is exactly the round-trip test in `poc_ladder.py` C1 (`roundtrip_err = 0.0`). I
+presented a standard evaluation metric as though it were an argument.
+
+**What actually survives, stated narrowly.** Not "a new validation paradigm." At most: the
+*specific constraint set*. Financial no-arbitrage relations are unusually strong, economically
+meaningful, and cheap to check, and pairing them with **counterfactual (L3) partial-ID bounds** —
+rather than the observational no-arbitrage penalties already standard in this literature — is a
+plausible small delta. Even there the ground is occupied: the
+[diffusion IV-surface paper](https://arxiv.org/pdf/2511.07571) already trains with an
+arbitrage-violation-suppressing loss, and VolGAN is explicitly arbitrage-free. Using arbitrage as a
+validity constraint on financial generative models is **existing practice**; the only unclaimed
+inch is using it as a *falsification test on counterfactual output* rather than a *training
+penalty on observational output*.
+
+That is an incremental methods contribution, not a headline. It should be a section, not a paper.
 
 **3. Certify their counterfactuals — cheap and honest.** An amortised/learned inverse is
 `AmortizedGaussianAbduction` in the repo's taxonomy, which caps the claim at `kind=EMPIRICAL`, not
@@ -156,13 +198,23 @@ effort on ones that are not identified.
 
 In order, and the first two are the whole thing:
 
-1. **Ship the per-regime skeleton test** in `discover` (small, domain-agnostic, core). Without it
+1. **Run the exact-inverse head-to-head against TNCM-VAE** on their public benchmark. Contained,
+   falsifiable, with a published number to beat, and it rests on a *measurement* (G1b) rather than
+   on a novelty claim — which, given the record below, is the property to optimise for.
+2. **Ship the per-regime skeleton test** in `discover` (small, domain-agnostic, core). Without it
    the interventional-discovery story does not close, as measured above.
-2. **Run the exact-inverse head-to-head against TNCM-VAE** on their public benchmark. It is a
-   contained experiment with a published number to beat.
-3. Bound-based validation as the methodological paper.
+3. ~~Bound-based validation as the methodological paper.~~ **Demoted** — see the retraction above.
+   Keep it as a section; it is a small delta on a thirty-year-old paradigm that DoWhy already ships.
 4. Only then attempt real market data — and with scheduled macro events as intervention targets,
    never with observational PC on a returns panel.
+
+**Scoreboard on my own novelty claims in this line so far.** "The causal-generative × options
+intersection is empty" — **falsified**. "Bound-based validation is unclaimed" — **falsified**.
+"Inversion error compounds over long paths" — **falsified by my own measurement**. What has
+survived is what got measured: the 1830× pairing gain, the G1b bias curve, and the discovery
+failure above. **The pattern is unambiguous: measurements have held, novelty claims have not.**
+The outstanding recovery-theorem check on T2 should be assumed to follow the same pattern until it
+is actually run.
 
 **What I would not do:** point PC at a panel of returns and report the graph. On an efficient
 market that produces a confidently wrong answer, and the probe shows it producing a *reversed* edge,
