@@ -1,0 +1,43 @@
+==============================================================================
+C1  pathwise counterfactual via exact path abduction        [rung: IDENTIFIED]
+==============================================================================
+  recovery_err                     1.4543533325195312e-05
+  roundtrip_err                    0.0
+  mean_S_T_factual                 99.6157455444336
+  mean_S_T_counterfactual          98.80188751220703
+  mean_pnl_factual                 -0.009818891870136376
+  mean_pnl_counterfactual          -11.867741545264929
+  pathwise_pnl_delta_mean          -11.857922653394793
+  pathwise_pnl_delta_p05           -25.375888735846527
+  pathwise_pnl_delta_p95           -2.608662895536582
+
+==============================================================================
+C2  MSM kernel == bounded-pricing-kernel bound              [rung: BOUNDED]
+==============================================================================
+  msm_lower                        4.96992930779982
+  msm_upper                        11.652114349599934
+  bruteforce_lower                 4.9699293077998234
+  bruteforce_upper                 11.652114349599907
+  max_abs_err                      2.6645352591003757e-14
+  ratio_cap                        2.0
+  gamma_squared                    4.0
+  unbounded_mean                   7.893853754777696
+  ratio_cap@e=0.5                  2.0
+  ratio_cap@e=0.1                  3.4545454545454546
+  ratio_cap@e=0.01                 3.9405940594059405
+  ratio_cap@e=0.001                3.994005994005994
+
+==============================================================================
+C3  heavy-tailed P&L: mean refused, median certified        [rung: hedge]
+==============================================================================
+  hill_alpha                       0.7050151391314186
+  certificate_kind                 identified
+  estimand_target                  quantile
+  hedge_reason                     heavy-tailed-mean
+  downgraded_from                  mean
+  certified_value                  0.049449054280487376
+  certified_ci                     Interval(lower=0.0487501584929653, upper=0.0501372182500431)
+  naive_sample_mean                -0.19786626740094088
+  certificate                      [IDENTIFIED] mean ill-defined (tail_index=0.705 <= 2); reporting median = 0.04945 | value=0.04945 | ci=[0.04875, 0.05014] | HEDGE: heavy-tailed-mean
+
+all three feasibility claims hold.
