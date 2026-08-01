@@ -37,7 +37,7 @@ import numpy as np
 from causalrl.exceptions import CausalGraphError
 from causalrl.scm.graph import CausalGraph
 
-__all__ = ["CPDAG", "PAG", "conditional_mutual_information", "discover", "discover_interventional"]
+__all__ = ["CPDAG", "PAG", "conditional_mutual_information", "discover", "discover_interventional", "orient"]
 
 
 def conditional_mutual_information(
@@ -270,6 +270,75 @@ def discover(
 
     _apply_meek_rules(nodes, directed, undirected)
     return CPDAG(tuple(nodes), frozenset(directed), frozenset(undirected))
+
+
+def orient(cpdag: CPDAG, *, tiers: Sequence[Sequence[str]] | None = None) -> CausalGraph:
+    """Orient a CPDAG's remaining undirected edges into a DAG, or refuse.
+
+    Resolution order per undirected edge: (1) ``tiers`` — an edge between different tiers points
+    from the earlier tier to the later one; (2) acyclicity — if one direction would close a cycle,
+    take the other; (3) refuse. Silently picking an orientation would commit to a choice the data
+    does not identify, so the third case raises and names :func:`causalrl.fit_scm_mec`, which fits
+    every member of the equivalence class instead.
+    """
+    rank: dict[str, int] = {}
+    if tiers is not None:
+        for level, tier in enumerate(tiers):
+            for name in tier:
+                rank[name] = level
+        uncovered = set(cpdag.variables) - set(rank)
+        if uncovered:
+            raise CausalGraphError(
+                f"variable(s) {sorted(uncovered)} not covered by tiers {list(tiers)}"
+            )
+
+    directed = set(cpdag.directed_edges)
+    pending = [tuple(sorted(edge)) for edge in cpdag.undirected_edges]
+    unresolved: list[tuple[str, str]] = []
+    # Repeat: each orientation can unlock another edge through the acyclicity rule.
+    while pending:
+        progressed = False
+        deferred: list[tuple[str, str]] = []
+        for a, b in pending:
+            if rank.get(a) is not None and rank.get(b) is not None and rank[a] != rank[b]:
+                directed.add((a, b) if rank[a] < rank[b] else (b, a))
+                progressed = True
+                continue
+            ab_ok = not _creates_cycle(directed, a, b)
+            ba_ok = not _creates_cycle(directed, b, a)
+            if ab_ok and not ba_ok:
+                directed.add((a, b))
+                progressed = True
+            elif ba_ok and not ab_ok:
+                directed.add((b, a))
+                progressed = True
+            else:
+                deferred.append((a, b))
+        if not progressed:
+            unresolved = deferred
+            break
+        pending = deferred
+
+    if unresolved:
+        raise CausalGraphError(
+            f"cannot orient edge(s) {sorted(unresolved)}: neither tiers nor acyclicity decides "
+            "them. Pass tiers=..., or use fit_scm_mec to fit every member of the equivalence class."
+        )
+    return CausalGraph(directed_edges=sorted(directed), nodes=list(cpdag.variables))
+
+
+def _creates_cycle(directed: set[tuple[str, str]], tail: str, head: str) -> bool:
+    """Whether adding ``tail -> head`` would close a cycle in ``directed``."""
+    stack, seen = [head], {head}
+    while stack:
+        node = stack.pop()
+        if node == tail:
+            return True
+        for u, v in directed:
+            if u == node and v not in seen:
+                seen.add(v)
+                stack.append(v)
+    return False
 
 
 def _empirical_pmf(column: np.ndarray) -> dict[int, float]:
