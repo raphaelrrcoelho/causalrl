@@ -256,8 +256,16 @@ every existing caller. `.interval` converts for interop with the existing bounds
 `StructuralCausalModel.abduct` (`scm/scm.py:153`) is the single choke point for every L3 entry
 point — `counterfactual`, `counterfactual_expectation`, `effect_of_treatment_on_treated`,
 `regret_decision_table` all route through it. It raises `NotIdentifiableError` when
-`provenance == "fitted"` **and** any node in the query's ancestry is non-invertible, with a message
-naming `counterfactual_interval`.
+`provenance == "fitted"` **and the model contains any non-invertible node**, with a message naming
+`counterfactual_interval`.
+
+The check is whole-model rather than scoped to a query's ancestry, and it has to be: `abduct`
+returns an `ExogenousPosterior` that the caller may reuse for *any* subsequent `predict(do=...)`,
+so no target exists at abduct time to compute an ancestry from. The guard therefore over-refuses —
+a fitted SCM with one discrete covariate refuses abduction even for a wholly continuous query — and
+that is the safe direction: it never lets a coupling choice through unlabelled, and
+`counterfactual_interval` is the precise path. Ancestry scoping does apply there, where the target
+*is* known (§6).
 
 Because the guard keys off provenance, hand-written SCMs are completely unaffected: the user
 asserted those mechanisms, so their couplings are given, not inferred.
