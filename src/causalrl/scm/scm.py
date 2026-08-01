@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Literal
 
 import torch
 from torch.distributions import Distribution
 
-from causalrl.exceptions import CausalGraphError, RealizabilityError
+from causalrl.exceptions import CausalGraphError, NotIdentifiableError, RealizabilityError
 from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import FunctionalMechanism, Mechanism
+
+if TYPE_CHECKING:
+    from causalrl.scm.fit import FitReport  # type: ignore[reportMissingImports]
 
 Tensor = torch.Tensor
 
@@ -74,6 +78,9 @@ class StructuralCausalModel:
         graph: CausalGraph,
         mechanisms: dict[str, Mechanism],
         exogenous: dict[str, Distribution],
+        *,
+        provenance: Literal["specified", "fitted"] = "specified",
+        fit_report: FitReport | None = None,  # type: ignore[reportUnknownParameterType]
     ) -> None:
         if graph.has_bidirected_edges():
             raise CausalGraphError(
@@ -101,6 +108,8 @@ class StructuralCausalModel:
         self.graph = graph
         self.mechanisms = mechanisms
         self.exogenous = exogenous
+        self.provenance = provenance
+        self.fit_report = fit_report  # type: ignore[reportUnknownMemberType]
         self._generator = torch.Generator()  # type: ignore[reportPrivateImportUsage]
         self._generator.seed()
 
@@ -150,6 +159,16 @@ class StructuralCausalModel:
                 )
         return StructuralCausalModel(graph, mechanisms, self.exogenous)
 
+    def non_invertible_nodes(self) -> list[str]:
+        """Nodes whose fitted mechanism cannot recover its noise from (parents, value).
+
+        Mechanisms without an ``invertible`` attribute are treated as invertible: a hand-written
+        mechanism is an assertion by its author, so its coupling is given rather than inferred.
+        """
+        return [
+            node for node, mech in self.mechanisms.items() if not getattr(mech, "invertible", True)
+        ]
+
     def abduct(
         self,
         evidence: dict[str, float] | None = None,
@@ -165,7 +184,36 @@ class StructuralCausalModel:
         rejection). Remaining exogenous are sampled; if ``evidence`` is given they are
         rejection-filtered so the factual evaluation matches ``evidence`` within ``atol``.
         Returns an :class:`ExogenousPosterior`; call its ``predict(do=...)``.
+
+        On a **fitted** SCM containing a non-invertible node this raises: L1 data identifies the
+        mechanisms but not the noise-to-value coupling, so a point counterfactual would report a
+        modelling choice as a result. Use :func:`causalrl.counterfactual_interval` instead.
         """
+        if self.provenance == "fitted":
+            ambiguous = self.non_invertible_nodes()
+            if ambiguous:
+                raise NotIdentifiableError(
+                    f"counterfactuals on a fitted SCM are not identified: node(s) "
+                    f"{sorted(ambiguous)} have a non-invertible mechanism, so their "
+                    "noise-to-value coupling is a modelling choice, not a fitted quantity. "
+                    "Use counterfactual_interval(...) for the identified interval.",
+                    witness=sorted(ambiguous),
+                )
+        return self._abduct(evidence, known=known, n=n, seed=seed, atol=atol)
+
+    def _abduct(
+        self,
+        evidence: dict[str, float] | None = None,
+        *,
+        known: Mapping[str, Value] | None = None,
+        n: int = 20_000,
+        seed: int | None = None,
+        atol: float = 1e-6,
+        allow_fitted: bool = False,
+    ) -> ExogenousPosterior:
+        """Unguarded abduction. ``allow_fitted`` documents intent at the call site: a caller that
+        has already established what its query licenses — sub-project 4's counterfactual data
+        augmentation replays *invertible* mechanisms on a fitted model — bypasses the guard here."""
         known = known or {}
         bad = set(known) - set(self.exogenous)
         if bad:
