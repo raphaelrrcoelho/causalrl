@@ -301,7 +301,14 @@ def orient(cpdag: CPDAG, *, tiers: Sequence[Sequence[str]] | None = None) -> Cau
         deferred: list[tuple[str, str]] = []
         for a, b in pending:
             if rank.get(a) is not None and rank.get(b) is not None and rank[a] != rank[b]:
-                directed.add((a, b) if rank[a] < rank[b] else (b, a))
+                # Orient according to tiers, but first check that it doesn't create a cycle.
+                tail, head = (a, b) if rank[a] < rank[b] else (b, a)
+                if _creates_cycle(directed, tail, head):
+                    raise CausalGraphError(
+                        f"tier-implied edge {tail} -> {head} would create a cycle; "
+                        f"the provided tiers conflict with the discovered structure"
+                    )
+                directed.add((tail, head))
                 progressed = True
                 continue
             ab_ok = not _creates_cycle(directed, a, b)

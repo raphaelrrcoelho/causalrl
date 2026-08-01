@@ -40,3 +40,31 @@ def test_orient_raises_when_tiers_omit_a_variable():
     cpdag = CPDAG(("Z", "A"), frozenset(), frozenset({frozenset(("Z", "A"))}))
     with pytest.raises(CausalGraphError, match="not covered by tiers"):
         orient(cpdag, tiers=[["Z"]])
+
+
+def test_orient_raises_when_tiers_contradict_discovered_structure_causing_cycle():
+    # CPDAG has A -> B (discovered), and undirected B-C, C-A.
+    # Tiers say B < C < A, which would force B->C, C->A, A->B — a cycle.
+    cpdag = CPDAG(
+        ("A", "B", "C"),
+        frozenset({("A", "B")}),
+        frozenset({frozenset(("B", "C")), frozenset(("C", "A"))}),
+    )
+    with pytest.raises(CausalGraphError, match="tier-implied edge.*would create a cycle"):
+        orient(cpdag, tiers=[["B"], ["C"], ["A"]])
+
+
+def test_orient_multi_pass_loop_resolves_cascading_edges():
+    # Two undirected edges P-X and X-Z; one directed Z->P.
+    # Tiers say P < X,Z (same tier). First pass orients P->X by tier (progresses).
+    # Second pass: X-Z remains undirected; now acyclicity decides because
+    # resolving P->X created path Z->P->X, so X->Z would close a cycle.
+    cpdag = CPDAG(
+        ("P", "X", "Z"),
+        frozenset({("Z", "P")}),
+        frozenset({frozenset(("P", "X")), frozenset(("X", "Z"))}),
+    )
+    dag = orient(cpdag, tiers=[["P"], ["X", "Z"]])
+    # All edges should be oriented: Z->P (existing), P->X (tier), Z->X (acyclicity)
+    expected_edges = {("Z", "P"), ("P", "X"), ("Z", "X")}
+    assert set(dag.directed_edges) == expected_edges
