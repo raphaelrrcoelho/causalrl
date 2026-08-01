@@ -193,9 +193,9 @@ callable returning a fresh sklearn-style estimator, so sklearn stays optional.
 and take noise directly, matching the `FunctionalMechanism([], lambda pa, u: u)` idiom already used
 across `envs/suite/`.
 
-**Torch caveat:** local torch is broken on this machine (`project_causalrl_2_0_plan`), so **CI is
-the verifier** for `NeuralFit`. Its CI test is a smoke test on a small fixed problem, not a
-convergence benchmark.
+**Torch note:** the local toolchain works (torch 2.12.0, `pyright src` clean, checked 2026-08-01),
+so `NeuralFit` is verified locally *and* in CI. Its test stays a smoke test on a small fixed
+problem, not a convergence benchmark, so it remains fast enough for CI.
 
 **Guard:** `fit_scm` raises `NotIdentifiableError` when `graph.has_bidirected_edges()`, naming
 sub-project 2 as the path for confounded fitting. Regression on parents is not a valid mechanism
