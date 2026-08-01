@@ -293,7 +293,7 @@ def orient(cpdag: CPDAG, *, tiers: Sequence[Sequence[str]] | None = None) -> Cau
             )
 
     directed = set(cpdag.directed_edges)
-    pending = [tuple(sorted(edge)) for edge in cpdag.undirected_edges]
+    pending = sorted([tuple(sorted(edge)) for edge in cpdag.undirected_edges])
     unresolved: list[tuple[str, str]] = []
     # Repeat: each orientation can unlock another edge through the acyclicity rule.
     while pending:
@@ -303,16 +303,21 @@ def orient(cpdag: CPDAG, *, tiers: Sequence[Sequence[str]] | None = None) -> Cau
             if rank.get(a) is not None and rank.get(b) is not None and rank[a] != rank[b]:
                 # Orient according to tiers, but first check that it doesn't create a cycle.
                 tail, head = (a, b) if rank[a] < rank[b] else (b, a)
-                if _creates_cycle(directed, tail, head):
+                cycle_path = _creates_cycle(directed, tail, head)
+                if cycle_path is not None:
+                    # cycle_path is [head, ...nodes..., tail], forming path head -> ... -> tail.
+                    # The new edge tail -> head would close cycle: tail -> head -> ... -> tail.
+                    cycle_edges = " -> ".join([tail] + cycle_path)
                     raise CausalGraphError(
-                        f"tier-implied edge {tail} -> {head} would create a cycle; "
-                        f"the provided tiers conflict with the discovered structure"
+                        f"tier-implied edge {tail} -> {head} would create a cycle: {cycle_edges}"
                     )
                 directed.add((tail, head))
                 progressed = True
                 continue
-            ab_ok = not _creates_cycle(directed, a, b)
-            ba_ok = not _creates_cycle(directed, b, a)
+            ab_cycle = _creates_cycle(directed, a, b)
+            ba_cycle = _creates_cycle(directed, b, a)
+            ab_ok = ab_cycle is None
+            ba_ok = ba_cycle is None
             if ab_ok and not ba_ok:
                 directed.add((a, b))
                 progressed = True
@@ -334,18 +339,24 @@ def orient(cpdag: CPDAG, *, tiers: Sequence[Sequence[str]] | None = None) -> Cau
     return CausalGraph(directed_edges=sorted(directed), nodes=list(cpdag.variables))
 
 
-def _creates_cycle(directed: set[tuple[str, str]], tail: str, head: str) -> bool:
-    """Whether adding ``tail -> head`` would close a cycle in ``directed``."""
-    stack, seen = [head], {head}
+def _creates_cycle(directed: set[tuple[str, str]], tail: str, head: str) -> list[str] | None:
+    """Check if adding ``tail -> head`` would close a cycle in ``directed``.
+
+    Returns the cycle path (nodes from ``head`` back to ``tail``) if a cycle would be created,
+    or ``None`` if no cycle would result.
+    """
+    stack: list[list[str]] = [[head]]
+    visited: set[str] = {head}
     while stack:
-        node = stack.pop()
+        path = stack.pop()
+        node = path[-1]
         if node == tail:
-            return True
+            return path  # Path from head to tail exists; cycle is path + [tail]
         for u, v in directed:
-            if u == node and v not in seen:
-                seen.add(v)
-                stack.append(v)
-    return False
+            if u == node and v not in visited:
+                visited.add(v)
+                stack.append(path + [v])
+    return None
 
 
 def _empirical_pmf(column: np.ndarray) -> dict[int, float]:
