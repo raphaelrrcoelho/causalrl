@@ -234,13 +234,17 @@ type carries this:
 class CounterfactualBound(NamedTuple):
     lower: float
     upper: float
-    tight: bool            # False when ≥2 non-invertible nodes contribute
+    tight: bool            # the slot for sub-project 2's valid-but-loose bounds
     @property
     def interval(self) -> Interval: ...
 ```
 
-`tight=False` composes with a docstring pointing at sub-project 2's NCM min/max as the tight
-answer. Shipping a valid, labelled bound beats shipping a tight-looking one that is wrong.
+**Refined during planning:** rather than *composing* a loose bound when a second non-invertible node
+contributes, phase 1 **refuses** — it raises and names the NCM min/max. A non-invertible node the
+intervention cannot reach costs nothing (it keeps its factual value), so the refusal fires only when
+one sits strictly between the intervention and the target. `tight` therefore reads `True` throughout
+phase 1; the field exists so sub-project 2 can return valid-but-loose bounds without a breaking type
+change. An honest refusal beats a loose answer, and both beat a tight-looking one that is wrong.
 
 **`CounterfactualBound` is a new type, not an extension of `Interval`.** `Interval`
 (`identification/bounds.py:17`) documents tuple-compatibility — `lo, hi = interval` — as a public
@@ -258,9 +262,15 @@ naming `counterfactual_interval`.
 Because the guard keys off provenance, hand-written SCMs are completely unaffected: the user
 asserted those mechanisms, so their couplings are given, not inferred.
 
-`counterfactual_interval` needs `abduct` itself, for the invertible part of the query. It calls a
-private `_abduct(..., allow_fitted=True)`; the public `abduct` is the thin guarded wrapper. Without
-this split the guard would block the very function it points users at.
+The guard needs an unguarded twin. `abduct` becomes a thin wrapper over a private
+`_abduct(..., allow_fitted=True)`, so a caller that has already established what its query licenses
+can bypass it — sub-project 4's counterfactual data augmentation replays invertible mechanisms on a
+fitted model and must not be blocked.
+
+`counterfactual_interval` does not use either: rejection-sampled abduction never matches continuous
+evidence, so invertibility is made operational instead. Every invertible fitter attaches a
+`residual(parent_values, value)` inverse map, and the bound recovers noise exactly by solving
+`U = V − g(parents)`. That is what `invertible=True` buys.
 
 ## 7. Gates
 
@@ -332,11 +342,11 @@ TDD, per the project's practice. Tests before implementation, each failing first
 ## 9. Files
 
 ```
-src/causalrl/scm/fit.py                      new — fitters, fit_scm, fit_scm_mec, FitReport
+src/causalrl/scm/fitters.py                  new — MechanismFitter protocol + the four families
+src/causalrl/scm/fit.py                      new — fit_scm, fit_scm_mec, FitReport, NodeFit
 src/causalrl/scm/scm.py                      edit — provenance, fit_report, abduct guard
-src/causalrl/scm/mechanisms.py               edit — invertible flag on fitted mechanisms
 src/causalrl/discovery.py                    edit — orient
-src/causalrl/identification/counterfactual.py edit — counterfactual_interval, CounterfactualBound
+src/causalrl/identification/counterfactual_bounds.py  new — counterfactual_interval, CounterfactualBound
 src/causalrl/__init__.py                     edit — lazy exports for the five new names
 tests/test_scm_fit.py                        new
 tests/test_orient.py                         new
