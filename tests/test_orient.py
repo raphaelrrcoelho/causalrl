@@ -56,7 +56,9 @@ def test_orient_raises_when_tiers_contradict_discovered_structure_causing_cycle(
         frozenset({("A", "B")}),
         frozenset({frozenset(("A", "C")), frozenset(("B", "C"))}),
     )
-    with pytest.raises(CausalGraphError, match="tier-implied edge B -> C would create a cycle"):
+    # Assert on both the edge and the cycle path to catch regressions
+    # (the cycle path suffix is critical to identify which edges conflict)
+    with pytest.raises(CausalGraphError, match=r"tier-implied edge B -> C would create a cycle: B -> C -> A -> B"):
         orient(cpdag, tiers=[["B"], ["C"], ["A"]])
 
 

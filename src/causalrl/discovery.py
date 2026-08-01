@@ -279,7 +279,9 @@ def orient(cpdag: CPDAG, *, tiers: Sequence[Sequence[str]] | None = None) -> Cau
     from the earlier tier to the later one; (2) acyclicity — if one direction would close a cycle,
     take the other; (3) refuse. Silently picking an orientation would commit to a choice the data
     does not identify, so the third case raises and names :func:`causalrl.fit_scm_mec`, which fits
-    every member of the equivalence class instead.
+    every member of the equivalence class instead. Exception: if ``tiers`` are provided and a
+    tier-forced edge would create a cycle (indicating a conflict between tiers and discovered
+    structure), raises immediately with a message naming the specific colliding edges.
     """
     rank: dict[str, int] = {}
     if tiers is not None:
@@ -293,7 +295,7 @@ def orient(cpdag: CPDAG, *, tiers: Sequence[Sequence[str]] | None = None) -> Cau
             )
 
     directed = set(cpdag.directed_edges)
-    pending = sorted([tuple(sorted(edge)) for edge in cpdag.undirected_edges])
+    pending = sorted(tuple(sorted(edge)) for edge in cpdag.undirected_edges)
     unresolved: list[tuple[str, str]] = []
     # Repeat: each orientation can unlock another edge through the acyclicity rule.
     while pending:
