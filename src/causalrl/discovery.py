@@ -37,7 +37,14 @@ import numpy as np
 from causalrl.exceptions import CausalGraphError
 from causalrl.scm.graph import CausalGraph
 
-__all__ = ["CPDAG", "PAG", "conditional_mutual_information", "discover", "discover_interventional", "orient"]
+__all__ = [
+    "CPDAG",
+    "PAG",
+    "conditional_mutual_information",
+    "discover",
+    "discover_interventional",
+    "orient",
+]
 
 
 def conditional_mutual_information(
@@ -309,7 +316,7 @@ def orient(cpdag: CPDAG, *, tiers: Sequence[Sequence[str]] | None = None) -> Cau
                 if cycle_path is not None:
                     # cycle_path is [head, ...nodes..., tail], forming path head -> ... -> tail.
                     # The new edge tail -> head would close cycle: tail -> head -> ... -> tail.
-                    cycle_edges = " -> ".join([tail] + cycle_path)
+                    cycle_edges = " -> ".join([tail, *cycle_path])
                     raise CausalGraphError(
                         f"tier-implied edge {tail} -> {head} would create a cycle: {cycle_edges}"
                     )
@@ -357,7 +364,7 @@ def _creates_cycle(directed: set[tuple[str, str]], tail: str, head: str) -> list
         for u, v in directed:
             if u == node and v not in visited:
                 visited.add(v)
-                stack.append(path + [v])
+                stack.append([*path, v])
     return None
 
 
