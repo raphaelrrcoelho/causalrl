@@ -93,3 +93,17 @@ def test_fit_report_summary_lists_every_node():
     summary = fit_scm(_linear_data(), graph=graph).fit_report.summary()
     for node in ("Z", "A", "Y"):
         assert node in summary
+
+
+def test_fitted_scm_do_preserves_provenance_and_the_l3_guard():
+    # F1 regression: do() used to return StructuralCausalModel(graph, mechanisms, exogenous)
+    # with no provenance/fit_report, so a mutilated fitted SCM silently reverted to
+    # provenance="specified" and abduct's L3 guard never fired for the un-intervened
+    # non-invertible nodes it still carried.
+    graph = CausalGraph(directed_edges=[("Z", "A"), ("Z", "Y"), ("A", "Y")])
+    scm = fit_scm(_discrete_data(), graph=graph)
+    mutilated = scm.do({"A": 1.0})
+    assert mutilated.provenance == "fitted"
+    assert mutilated.fit_report is scm.fit_report
+    with pytest.raises(NotIdentifiableError, match="counterfactual_interval"):
+        mutilated.abduct(n=8)

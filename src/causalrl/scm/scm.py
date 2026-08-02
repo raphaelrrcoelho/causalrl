@@ -108,7 +108,11 @@ class StructuralCausalModel:
         self.graph = graph
         self.mechanisms = mechanisms
         self.exogenous = exogenous
-        self.provenance = provenance
+        # Explicit annotation: without it pyright infers the attribute's declared type as the
+        # widened `str` (not the parameter's narrower Literal), so reading it back and passing
+        # it into another StructuralCausalModel(...) call -- e.g. from do() -- fails strict
+        # checking even though the value only ever holds one of the two literal members.
+        self.provenance: Literal["specified", "fitted"] = provenance
         self.fit_report = fit_report
         self._generator = torch.Generator()  # type: ignore[reportPrivateImportUsage]
         self._generator.seed()
@@ -138,7 +142,13 @@ class StructuralCausalModel:
         return values
 
     def do(self, interventions: Mapping[str, Value]) -> StructuralCausalModel:
-        """Layer 2: return the mutilated SCM under do(interventions). Original is unchanged."""
+        """Layer 2: return the mutilated SCM under do(interventions). Original is unchanged.
+
+        Preserves ``provenance``/``fit_report``: the un-intervened mechanisms are the same
+        objects (shallow-copied dict), so a fitted model's L3 guard must still see them as
+        fitted after mutilation -- otherwise ``abduct`` on the result would silently stop
+        refusing point counterfactuals for the non-invertible nodes ``do`` never touched.
+        """
         graph = self.graph
         mechanisms = dict(self.mechanisms)
         for node, value in interventions.items():
@@ -157,7 +167,13 @@ class StructuralCausalModel:
                     [],
                     lambda pa, u, _v=value: _broadcast_value(_v, u.shape[0]).to(u.dtype),
                 )
-        return StructuralCausalModel(graph, mechanisms, self.exogenous)
+        return StructuralCausalModel(
+            graph,
+            mechanisms,
+            self.exogenous,
+            provenance=self.provenance,
+            fit_report=self.fit_report,
+        )
 
     def non_invertible_nodes(self) -> list[str]:
         """Nodes whose fitted mechanism cannot recover its noise from (parents, value).
