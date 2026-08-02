@@ -2,8 +2,9 @@ import numpy as np
 import pytest
 from torch.distributions import Uniform
 
+from causalrl.discovery import CPDAG
 from causalrl.exceptions import NotIdentifiableError
-from causalrl.scm.fit import fit_scm
+from causalrl.scm.fit import fit_scm, fit_scm_mec
 from causalrl.scm.fitters import ANMFit, FittedMechanism, LinearGaussianFit, evaluate_holdout
 from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import FunctionalMechanism
@@ -185,3 +186,43 @@ def test_evaluate_holdout_raises_a_clear_error_when_log_prob_is_missing():
     )
     with pytest.raises(AttributeError, match="log_prob"):
         evaluate_holdout(broken, {}, np.zeros(4))
+
+
+def test_fit_scm_mec_fits_every_orientation_of_a_single_undirected_edge():
+    cpdag = CPDAG(("A", "Y"), frozenset(), frozenset({frozenset(("A", "Y"))}))
+    rng = np.random.default_rng(0)
+    a = rng.normal(size=4000)
+    data = {"A": a, "Y": 2.0 * a + rng.normal(scale=0.5, size=4000)}
+    models = fit_scm_mec(data, cpdag=cpdag)
+    assert len(models) == 2
+    assert {tuple(m.graph.directed_edges[0]) for m in models} == {("A", "Y"), ("Y", "A")}
+    assert all(m.provenance == "fitted" for m in models)
+
+
+def test_fit_scm_mec_excludes_orientations_that_create_a_new_collider():
+    # A - B - C chain with A, C non-adjacent: A -> B <- C is a v-structure the CPDAG lacks.
+    cpdag = CPDAG(
+        ("A", "B", "C"),
+        frozenset(),
+        frozenset({frozenset(("A", "B")), frozenset(("B", "C"))}),
+    )
+    rng = np.random.default_rng(1)
+    b = rng.normal(size=2000)
+    data = {"A": b + rng.normal(size=2000), "B": b, "C": b + rng.normal(size=2000)}
+    models = fit_scm_mec(data, cpdag=cpdag)
+    for model in models:
+        parents_of_b = model.graph.parents("B")
+        assert set(parents_of_b) != {"A", "C"}
+    assert len(models) == 3
+
+
+def test_fit_scm_mec_raises_above_the_cap_and_names_the_real_size():
+    cpdag = CPDAG(
+        ("A", "B", "C"),
+        frozenset(),
+        frozenset({frozenset(("A", "B")), frozenset(("B", "C"))}),
+    )
+    rng = np.random.default_rng(2)
+    data = {k: rng.normal(size=500) for k in ("A", "B", "C")}
+    with pytest.raises(ValueError, match="3 member"):
+        fit_scm_mec(data, cpdag=cpdag, max_members=2)
