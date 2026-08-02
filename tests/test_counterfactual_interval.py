@@ -30,6 +30,7 @@ def test_binary_bound_matches_the_analytic_frechet_limits():
     assert bound.lower == pytest.approx(5.0 / 7.0, abs=0.03)
     assert bound.upper == pytest.approx(1.0, abs=0.03)
     assert bound.tight is True
+    assert 0.0 <= bound.lower <= bound.upper <= 1.0  # Y is {0,1}-valued: a probability bound
 
 
 def test_bound_is_vacuous_when_treatment_has_no_average_effect():
@@ -54,6 +55,7 @@ def test_bound_is_vacuous_when_treatment_has_no_average_effect():
     assert bound.lower == pytest.approx(0.0, abs=0.05)
     assert bound.upper == pytest.approx(1.0, abs=0.03)
     assert bound.tight is True
+    assert 0.0 <= bound.lower <= bound.upper <= 1.0  # Y is {0,1}-valued: a probability bound
 
 
 def test_bound_always_contains_the_truth_under_a_known_coupling():
@@ -63,6 +65,10 @@ def test_bound_always_contains_the_truth_under_a_known_coupling():
     )
     # Monotone coupling truth: P(Y_cf=1, Y_f=0) = min(0.9, 0.8) = 0.8 -> 0.8/0.8 = 1.0
     assert bound.lower <= 1.0 <= bound.upper + 1e-9
+    # A plain containment check alone would not catch an allocation bug that produces an
+    # out-of-range "probability" (e.g. 1.5) provided the truth still happened to fall inside
+    # [lower, upper] by luck of the numbers -- pin Y's {0,1} range explicitly too.
+    assert 0.0 <= bound.lower <= bound.upper <= 1.0
 
 
 def test_bound_is_degenerate_when_every_mechanism_is_invertible():
@@ -177,6 +183,33 @@ def test_downstream_non_invertible_sibling_does_not_block_the_query():
     assert bound.lower == pytest.approx(5.0 / 7.0, abs=0.03)
     assert bound.upper == pytest.approx(1.0, abs=0.03)
     assert bound.tight is True
+    assert 0.0 <= bound.lower <= bound.upper <= 1.0  # Y is {0,1}-valued: a probability bound
+
+
+def test_naive_frechet_floor_produces_an_infeasible_allocation_above_one():
+    # P(Y=1|A=1) = 0.75, P(Y=1|A=0) = 0.30. Query: E[Y_{do(A=1)} | A=0, Y=1] (evidence is the
+    # Y=1 outcome, so p_factual = P(Y=1|A=0) = 0.30 directly -- no complement needed). Marginals
+    # of the coupling: P(Y_cf=1) = 0.75, P(Y_f=1 | A=0) = 0.30. Frechet gives
+    # P(Y_cf=1, Y_f=1) in [max(0, 0.75 + 0.30 - 1), min(0.75, 0.30)] = [0.05, 0.30];
+    # divide by 0.30 -> [1/6, 1.0].
+    #
+    # This is the discriminator test_binary_bound_matches_the_analytic_frechet_limits happens not
+    # to be (see that test's docstring/history): with the naive (wrong) floor
+    # max(0, p_cf - p_f) = max(0, 0.75 - 0.30) = 0.45, the two cells' floors alone
+    # (0 and 0.45) already sum to MORE than p_factual = 0.30 -- an infeasible starting
+    # allocation. _extreme_under_sum's `remaining = total - floors.sum()` goes negative, the
+    # loop's `if remaining <= 0: break` fires on its first iteration, and the cells are returned
+    # unfilled-past-their-floor: low = high = 0.45 / 0.30 = 1.5, a "probability" above 1 in BOTH
+    # directions at once -- an unmistakable, sharp failure mode of the exact formula in
+    # DESIGN.md/the task brief, not an approximation artifact.
+    scm = fit_scm(_binary_data(0.75, 0.30), graph=CausalGraph(directed_edges=[("A", "Y")]))
+    bound = counterfactual_interval(
+        scm, evidence={"A": 0.0, "Y": 1.0}, interventions={"A": 1.0}, target="Y"
+    )
+    assert bound.lower == pytest.approx(1.0 / 6.0, abs=0.03)
+    assert bound.upper == pytest.approx(1.0, abs=0.03)
+    assert bound.tight is True
+    assert 0.0 <= bound.lower <= bound.upper <= 1.0  # Y is {0,1}-valued: a probability bound
 
 
 def test_interval_bounds_are_ordered_and_within_the_outcome_range():
