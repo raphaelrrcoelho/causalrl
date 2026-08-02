@@ -107,3 +107,16 @@ def test_fitted_scm_do_preserves_provenance_and_the_l3_guard():
     assert mutilated.fit_report is scm.fit_report
     with pytest.raises(NotIdentifiableError, match="counterfactual_interval"):
         mutilated.abduct(n=8)
+
+
+def test_fit_scm_discrete_scm_refuses_point_counterfactuals():
+    # F2 regression: test_fit_scm_reports_invertibility_per_node only reads
+    # report.nodes[i].invertible, which comes straight from FittedMechanism.invertible and says
+    # nothing about whether fit.py actually wired that flag onto the mechanism OBJECT (the
+    # setattr/assignment at fit.py's node loop). This test exercises the real consumers --
+    # non_invertible_nodes() and abduct()'s L3 guard -- that read the flag off the mechanism.
+    graph = CausalGraph(directed_edges=[("Z", "A"), ("Z", "Y"), ("A", "Y")])
+    scm = fit_scm(_discrete_data(), graph=graph)
+    assert scm.non_invertible_nodes()
+    with pytest.raises(NotIdentifiableError, match="counterfactual_interval"):
+        scm.abduct(known={"A": 0.5}, n=8)
