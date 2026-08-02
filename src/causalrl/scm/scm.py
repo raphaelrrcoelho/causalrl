@@ -11,7 +11,7 @@ from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import FunctionalMechanism, Mechanism
 
 if TYPE_CHECKING:
-    from causalrl.scm.fit import FitReport  # type: ignore[reportMissingImports]
+    from causalrl.scm.fit import FitReport
 
 Tensor = torch.Tensor
 
@@ -80,7 +80,7 @@ class StructuralCausalModel:
         exogenous: dict[str, Distribution],
         *,
         provenance: Literal["specified", "fitted"] = "specified",
-        fit_report: FitReport | None = None,  # type: ignore[reportUnknownParameterType]
+        fit_report: FitReport | None = None,
     ) -> None:
         if graph.has_bidirected_edges():
             raise CausalGraphError(
@@ -109,7 +109,7 @@ class StructuralCausalModel:
         self.mechanisms = mechanisms
         self.exogenous = exogenous
         self.provenance = provenance
-        self.fit_report = fit_report  # type: ignore[reportUnknownMemberType]
+        self.fit_report = fit_report
         self._generator = torch.Generator()  # type: ignore[reportPrivateImportUsage]
         self._generator.seed()
 
