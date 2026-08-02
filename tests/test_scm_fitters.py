@@ -111,3 +111,70 @@ def test_anm_accepts_a_duck_typed_estimator_factory():
     fitted = ANMFit(estimator=ConstantModel).fit({"X": rng.normal(size=2000)}, y)
     out = fitted.mechanism({"X": torch.zeros(4)}, torch.zeros(4))
     assert abs(float(out.mean()) - 5.0) < 0.15
+
+
+def test_linear_gaussian_residual_round_trips():
+    # invertible=True means mechanism(parents, residual(parents, v)) == v exactly; Task 8 computes
+    # counterfactuals by inverting noise through residual(), so this must hold on held-out rows,
+    # not just training data the mechanism was fit on.
+    rng = np.random.default_rng(8)
+    x = rng.normal(size=4000)
+    z = rng.normal(size=4000)
+    y = 2.0 * x - 0.5 * z + 1.0 + rng.normal(scale=0.3, size=4000)
+    fitted = LinearGaussianFit().fit({"X": x[:3000], "Z": z[:3000]}, y[:3000])
+    held_out = {
+        "X": torch.tensor(x[3000:], dtype=torch.float32),
+        "Z": torch.tensor(z[3000:], dtype=torch.float32),
+    }
+    value = torch.tensor(y[3000:], dtype=torch.float32)
+    noise = fitted.mechanism.residual(held_out, value)  # type: ignore[attr-defined]
+    recovered = fitted.mechanism(held_out, noise)
+    assert torch.allclose(recovered, value, rtol=0.0, atol=1e-4)
+
+
+def test_linear_gaussian_root_residual_round_trips():
+    # Same invariant on the root/intercept-only path (no parents) -- a different branch through
+    # _design/_attach_residual than the with-parents case above, so it can break independently.
+    rng = np.random.default_rng(9)
+    y = rng.normal(loc=3.0, scale=2.0, size=4000)
+    fitted = LinearGaussianFit().fit({}, y[:3000])
+    value = torch.tensor(y[3000:], dtype=torch.float32)
+    noise = fitted.mechanism.residual({}, value)  # type: ignore[attr-defined]
+    recovered = fitted.mechanism({}, noise)
+    assert torch.allclose(recovered, value, rtol=0.0, atol=1e-4)
+
+
+def test_anm_default_ridge_residual_round_trips():
+    # Same invariant through the default _RBFRidge's mean_fn route (model.predict), which
+    # LinearGaussianFit's closed-form coefficients never exercise.
+    rng = np.random.default_rng(10)
+    x = rng.uniform(-2.0, 2.0, size=4000)
+    y = np.sin(3.0 * x) + rng.normal(scale=0.1, size=4000)
+    fitted = ANMFit().fit({"X": x[:3000]}, y[:3000])
+    held_out = {"X": torch.tensor(x[3000:], dtype=torch.float32)}
+    value = torch.tensor(y[3000:], dtype=torch.float32)
+    noise = fitted.mechanism.residual(held_out, value)  # type: ignore[attr-defined]
+    recovered = fitted.mechanism(held_out, noise)
+    assert torch.allclose(recovered, value, rtol=0.0, atol=1e-4)
+
+
+def test_anm_duck_typed_estimator_residual_round_trips():
+    # Same invariant through a caller-supplied estimator's mean_fn route, not just the default
+    # ridge -- ANMFit's residual/mechanism wiring must not assume _RBFRidge specifically.
+    class ConstantModel:
+        def fit(self, x, y):
+            self.value = float(np.mean(y))
+            return self
+
+        def predict(self, x):
+            return np.full(len(x), self.value)
+
+    rng = np.random.default_rng(11)
+    x = rng.normal(size=2000)
+    y = rng.normal(loc=5.0, size=2000)
+    fitted = ANMFit(estimator=ConstantModel).fit({"X": x[:1500]}, y[:1500])
+    held_out = {"X": torch.tensor(x[1500:], dtype=torch.float32)}
+    value = torch.tensor(y[1500:], dtype=torch.float32)
+    noise = fitted.mechanism.residual(held_out, value)  # type: ignore[attr-defined]
+    recovered = fitted.mechanism(held_out, noise)
+    assert torch.allclose(recovered, value, rtol=0.0, atol=1e-4)
