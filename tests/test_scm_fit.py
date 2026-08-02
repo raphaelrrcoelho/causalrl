@@ -1,10 +1,12 @@
 import numpy as np
 import pytest
+from torch.distributions import Uniform
 
 from causalrl.exceptions import NotIdentifiableError
 from causalrl.scm.fit import fit_scm
-from causalrl.scm.fitters import ANMFit, LinearGaussianFit
+from causalrl.scm.fitters import ANMFit, FittedMechanism, LinearGaussianFit, evaluate_holdout
 from causalrl.scm.graph import CausalGraph
+from causalrl.scm.mechanisms import FunctionalMechanism
 
 
 def _linear_data(n: int = 20_000, seed: int = 0) -> dict[str, np.ndarray]:
@@ -123,10 +125,14 @@ def test_fit_scm_discrete_scm_refuses_point_counterfactuals():
 
 
 def test_fit_scm_holdout_score_penalizes_misspecification():
-    # F3 regression: holdout_score used to refit a fresh model on the holdout partition and
-    # report THAT independent fit's own in-sample score, so a badly misspecified deployed
-    # mechanism and a well-specified one could report the same number. It must evaluate the
-    # actually deployed (train-fitted) mechanism out-of-sample instead.
+    # Sanity check on evaluate_holdout's basic behaviour, NOT a regression guard for the
+    # refit-vs-deployed-mechanism defect below: this ~0.79 gap is model-FAMILY capability (a
+    # nonlinear ANM beats a linear fit on a nonlinear DGP) and holds equally under the correct
+    # evaluate_holdout() path and the old buggy "refit fresh on holdout, score that in-sample"
+    # path (reviewer-verified: NEW=0.9771/OLD=0.9764 for ANM, NEW=0.1863/OLD=0.1869 for linear,
+    # on this exact data/split -- both scoring methods agree here). Kept because it still catches
+    # gross breakage (a crash, or both families reporting the same/wrong-signed number); the test
+    # below is what actually guards F3's fix.
     graph = CausalGraph(directed_edges=[("X", "Y")])
     rng = np.random.default_rng(2)
     x = rng.uniform(-2.0, 2.0, size=8000)
@@ -139,3 +145,43 @@ def test_fit_scm_holdout_score_penalizes_misspecification():
     well_score = next(n.holdout_score for n in well_specified.fit_report.nodes if n.node == "Y")
     mis_score = next(n.holdout_score for n in misspecified.fit_report.nodes if n.node == "Y")
     assert well_score > mis_score + 0.3
+
+
+def test_fit_scm_holdout_score_is_pessimistic_about_a_high_capacity_fit_not_a_refit_in_disguise():
+    # F3 regression, the actual guard: X and Y are independent (no true relationship), so the
+    # best ANY correctly-scored DEPLOYED mechanism can do on genuinely unseen data is ~R^2=0 --
+    # regardless of model family. But a high-capacity fitter (60 RBF features, ~61 parameters)
+    # refit FRESH on a small 30-point holdout partition can nearly interpolate that partition's
+    # own noise, giving an inflated, optimistic R^2. That is exactly the old bug: scoring a fresh
+    # refit on holdout instead of the mechanism actually deployed (trained on the other 120
+    # points, which cannot know this partition's noise pattern).
+    #
+    # Calibrated on this exact data/split (see task-6-report.md): the correct (deployed-mechanism)
+    # score is -0.28; a fresh refit on the same holdout partition scores +0.33. 0.1 sits with a
+    # wide margin (>=0.18) on both sides of that gap, robust to run-to-run numerical noise.
+    graph = CausalGraph(directed_edges=[("X", "Y")])
+    rng = np.random.default_rng(0)
+    n = 150
+    x = rng.normal(size=n)
+    y = rng.normal(size=n)  # independent of x: no true X -> Y relationship whatsoever
+    scm = fit_scm(
+        {"X": x, "Y": y},
+        graph=graph,
+        families={"X": LinearGaussianFit(), "Y": ANMFit(n_features=60, seed=0)},
+    )
+    score = next(n.holdout_score for n in scm.fit_report.nodes if n.node == "Y")
+    assert score < 0.1
+
+
+def test_evaluate_holdout_raises_a_clear_error_when_log_prob_is_missing():
+    # Minor hardening (fix round 2): a user-supplied MechanismFitter reporting invertible=False
+    # without attaching log_prob would otherwise crash inside evaluate_holdout with an opaque,
+    # unexplained AttributeError. Verify the raised error is clear and names what's missing.
+    broken = FittedMechanism(
+        mechanism=FunctionalMechanism([], lambda pa, u: u),
+        noise=Uniform(0.0, 1.0),
+        invertible=False,
+        score=0.0,
+    )
+    with pytest.raises(AttributeError, match="log_prob"):
+        evaluate_holdout(broken, {}, np.zeros(4))

@@ -35,7 +35,16 @@ class FittedMechanism(NamedTuple):
 
 
 class MechanismFitter(Protocol):
-    """Fits ``V = f(parents, noise)`` for one node."""
+    """Fits ``V = f(parents, noise)`` for one node.
+
+    A fitter reporting ``invertible=True`` should attach a ``residual(parent_values, value) ->
+    Tensor`` closure to the returned mechanism (see :func:`_attach_residual`), the way
+    :class:`LinearGaussianFit`, :class:`ANMFit`, and :class:`NeuralFit` all do. A fitter reporting
+    ``invertible=False`` must instead attach a ``log_prob(parent_values, value) -> Tensor``
+    closure, the way :class:`TabularCPT` does: :func:`evaluate_holdout` requires one of the two to
+    score a fitted mechanism out-of-sample, and raises a clear error naming which is missing
+    rather than letting an opaque ``AttributeError`` escape from inside a user-supplied fitter.
+    """
 
     def fit(self, parents: dict[str, np.ndarray], child: np.ndarray) -> FittedMechanism: ...
 
@@ -208,6 +217,14 @@ def evaluate_holdout(
         with torch.no_grad():
             predicted = fitted.mechanism(parent_tensors, zeros)
         return _r2(child_array, predicted.detach().numpy().astype(float))
+    if not hasattr(fitted.mechanism, "log_prob"):
+        raise AttributeError(
+            f"evaluate_holdout: a non-invertible FittedMechanism (invertible=False) must attach "
+            f"a log_prob(parent_values, value) -> Tensor closure to its mechanism, the way "
+            f"TabularCPT.fit does (see MechanismFitter's docstring) -- "
+            f"{type(fitted.mechanism).__name__} has no such attribute, so there is no way to "
+            f"score its holdout fit."
+        )
     child_tensor = torch.tensor(  # type: ignore[reportPrivateImportUsage]
         child_array,
         dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
