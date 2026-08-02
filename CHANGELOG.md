@@ -8,6 +8,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`causalrl.neuro`** — a multi-scale electrophysiology front-end, closing the three gaps between
+  the identification core and what cortical recordings actually are. Not API-frozen (same stability
+  status as `causalrl.experimental`).
+  - **`discover_lagged`** (`causalrl.neuro.timeseries`) — PCMCI-style causal discovery for
+    autocorrelated multivariate time series: PC1 condition selection, an MCI test conditioning on
+    the parents of *both* endpoints (what stops autocorrelation manufacturing edges), time-ordered
+    orientation of lagged links, and the shipped FCI on the contemporaneous slice with lagged
+    parents pinned in via the new `ConditionedCITest`. The resulting `LaggedGraph` converts to an
+    acyclic `unrolled_admg()` — so `identify_effect`, POMIS, transport and certification all apply
+    to spike-train connectivity — or a recurrence-preserving `summary_graph()`.
+  - **Conditional-independence tests for real signals** (`causalrl.neuro.citests`): `PoissonGLMTest`
+    (likelihood-ratio between nested point-process GLMs — the spike-train instrument),
+    `PartialCorrelationTest` (Fisher-z, for LFP and population rates) and `KnnCMITest`
+    (Frenzel-Pompe k-NN CMI, with an optional permutation p-value). Pure NumPy, including the
+    required digamma / regularised-incomplete-gamma routines.
+  - **`certify_abstraction`** (`causalrl.neuro.abstraction`) — measures whether a mesoscopic model's
+    `do()` agrees with the spiking network's interventional behaviour (the tau/omega commutation
+    condition of Rubenstein et al. 2017 / Beckers-Halpern 2019) and returns a `Certificate`:
+    `IDENTIFIED` when it commutes and the mean dynamics are stable, `BOUNDED` under a measured
+    error, a non-liftable intervention, or multiple equilibria (the equilibrium-selection hedge),
+    `EMPIRICAL` when the population model is simply answering a different question.
+  - **`functional_connectivity` / `common_input_tipping_point`** (`causalrl.neuro.connectivity`) —
+    per-edge sensitivity to *unrecorded* common input: how much variance a hidden shared drive must
+    explain in both units to erase an edge, benchmarked against the shared input actually observed.
+    Exact for the linear-Gaussian null; see the documented caveat — the benchmark is **not** yet
+    calibrated for point-process data, and the robust/fragile split is provisional on spikes.
+  - **`causalrl.neuro.simulate`** — a ground-truth generator: a recurrent GLM point-process network
+    with known synaptic graph, known unrecorded oscillatory common input, true `do()` semantics
+    (unit clamping), an LFP proxy, and a matched deterministic `MeanFieldAreaModel` solved by
+    Newton (so the fixed point is found even where iterating the map would run away from it).
+    `target_loop_gain` sets the mesoscopic regime directly.
+  - **`causalrl.neuro.io`** — duck-typed Neo bridge (`from_neo_block`, both scales onto one time
+    base) and a DOI-carrying registry of the public datasets this pipeline targets. `load_dataset`
+    reads a local copy and never downloads.
+- **Pluggable independence oracles in the discovery core** — `discover`, `discover_latent` and
+  `discover_interventional` now accept `ci_test=`, typed by the new `causalrl.discovery.CITest`
+  protocol. PC and FCI run unchanged on continuous or point-process data. Backward compatible: the
+  default remains thresholded discrete CMI.
+- **The multi-scale experimental program** (recovery, certificates, abstraction ladder,
+  liftability), scored against the simulator, with results written to `docs/neuro/RESULTS.md`,
+  plus `examples/neuro_multiscale.py` and a `docs/neuro.md` guide.
+
+### Added
 - **`cce_polytope` / `cce_bounds` / `cce_regret` / `certify_cce_do`** (`causalrl.magames`, exported
   top-level) — partial identification of a learning population's time-averaged behaviour by the
   coarse-correlated-equilibrium polytope of a (possibly `do()`-intervened) finite game. Both bound

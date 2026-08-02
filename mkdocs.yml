@@ -47,6 +47,7 @@ nav:
   - Reproducible Benchmarks: benchmarks.md
   - Interop (DoWhy / EconML): interop.md
   - Scale (d3rlpy): scale.md
+  - Multi-Scale Neural Causality: neuro.md
   - Task Guides: guides.md
   - Migrating to 2.0: migration-2.0.md
   - Assumption Glossary: assumptions.md

@@ -31,13 +31,38 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from itertools import combinations, pairwise
+from typing import Protocol, runtime_checkable
 
 import numpy as np
 
 from causalrl.exceptions import CausalGraphError
 from causalrl.scm.graph import CausalGraph
 
-__all__ = ["CPDAG", "PAG", "conditional_mutual_information", "discover", "discover_interventional"]
+__all__ = [
+    "CPDAG",
+    "PAG",
+    "CITest",
+    "conditional_mutual_information",
+    "discover",
+    "discover_interventional",
+]
+
+
+@runtime_checkable
+class CITest(Protocol):
+    """A conditional-independence oracle: is ``x`` independent of ``y`` given ``z``?
+
+    The skeleton phase of PC and FCI consults nothing but this, so supplying one swaps the
+    statistical model without touching the graph algorithms. The return value is interpreted for
+    truth: return ``True`` for independence, or any object whose ``__bool__`` says so (e.g.
+    :class:`causalrl.neuro.citests.CITestResult`, which also carries the statistic and p-value).
+
+    Implementations for continuous and point-process data live in :mod:`causalrl.neuro.citests`.
+    """
+
+    def __call__(
+        self, data: Mapping[str, np.ndarray], x: str, y: str, z: Sequence[str]
+    ) -> object: ...
 
 
 def conditional_mutual_information(
@@ -66,8 +91,17 @@ def conditional_mutual_information(
 
 
 def _independent(
-    data: Mapping[str, np.ndarray], x: str, y: str, z: Sequence[str], *, threshold: float
+    data: Mapping[str, np.ndarray],
+    x: str,
+    y: str,
+    z: Sequence[str],
+    *,
+    threshold: float,
+    ci_test: CITest | None = None,
 ) -> bool:
+    """Independence verdict: the given :class:`CITest`, else thresholded discrete CMI."""
+    if ci_test is not None:
+        return bool(ci_test(data, x, y, z))
     return conditional_mutual_information(data, x, y, z) < threshold
 
 
@@ -210,6 +244,7 @@ def _pc_skeleton(
     *,
     threshold: float,
     max_conditioning_size: int,
+    ci_test: CITest | None = None,
 ) -> tuple[dict[str, set[str]], dict[frozenset[str], tuple[str, ...]]]:
     """The PC skeleton: drop ``a - b`` when some neighbour subset renders them independent.
 
@@ -230,7 +265,7 @@ def _pc_skeleton(
                     continue
                 testable = True
                 for candidate in combinations(rest, size):
-                    if _independent(data, a, b, candidate, threshold=threshold):
+                    if _independent(data, a, b, candidate, threshold=threshold, ci_test=ci_test):
                         adj[a].discard(b)
                         adj[b].discard(a)
                         sepset[frozenset((a, b))] = candidate
@@ -246,15 +281,22 @@ def discover(
     *,
     threshold: float = 0.01,
     max_conditioning_size: int = 3,
+    ci_test: CITest | None = None,
 ) -> CPDAG:
     """Discover the CPDAG over `variables` from `data` via the PC algorithm.
 
     ``threshold`` is the conditional-mutual-information cutoff below which two variables are judged
-    independent; ``max_conditioning_size`` caps the separating-set search.
+    independent; ``max_conditioning_size`` caps the separating-set search. Pass ``ci_test`` to
+    substitute a different independence oracle (continuous or point-process — see
+    :mod:`causalrl.neuro.citests`), in which case ``threshold`` is unused.
     """
     nodes = list(variables)
     adj, sepset = _pc_skeleton(
-        data, nodes, threshold=threshold, max_conditioning_size=max_conditioning_size
+        data,
+        nodes,
+        threshold=threshold,
+        max_conditioning_size=max_conditioning_size,
+        ci_test=ci_test,
     )
 
     # Orient unshielded colliders a -> c <- b (a, b non-adjacent and c not in their separating set).
@@ -294,6 +336,7 @@ def discover_interventional(
     threshold: float = 0.01,
     shift_threshold: float = 0.05,
     max_conditioning_size: int = 3,
+    ci_test: CITest | None = None,
 ) -> CPDAG:
     """Discover the interventional essential graph from observational and experimental data.
 
@@ -310,7 +353,11 @@ def discover_interventional(
     """
     nodes = list(variables)
     cpdag = discover(
-        observational, nodes, threshold=threshold, max_conditioning_size=max_conditioning_size
+        observational,
+        nodes,
+        threshold=threshold,
+        max_conditioning_size=max_conditioning_size,
+        ci_test=ci_test,
     )
     directed = set(cpdag.directed_edges)
     undirected = set(cpdag.undirected_edges)
@@ -386,6 +433,7 @@ def _refine_skeleton_pds(
     *,
     threshold: float,
     max_conditioning_size: int,
+    ci_test: CITest | None = None,
 ) -> None:
     """FCI Phase II: drop ``a - b`` when a subset of Possible-D-SEP renders them independent."""
     for a in list(nodes):
@@ -396,7 +444,7 @@ def _refine_skeleton_pds(
             removed = False
             for size in range(min(max_conditioning_size, len(pds)) + 1):
                 for cond in combinations(pds, size):
-                    if _independent(data, a, b, cond, threshold=threshold):
+                    if _independent(data, a, b, cond, threshold=threshold, ci_test=ci_test):
                         marks.pop((a, b), None)
                         marks.pop((b, a), None)
                         sepset[frozenset((a, b))] = cond
@@ -679,6 +727,7 @@ def discover_latent(
     *,
     threshold: float = 0.01,
     max_conditioning_size: int = 3,
+    ci_test: CITest | None = None,
 ) -> PAG:
     """Discover a PAG over ``variables`` from ``data`` via the FCI algorithm (allows latents).
 
@@ -688,11 +737,15 @@ def discover_latent(
     for latent confounders and selection bias). The result is a :class:`PAG`: ``a <-> b``
     witnesses a latent confounder; a circle endpoint is undetermined by the equivalence class.
 
-    ``threshold`` and ``max_conditioning_size`` mirror :func:`discover`.
+    ``threshold``, ``max_conditioning_size`` and ``ci_test`` mirror :func:`discover`.
     """
     nodes = list(variables)
     adj, sepset = _pc_skeleton(
-        data, nodes, threshold=threshold, max_conditioning_size=max_conditioning_size
+        data,
+        nodes,
+        threshold=threshold,
+        max_conditioning_size=max_conditioning_size,
+        ci_test=ci_test,
     )
     marks: dict[tuple[str, str], str] = {}
     for a in nodes:
@@ -700,7 +753,13 @@ def discover_latent(
             marks[(a, b)] = _CIRCLE
     _orient_colliders(marks, nodes, sepset)
     _refine_skeleton_pds(
-        data, marks, sepset, nodes, threshold=threshold, max_conditioning_size=max_conditioning_size
+        data,
+        marks,
+        sepset,
+        nodes,
+        threshold=threshold,
+        max_conditioning_size=max_conditioning_size,
+        ci_test=ci_test,
     )
     for key in marks:
         marks[key] = _CIRCLE
