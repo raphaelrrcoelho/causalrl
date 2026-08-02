@@ -113,3 +113,23 @@ def test_agent_frontdoor_symbols_exported():
     for name in ("CausalMBRLAgent", "GFormulaBackdoorAgent"):
         assert name in causalrl.__all__
         assert getattr(causalrl, name) is not None
+
+
+def test_learned_scm_surface_is_exported_top_level():
+    import causalrl
+
+    for name in (
+        "orient",
+        "fit_scm",
+        "fit_scm_mec",
+        "counterfactual_interval",
+        "CounterfactualBound",
+        "FitReport",
+        "NodeFit",
+        "TabularCPT",
+        "LinearGaussianFit",
+        "ANMFit",
+        "NeuralFit",
+    ):
+        assert name in causalrl.__all__, f"{name} missing from __all__"
+        assert getattr(causalrl, name) is not None
