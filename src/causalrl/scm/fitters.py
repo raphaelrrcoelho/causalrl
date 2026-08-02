@@ -14,7 +14,12 @@ import numpy as np
 import torch
 from torch.distributions import Distribution, Normal, Uniform
 
-from causalrl.scm.mechanisms import FunctionalMechanism, LinearGaussianMechanism, Mechanism
+from causalrl.scm.mechanisms import (
+    FunctionalMechanism,
+    LinearGaussianMechanism,
+    Mechanism,
+    NeuralMechanism,
+)
 
 Tensor = torch.Tensor
 _EMPTY_SIZE = torch.Size()  # type: ignore[reportPrivateImportUsage]  # avoids a B008 call-default
@@ -280,3 +285,80 @@ class _Empirical(Distribution):
     @property
     def stddev(self) -> Tensor:
         return self.values.std()
+
+
+class NeuralFit:
+    """Continuous node: ``V = net(parents) + U``, an MLP mean with Gaussian residual noise.
+
+    Fires :class:`causalrl.scm.mechanisms.NeuralMechanism` — the neural causal model primitive.
+    The noise head is additive, so the mechanism stays invertible and counterfactuals at this node
+    remain identified; a general (non-additive) net would not.
+    """
+
+    def __init__(
+        self, *, hidden: int = 32, epochs: int = 200, lr: float = 0.01, seed: int = 0
+    ) -> None:
+        self.hidden = hidden
+        self.epochs = epochs
+        self.lr = lr
+        self.seed = seed
+
+    def fit(self, parents: dict[str, np.ndarray], child: np.ndarray) -> FittedMechanism:
+        y = np.asarray(child, dtype=float)
+        names = sorted(parents)
+        if not names:
+            return LinearGaussianFit().fit({}, y)
+        torch.manual_seed(self.seed)  # type: ignore[reportUnknownMemberType]
+        x = torch.tensor(  # type: ignore[reportPrivateImportUsage]
+            np.column_stack([np.asarray(parents[n], dtype=float) for n in names]),
+            dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
+        )
+        target = torch.tensor(y, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
+        net = torch.nn.Sequential(
+            torch.nn.Linear(len(names), self.hidden),
+            torch.nn.Tanh(),
+            torch.nn.Linear(self.hidden, 1),
+        )
+        optimizer = torch.optim.Adam(net.parameters(), lr=self.lr)
+        for _ in range(self.epochs):
+            optimizer.zero_grad()
+            loss = torch.nn.functional.mse_loss(net(x).squeeze(-1), target)
+            loss.backward()  # type: ignore[reportUnknownMemberType]
+            optimizer.step()  # type: ignore[reportUnknownMemberType]
+        # Fitting is done: freeze the net so every later call (mechanism(...), residual(...),
+        # forward sampling through StructuralCausalModel._evaluate) returns a plain tensor
+        # instead of silently re-building a live autograd graph through the trained weights.
+        for parameter in net.parameters():
+            parameter.requires_grad_(False)
+        with torch.no_grad():
+            predicted = net(x).squeeze(-1)
+        residual = target - predicted
+        sigma = float(residual.std())
+
+        # NeuralMechanism concatenates [parents..., noise]; wrap so the noise stays additive.
+        mechanism = NeuralMechanism(names, _AdditiveHead(net))
+
+        def mean_fn(columns: np.ndarray) -> np.ndarray:
+            with torch.no_grad():
+                batch = torch.tensor(columns, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
+                return net(batch).squeeze(-1).numpy()
+
+        _attach_residual(mechanism, names, mean_fn)
+        return FittedMechanism(
+            mechanism=mechanism,
+            noise=Normal(0.0, max(sigma, 1e-6)),
+            invertible=True,
+            score=_r2(y, predicted.detach().numpy()),
+        )
+
+
+class _AdditiveHead(torch.nn.Module):
+    """Split ``NeuralMechanism``'s ``[parents, noise]`` input into ``net(parents) + noise``."""
+
+    def __init__(self, net: torch.nn.Module) -> None:
+        super().__init__()
+        self.net = net
+
+    def forward(self, columns: Tensor) -> Tensor:
+        parents, noise = columns[:, :-1], columns[:, -1:]
+        return self.net(parents) + noise

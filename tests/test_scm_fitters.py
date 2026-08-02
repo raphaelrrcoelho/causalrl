@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from causalrl.scm.fitters import ANMFit, LinearGaussianFit, TabularCPT
+from causalrl.scm.fitters import ANMFit, LinearGaussianFit, NeuralFit, TabularCPT
 
 
 def test_tabular_cpt_root_recovers_the_marginal():
@@ -175,6 +175,33 @@ def test_anm_duck_typed_estimator_residual_round_trips():
     fitted = ANMFit(estimator=ConstantModel).fit({"X": x[:1500]}, y[:1500])
     held_out = {"X": torch.tensor(x[1500:], dtype=torch.float32)}
     value = torch.tensor(y[1500:], dtype=torch.float32)
+    noise = fitted.mechanism.residual(held_out, value)  # type: ignore[attr-defined]
+    recovered = fitted.mechanism(held_out, noise)
+    assert torch.allclose(recovered, value, rtol=0.0, atol=1e-4)
+
+
+def test_neural_fit_learns_a_nonlinear_mean():
+    rng = np.random.default_rng(8)
+    x = rng.uniform(-2.0, 2.0, size=4000)
+    y = np.tanh(2.0 * x) + rng.normal(scale=0.1, size=4000)
+    fitted = NeuralFit(epochs=300, seed=0).fit({"X": x}, y)
+    grid = torch.linspace(-1.5, 1.5, 32)
+    predicted = fitted.mechanism({"X": grid}, torch.zeros(32))
+    assert float((predicted - torch.tanh(2.0 * grid)).abs().mean()) < 0.2
+    assert fitted.invertible is True
+    assert fitted.score > 0.8
+
+
+def test_neural_fit_residual_round_trips():
+    # Same invariant through NeuralFit's _AdditiveHead route -- the noise must stay exactly
+    # additive (net(parents) + noise) for invertible=True to be honest; Task 8 inverts noise
+    # through residual() here the same way it does for the other three invertible families.
+    rng = np.random.default_rng(12)
+    x = rng.uniform(-2.0, 2.0, size=4000)
+    y = np.tanh(2.0 * x) + rng.normal(scale=0.1, size=4000)
+    fitted = NeuralFit(epochs=300, seed=0).fit({"X": x[:3000]}, y[:3000])
+    held_out = {"X": torch.tensor(x[3000:], dtype=torch.float32)}
+    value = torch.tensor(y[3000:], dtype=torch.float32)
     noise = fitted.mechanism.residual(held_out, value)  # type: ignore[attr-defined]
     recovered = fitted.mechanism(held_out, noise)
     assert torch.allclose(recovered, value, rtol=0.0, atol=1e-4)
