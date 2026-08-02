@@ -14,7 +14,7 @@ import numpy as np
 from torch.distributions import Distribution
 
 from causalrl.exceptions import NotIdentifiableError
-from causalrl.scm.fitters import ANMFit, MechanismFitter, TabularCPT
+from causalrl.scm.fitters import ANMFit, MechanismFitter, TabularCPT, evaluate_holdout
 from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import Mechanism
 from causalrl.scm.scm import StructuralCausalModel
@@ -23,7 +23,14 @@ _MAX_DISCRETE_LEVELS = 20
 
 
 class NodeFit(NamedTuple):
-    """What was fitted at one node, and what that licenses."""
+    """What was fitted at one node, and what that licenses.
+
+    ``holdout_score`` evaluates the DEPLOYED (train-fitted) mechanism against data the fit never
+    saw -- mean log-likelihood for a discrete (non-invertible) mechanism, R^2 for a continuous
+    (invertible, additive-noise) one -- via :func:`causalrl.scm.fitters.evaluate_holdout`. It sits
+    on the same scale as each family's in-sample ``score``, but is a genuine out-of-sample number:
+    an overfit deployed mechanism scores worse here even though its in-sample ``score`` looks fine.
+    """
 
     node: str
     family: str
@@ -33,7 +40,7 @@ class NodeFit(NamedTuple):
 
 
 class FitReport(NamedTuple):
-    """Per-node provenance for a fitted SCM."""
+    """Per-node provenance for a fitted SCM -- see :class:`NodeFit` for what each field reports."""
 
     nodes: tuple[NodeFit, ...]
     n_samples: int
@@ -115,10 +122,11 @@ def fit_scm(
         )
         train_parents = {p: columns[p][train_index] for p in parents}
         fitted = fitter.fit(train_parents, columns[node][train_index])
-        holdout_fit = (
-            fitter.fit({p: columns[p][test_index] for p in parents}, columns[node][test_index])
-            if len(test_index) > 1
-            else fitted
+        test_parents = {p: columns[p][test_index] for p in parents}
+        holdout_score = (
+            evaluate_holdout(fitted, test_parents, columns[node][test_index])
+            if len(test_index) > 0
+            else fitted.score
         )
         mechanisms[node] = fitted.mechanism
         exogenous[node] = fitted.noise
@@ -127,7 +135,7 @@ def fit_scm(
                 node=node,
                 family=_family_name(fitter),
                 parents=parents,
-                holdout_score=holdout_fit.score,
+                holdout_score=holdout_score,
                 invertible=fitted.invertible,
             )
         )

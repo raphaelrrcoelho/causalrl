@@ -8,7 +8,7 @@ node are identified — and a held-out-comparable fit score.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, NamedTuple, Protocol
+from typing import Any, NamedTuple, Protocol, cast
 
 import numpy as np
 import torch
@@ -79,24 +79,43 @@ class TabularCPT:
 
         cum = torch.tensor(np.cumsum(table, axis=1), dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
         value_tensor = torch.tensor(values, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
+        table_tensor = torch.tensor(table, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
         level_tensors = {
             name: torch.tensor(levels[name], dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
             for name in parent_names
         }
 
-        def mechanism(parent_values: dict[str, Tensor], noise: Tensor) -> Tensor:
-            n = noise.reshape(-1).shape[0]
+        def row_index(parent_values: dict[str, Tensor], n: int) -> Tensor:
             row = torch.zeros(n, dtype=torch.long)  # type: ignore[reportPrivateImportUsage]
             for name, stride in zip(parent_names, strides, strict=True):
                 column = parent_values[name].reshape(-1).float()
                 # Nearest level, so an unseen/off-grid parent value maps to its closest bucket.
                 distance = (column.unsqueeze(1) - level_tensors[name].unsqueeze(0)).abs()
                 row = row + distance.argmin(dim=1) * stride
+            return row
+
+        def mechanism(parent_values: dict[str, Tensor], noise: Tensor) -> Tensor:
+            n = noise.reshape(-1).shape[0]
+            row = row_index(parent_values, n)
             picked = (noise.reshape(-1).unsqueeze(1) > cum[row]).sum(dim=1)
             return value_tensor[picked.clamp(max=len(values) - 1)]
 
+        def log_prob(parent_values: dict[str, Tensor], value: Tensor) -> Tensor:
+            """Per-sample log P(value | parents) under the fitted table -- ``evaluate_holdout``'s
+            score for this non-invertible family, since there is no residual to exploit here."""
+            flat = value.reshape(-1).float()
+            row = row_index(parent_values, flat.shape[0])
+            # Nearest fitted value, so an unseen/off-grid child value scores against its closest
+            # bucket instead of a lookup error -- degrades gracefully, matching how mechanism()
+            # already handles an off-grid parent value.
+            distance = (flat.unsqueeze(1) - value_tensor.unsqueeze(0)).abs()
+            col = distance.argmin(dim=1)
+            return table_tensor[row, col].log()
+
+        fitted_mechanism = FunctionalMechanism(parent_names, mechanism)
+        fitted_mechanism.log_prob = log_prob  # type: ignore[attr-defined]
         return FittedMechanism(
-            mechanism=FunctionalMechanism(parent_names, mechanism),
+            mechanism=fitted_mechanism,
             noise=Uniform(0.0, 1.0),
             invertible=False,
             score=score,
@@ -158,6 +177,51 @@ def _attach_residual(
         return flat - mean
 
     mechanism.residual = residual  # type: ignore[attr-defined]
+
+
+def evaluate_holdout(
+    fitted: FittedMechanism, parents: dict[str, np.ndarray], child: np.ndarray
+) -> float:
+    """Score the DEPLOYED (train-fitted) mechanism against data the fit never saw.
+
+    One shared path for all four families, dispatched on ``invertible`` rather than duplicated
+    per family. Invertible (additive-noise) mechanisms recover their mean prediction via
+    ``mechanism(parents, zeros)`` -- zero noise contributes nothing to an additive coupling -- and
+    are scored by :func:`_r2` against the held-out targets, the same metric as their in-sample
+    ``score``. The one non-invertible family (:class:`TabularCPT`) has no residual to exploit, so
+    it is scored via mean held-out log-likelihood through the ``log_prob`` closure attached at fit
+    time, matching what ``TabularCPT.fit`` already reports in-sample. Either way the result sits
+    on the same scale as ``FittedMechanism.score``, so the two numbers are comparable.
+    """
+    names = sorted(parents)
+    child_array = np.asarray(child, dtype=float)
+    n = len(child_array)
+    parent_tensors = {
+        name: torch.tensor(  # type: ignore[reportPrivateImportUsage]
+            np.asarray(parents[name], dtype=float),
+            dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
+        )
+        for name in names
+    }
+    if fitted.invertible:
+        zeros = torch.zeros(n)  # type: ignore[reportPrivateImportUsage]
+        with torch.no_grad():
+            predicted = fitted.mechanism(parent_tensors, zeros)
+        return _r2(child_array, predicted.detach().numpy().astype(float))
+    child_tensor = torch.tensor(  # type: ignore[reportPrivateImportUsage]
+        child_array,
+        dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
+    )
+    # log_prob is attached dynamically (TabularCPT.fit), so it is unknown to the Mechanism
+    # protocol -- cast rather than annotate, so the attribute access's inferred Unknown is fully
+    # replaced instead of merely blended into "Tensor | Unknown" (which still poisons .mean()).
+    log_prob = cast(
+        "Callable[[dict[str, Tensor], Tensor], Tensor]",
+        fitted.mechanism.log_prob,  # type: ignore[attr-defined]
+    )
+    with torch.no_grad():
+        log_probs = log_prob(parent_tensors, child_tensor)
+    return float(log_probs.mean())
 
 
 class LinearGaussianFit:

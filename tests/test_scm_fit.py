@@ -3,7 +3,7 @@ import pytest
 
 from causalrl.exceptions import NotIdentifiableError
 from causalrl.scm.fit import fit_scm
-from causalrl.scm.fitters import LinearGaussianFit
+from causalrl.scm.fitters import ANMFit, LinearGaussianFit
 from causalrl.scm.graph import CausalGraph
 
 
@@ -120,3 +120,22 @@ def test_fit_scm_discrete_scm_refuses_point_counterfactuals():
     assert scm.non_invertible_nodes()
     with pytest.raises(NotIdentifiableError, match="counterfactual_interval"):
         scm.abduct(known={"A": 0.5}, n=8)
+
+
+def test_fit_scm_holdout_score_penalizes_misspecification():
+    # F3 regression: holdout_score used to refit a fresh model on the holdout partition and
+    # report THAT independent fit's own in-sample score, so a badly misspecified deployed
+    # mechanism and a well-specified one could report the same number. It must evaluate the
+    # actually deployed (train-fitted) mechanism out-of-sample instead.
+    graph = CausalGraph(directed_edges=[("X", "Y")])
+    rng = np.random.default_rng(2)
+    x = rng.uniform(-2.0, 2.0, size=8000)
+    y = np.sin(3.0 * x) + rng.normal(scale=0.1, size=8000)
+    data = {"X": x, "Y": y}
+    well_specified = fit_scm(data, graph=graph, families={"X": LinearGaussianFit(), "Y": ANMFit()})
+    misspecified = fit_scm(
+        data, graph=graph, families={"X": LinearGaussianFit(), "Y": LinearGaussianFit()}
+    )
+    well_score = next(n.holdout_score for n in well_specified.fit_report.nodes if n.node == "Y")
+    mis_score = next(n.holdout_score for n in misspecified.fit_report.nodes if n.node == "Y")
+    assert well_score > mis_score + 0.3
