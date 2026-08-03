@@ -389,23 +389,28 @@ class NeuralFit:
         names = sorted(parents)
         if not names:
             return LinearGaussianFit().fit({}, y)
-        torch.manual_seed(self.seed)  # type: ignore[reportUnknownMemberType]
         x = torch.tensor(  # type: ignore[reportPrivateImportUsage]
             np.column_stack([np.asarray(parents[n], dtype=float) for n in names]),
             dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
         )
         target = torch.tensor(y, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
-        net = torch.nn.Sequential(
-            torch.nn.Linear(len(names), self.hidden),
-            torch.nn.Tanh(),
-            torch.nn.Linear(self.hidden, 1),
-        )
-        optimizer = torch.optim.Adam(net.parameters(), lr=self.lr)
-        for _ in range(self.epochs):
-            optimizer.zero_grad()
-            loss = torch.nn.functional.mse_loss(net(x).squeeze(-1), target)
-            loss.backward()  # type: ignore[reportUnknownMemberType]
-            optimizer.step()  # type: ignore[reportUnknownMemberType]
+        # Seed INSIDE a forked RNG: the fit stays deterministic for a given self.seed without
+        # reseeding the caller's process-global stream, which would silently make every
+        # subsequent torch draw in their program a function of when they happened to fit a
+        # mechanism. Same pattern, and same reason, as StructuralCausalModel._sample_exogenous.
+        with torch.random.fork_rng():  # type: ignore[reportUnknownMemberType]
+            torch.manual_seed(self.seed)  # type: ignore[reportUnknownMemberType]
+            net = torch.nn.Sequential(
+                torch.nn.Linear(len(names), self.hidden),
+                torch.nn.Tanh(),
+                torch.nn.Linear(self.hidden, 1),
+            )
+            optimizer = torch.optim.Adam(net.parameters(), lr=self.lr)
+            for _ in range(self.epochs):
+                optimizer.zero_grad()
+                loss = torch.nn.functional.mse_loss(net(x).squeeze(-1), target)
+                loss.backward()  # type: ignore[reportUnknownMemberType]
+                optimizer.step()  # type: ignore[reportUnknownMemberType]
         # Fitting is done: freeze the net so every later call (mechanism(...), residual(...),
         # forward sampling through StructuralCausalModel._evaluate) returns a plain tensor
         # instead of silently re-building a live autograd graph through the trained weights.

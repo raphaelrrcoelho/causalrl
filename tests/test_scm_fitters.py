@@ -191,6 +191,18 @@ def test_neural_fit_learns_a_nonlinear_mean():
     assert fitted.invertible is True
     assert fitted.score > 0.8
 
+    # I3 regression: fitting used torch.manual_seed(), reseeding the caller's process-global
+    # stream -- so a user's subsequent draws silently became a function of when they fitted a
+    # mechanism. The fit must be deterministic for a given seed AND must neither reseed nor
+    # consume the global stream (both would move `after` off `before`).
+    torch.manual_seed(1234)
+    before = torch.rand(3)
+    torch.manual_seed(1234)
+    again = NeuralFit(epochs=300, seed=0).fit({"X": x}, y)
+    after = torch.rand(3)
+    assert torch.equal(after, before)
+    assert torch.equal(again.mechanism({"X": grid}, torch.zeros(32)), predicted)
+
 
 def test_neural_fit_residual_round_trips():
     # Same invariant through NeuralFit's _AdditiveHead route -- the noise must stay exactly
