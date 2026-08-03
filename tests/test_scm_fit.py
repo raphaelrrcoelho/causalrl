@@ -85,6 +85,23 @@ def test_fit_scm_refuses_a_graph_with_bidirected_edges():
         fit_scm({"A": np.zeros(10), "Y": np.zeros(10)}, graph=graph)
 
 
+def test_fit_scm_auto_selected_cpt_refuses_continuous_parents():
+    # I5 regression through the route users actually hit: _is_discrete inspects only the CHILD
+    # column, so the commonest real-data shape -- a binary treatment with continuous confounders
+    # -- auto-selects TabularCPT for A and asks for one row per (X1, X2) configuration:
+    # 640 x 640 = 409,600 rows from 800 samples. The error must name the way out.
+    graph = CausalGraph(directed_edges=[("X1", "A"), ("X2", "A")])
+    rng = np.random.default_rng(0)
+    n = 800
+    data = {
+        "X1": rng.normal(size=n),
+        "X2": rng.normal(size=n),
+        "A": (rng.random(n) < 0.5).astype(int),
+    }
+    with pytest.raises(ValueError, match="families="):
+        fit_scm(data, graph=graph)
+
+
 def test_fit_scm_rejects_data_missing_a_graph_node():
     graph = CausalGraph(directed_edges=[("A", "Y")])
     with pytest.raises(KeyError, match="Y"):

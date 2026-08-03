@@ -24,6 +24,16 @@ from causalrl.scm.mechanisms import (
 Tensor = torch.Tensor
 _EMPTY_SIZE = torch.Size()  # type: ignore[reportPrivateImportUsage]  # avoids a B008 call-default
 
+_MAX_CPT_ROWS = 100_000
+"""Largest conditional probability table :class:`TabularCPT` will build, in rows.
+
+One row per parent configuration, so the count is the PRODUCT of the parents' cardinalities and
+grows explosively with a continuous parent (which contributes one level per distinct observed
+value). 100k rows is already far more than any sample can populate: fitting one means most rows
+are pure Laplace prior, and the table has stopped being a conditional distribution and become a
+nearest-neighbour memoriser of the training rows.
+"""
+
 
 class FittedMechanism(NamedTuple):
     """A fitted structural equation plus what the fit does and does not license."""
@@ -56,9 +66,29 @@ class TabularCPT:
     one of many couplings reproducing the same ``P(V | parents)``, and the data cannot
     distinguish them — hence ``invertible=False``, which makes counterfactuals at this node an
     interval rather than a point.
+
+    **Every parent is discretised by its distinct observed values**, and the table holds one row
+    per parent configuration — the product of those cardinalities. So this family fits a discrete
+    node with *discrete* parents. A continuous parent contributes one level per observed value and
+    the product explodes: the commonest real-data shape, a binary treatment with two continuous
+    confounders at n=800, already asks for 409,600 rows. ``fit`` therefore raises ``ValueError``
+    above :data:`_MAX_CPT_ROWS` rather than exhausting memory, or (where it fits) silently
+    becoming a nearest-neighbour memoriser of the training rows. Pass a continuous family for that
+    node instead — ``fit_scm(..., families={"A": ANMFit()})``.
+
+    ``alpha`` is the Laplace pseudo-count and must be positive: at ``alpha=0`` an unobserved parent
+    configuration would give an all-zero count row and every draw there would silently be the
+    smallest level.
     """
 
     def __init__(self, alpha: float = 1.0) -> None:
+        if alpha <= 0.0:
+            raise ValueError(
+                f"TabularCPT(alpha={alpha}) must be positive: a non-positive pseudo-count leaves "
+                "an unobserved parent configuration with an all-zero count row, whose 0/0 "
+                "normalisation makes every draw there the smallest level rather than a draw from "
+                "any distribution. Use a small alpha (e.g. 1e-6) for near-maximum-likelihood."
+            )
         self.alpha = alpha
 
     def fit(self, parents: dict[str, np.ndarray], child: np.ndarray) -> FittedMechanism:
@@ -70,6 +100,16 @@ class TabularCPT:
         for name in parent_names:
             strides.append(size)
             size *= len(levels[name])
+        if size > _MAX_CPT_ROWS:
+            cardinalities = ", ".join(f"{name}={len(levels[name])}" for name in parent_names)
+            raise ValueError(
+                f"TabularCPT would need {size} rows -- one per parent configuration, the product "
+                f"of the parents' distinct observed values ({cardinalities}) -- above the "
+                f"_MAX_CPT_ROWS={_MAX_CPT_ROWS} limit. A parent with that many levels is "
+                f"continuous, not tabular, so the table would be a nearest-neighbour memoriser of "
+                f"the {len(child)} training rows rather than a conditional distribution. Fit this "
+                f"node with a continuous family instead: fit_scm(..., families={{...: ANMFit()}})."
+            )
 
         rows = (
             np.zeros(len(child), dtype=int)

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import torch
 
 from causalrl.scm.fitters import ANMFit, LinearGaussianFit, NeuralFit, TabularCPT
@@ -50,6 +51,30 @@ def test_tabular_cpt_smooths_an_unseen_parent_configuration():
     u = fitted.noise.sample((n,)).reshape(n).float()
     out = fitted.mechanism({"A": torch.ones(n), "Z": torch.ones(n)}, u)
     assert set(np.unique(out.numpy())) <= {0.0, 1.0}
+
+
+def test_tabular_cpt_refuses_a_table_too_large_to_be_a_conditional_distribution():
+    # I5 regression: each parent is discretised by its distinct observed values, so a CONTINUOUS
+    # parent contributes one level per row and the table's row count (the product of parent
+    # cardinalities) explodes -- 640 x 640 = 409,600 rows here. Left unguarded this either
+    # exhausts memory or, where it fits, becomes a nearest-neighbour memoriser of the training
+    # rows dressed as a conditional distribution.
+    rng = np.random.default_rng(0)
+    n = 640
+    parents = {"X1": rng.normal(size=n), "X2": rng.normal(size=n)}
+    child = (rng.random(n) < 0.5).astype(int)
+    with pytest.raises(ValueError, match="_MAX_CPT_ROWS"):
+        TabularCPT().fit(parents, child)
+
+
+def test_tabular_cpt_rejects_a_non_positive_pseudo_count():
+    # I8 regression: alpha=0 is the obvious maximum-likelihood choice, and used to be accepted --
+    # an unobserved parent configuration then has an all-zero count row whose 0/0 normalisation
+    # makes every draw there the smallest level, silently.
+    with pytest.raises(ValueError, match="must be positive"):
+        TabularCPT(alpha=0.0)
+    with pytest.raises(ValueError, match="must be positive"):
+        TabularCPT(alpha=-1.0)
 
 
 def test_tabular_cpt_conditional_log_likelihood_is_reported():
