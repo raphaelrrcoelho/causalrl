@@ -59,7 +59,10 @@ That is the thread the whole program hangs on: bounds stop being a bolt-on modul
 
 ## 3. Public API
 
-Five new names, exported top-level alongside `discover`.
+Eleven new names, exported top-level alongside `discover`: four entry points (`orient`, `fit_scm`,
+`fit_scm_mec`, `counterfactual_interval`), the `CounterfactualBound` return type, the `FitReport` /
+`NodeFit` provenance records, and the four mechanism fitters (`TabularCPT`, `LinearGaussianFit`,
+`ANMFit`, `NeuralFit`). The snippet below shows the entry points.
 
 ```python
 from causalrl import discover, orient, fit_scm, fit_scm_mec, counterfactual_interval
@@ -123,7 +126,7 @@ intervening.
 | Orientation | `CPDAG (+ tiers) → CausalGraph` | `discovery.py` | torch-free |
 | Mechanism fitters | `(parent columns, child column) → (Mechanism, noise dist, invertible)` | `scm/fit.py` | numpy / torch |
 | SCM fitting | `data + DAG → StructuralCausalModel` | `scm/fit.py` | fitters |
-| Counterfactual bound | `(SCM, evidence, do, target) → CounterfactualBound` | `identification/counterfactual.py` | fitted conditionals + `abduct` |
+| Counterfactual bound | `(SCM, evidence, do, target) → CounterfactualBound` | `identification/counterfactual_bounds.py` | fitted conditionals + `residual` |
 
 `orient` lives in `discovery.py` because it is a structure operation on a CPDAG and must stay
 torch-free — `discovery.py` has no torch import and the top-level lazy loader relies on that.
@@ -338,8 +341,12 @@ TDD, per the project's practice. Tests before implementation, each failing first
   Tian–Pearl PN and PS bounds.
 - An all-invertible (continuous ANM) SCM returns a degenerate interval with `tight=True`, matching
   the exact `abduct(known=...)` counterfactual.
-- A two-discrete-node query returns `tight=False` and an interval containing the truth of a
-  known-coupling ground-truth SCM.
+- A two-discrete-node query **refuses**, per the refinement in §6: a non-invertible node lying
+  strictly between the intervention and the target raises `NotIdentifiableError` naming the NCM
+  min/max, rather than composing a valid-but-loose interval. (Superseded the original plan for
+  this test, which expected `tight=False` and an interval containing a known-coupling truth;
+  `tight` reads `True` throughout phase 1.) A non-invertible node the intervention cannot reach,
+  or one on a sibling branch off the path to the target, does not block the query.
 - The bound always contains the true counterfactual across randomized couplings (property test).
 
 **Gate**

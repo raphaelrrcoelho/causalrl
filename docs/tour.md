@@ -183,16 +183,21 @@ under latent confounding. Faithful to Spirtes, Glymour & Scheines and Meek (UAI 
 model rather than an estimate.
 
 ```python
-from causalrl import discover, orient, fit_scm
+from causalrl import fit_scm, orient
 
-cpdag = discover(data, variables=["Z", "A", "Y"])
-scm = fit_scm(data, graph=orient(cpdag, tiers=[["Z"], ["A"], ["Y"]]))
-scm.do({"A": 1}).see(1000)          # any intervention, not one estimand
+cpdag = discover(data, variables=["X", "Y", "Z", "W"])   # the same data as above
+scm = fit_scm(data, graph=orient(cpdag, tiers=[["X", "Y"], ["Z"], ["W"]]))
+scm.do({"Z": 1}).see(1000)          # any intervention, not one estimand
 ```
 
-Counterfactuals on a fitted model return an interval, not a point: observational data pins
-`P(V | parents)` but not the noise-to-value coupling, so `counterfactual_interval` reports what is
-identified and `abduct` refuses.
+Counterfactuals on a fitted model return an interval, not a point *where a discrete mechanism is
+involved*: observational data pins `P(V | parents)` but not the noise-to-value coupling, so
+`counterfactual_interval` reports what is identified. `abduct` refuses on any fitted model that
+carries a non-invertible (discrete) mechanism — an all-continuous additive-noise fit inverts its
+noise exactly, so it keeps working.
+
+The mechanisms are fitted on `1 - holdout` of the rows (80% by default) and the rest is scored as
+`fit_report`'s per-node `holdout_score`; nothing is refitted on the full sample.
 
 ## Causal imitation learning (Task 6)
 

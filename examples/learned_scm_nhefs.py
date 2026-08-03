@@ -26,6 +26,9 @@ reliable out-of-sample Y signal under either family, so a contrast read off a si
 inherently fragile. That is `holdout_score` doing its job, not a coincidence, and a better warning
 than any prose.
 
+Both fits use `fit_scm`'s default `holdout=0.2`, so every contrast printed below is read off
+mechanisms trained on 80% of the rows; the held-out 20% is what `holdout_score` measures.
+
 What the SCM adds beyond any single contrast, from the same fitted object: other interventions, full
 rollouts, and a counterfactual interval -- queries a single-estimand estimator structurally cannot
 answer.
@@ -112,7 +115,7 @@ def main() -> None:
         "off a single fit is exactly as fragile as that number warns."
     )
 
-    print("\nWhat only the fitted SCM can answer -- a dose the data never assigned (linear fit):")
+    print("\nPer-node provenance of the linear fit -- family, parents, holdout score, invertible:")
     print(scm_linear.fit_report.summary())
 
 
