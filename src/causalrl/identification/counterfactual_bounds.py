@@ -7,6 +7,7 @@ needs torch, and that module's import-time weight is part of the torch-optional 
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Mapping
 from typing import NamedTuple, cast
 
@@ -61,7 +62,19 @@ def counterfactual_interval(
     conditioning event fixes their sum.
 
     Invertible mechanisms contribute no width — their noise is recoverable — so an all-invertible
-    SCM returns a point, matching :meth:`StructuralCausalModel.abduct` exactly.
+    SCM returns a point, matching :meth:`StructuralCausalModel.abduct` exactly. So does an
+    intervention that pins ``target`` itself, or one that leaves ``target``'s parents at their
+    factual values: neither leaves any coupling to choose.
+
+    **What ``tight=True`` claims.** The bound is exact *given the fitted conditionals*: no
+    relaxation is applied to them, and the extremes are solved in closed form rather than
+    approximated. Those conditionals are not exact, though — they are Monte-Carlo estimates,
+    ``n`` draws from ``target``'s exogenous distribution pushed through its fitted mechanism at
+    each parent configuration, under ``seed`` (``None`` gives a fixed default stream, not a
+    random one). So the endpoints carry that estimate's sampling error, and a level whose fitted
+    probability is far below ``1/n`` can be missing from the sampled support altogether, which
+    narrows the reported interval below the identified one. Raise ``n`` to shrink both effects;
+    ``tight`` describes the estimator, not the number of correct digits.
     """
     if scm.provenance != "fitted":
         raise ValueError(
@@ -75,6 +88,14 @@ def counterfactual_interval(
             f"evidence must cover every node for a counterfactual on a fully observed unit; "
             f"missing {sorted(missing)}"
         )
+
+    if target in interventions:
+        # do(target = v) replaces the target's own mechanism with a constant, so its
+        # counterfactual value IS v -- no coupling is involved and nothing upstream can reach it.
+        # Checked before the ambiguity analysis below for that reason: an ambiguous node between
+        # the intervention and a target the same do() pins cannot make this query unanswerable.
+        pinned = _scalar(interventions[target])
+        return CounterfactualBound(pinned, pinned, True)
 
     intervened = set(interventions)
     ambiguous = set(scm.non_invertible_nodes())
@@ -102,7 +123,6 @@ def counterfactual_interval(
         return CounterfactualBound(value, value, True)
 
     factual = _pmf_at(scm, target, factual_parents, n=n, seed=seed)
-    counterfactual = _pmf_at(scm, target, cf_parents, n=n, seed=seed)
     observed = float(evidence[target])
     p_factual = factual.get(observed, 0.0)
     if p_factual <= 0.0:
@@ -111,6 +131,17 @@ def counterfactual_interval(
             f"configuration {factual_parents}; the counterfactual is not defined"
         )
 
+    if _same_configuration(cf_parents, factual_parents):
+        # The intervention leaves the target's parents where they factually were, so Y_cf and Y_f
+        # are the same random variable: every admissible coupling puts all its mass on the
+        # diagonal, and the identified set is the point the unit was observed at. Relaxing that to
+        # Frechet limits would report a modelling choice as a result. Covers "what if we had done
+        # what we did" and placebo / negative-control queries. Placed after the realizability
+        # check so evidence the fitted model deems impossible is still refused rather than
+        # answered.
+        return CounterfactualBound(observed, observed, True)
+
+    counterfactual = _pmf_at(scm, target, cf_parents, n=n, seed=seed)
     values = np.array(sorted(counterfactual), dtype=float)
     marginal = np.array([counterfactual[v] for v in values], dtype=float)
     # Cell pi(v) = P(target_cf = v, target_f = observed). Each cell is capped by its own marginal
@@ -146,6 +177,30 @@ def _extreme_under_sum(
         allocation[index] += added
         remaining -= added
     return float(np.sum(values * allocation))
+
+
+def _scalar(value: Value) -> float:
+    """One unit's worth of an intervention value.
+
+    ``Value`` may be a per-sample vector — ``StructuralCausalModel.do`` broadcasts one over a
+    whole rollout — but a counterfactual here is a query about a single observed unit, so the
+    first entry is that unit's assigned value. Shared with :func:`_counterfactual_parents` so the
+    two resolve an intervention identically.
+    """
+    return float(np.asarray(value).reshape(-1)[0])
+
+
+def _same_configuration(left: Mapping[str, float], right: Mapping[str, float]) -> bool:
+    """Whether two parent configurations are the same, up to float32 round-trip noise.
+
+    Both sides reach here through single-element float32 tensors (``_unit``, and the mechanism
+    replay in :func:`_counterfactual_parents`), so an exact ``==`` would miss a configuration that
+    is one value written two ways. The tolerances sit far below the spacing of any discrete level
+    and far above float32 resolution.
+    """
+    return all(
+        math.isclose(value, right[name], rel_tol=1e-6, abs_tol=1e-8) for name, value in left.items()
+    )
 
 
 def _unit(assignment: Mapping[str, float]) -> dict[str, Tensor]:
@@ -195,7 +250,7 @@ def _counterfactual_parents(
         if node == target or node not in needed:
             continue
         if node in intervened:
-            resolved[node] = float(np.asarray(interventions[node]).reshape(-1)[0])
+            resolved[node] = _scalar(interventions[node])
         elif node not in affected:
             resolved[node] = float(evidence[node])
         else:
@@ -219,7 +274,14 @@ def _pmf_at(
     n: int,
     seed: int | None,
 ) -> dict[float, float]:
-    """The fitted ``P(target | parents = this configuration)``, read off the mechanism directly."""
+    """Estimate the fitted ``P(target | parents = this configuration)`` by sampling.
+
+    ``n`` draws from ``target``'s exogenous distribution, pushed through its fitted mechanism at
+    this one configuration; the result is their empirical distribution, not an exact read-off of
+    the fitted table, so it carries sampling error and can miss a level of probability far below
+    ``1/n``. With ``seed=None`` the fresh ``torch.Generator`` keeps PyTorch's fixed default seed,
+    so repeated calls within a process return the same estimate rather than a fresh draw.
+    """
     generator = torch.Generator()  # type: ignore[reportPrivateImportUsage]
     if seed is not None:
         generator.manual_seed(seed)

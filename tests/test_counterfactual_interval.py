@@ -110,6 +110,68 @@ def test_unaffected_discrete_confounder_does_not_block_the_query():
     assert bound.tight is True
 
 
+def test_intervention_that_changes_nothing_returns_the_observed_point():
+    # I1 regression: do(A=0) on a unit whose factual A is already 0 leaves Y's parent
+    # configuration unchanged, so Y_cf and Y_f are the SAME random variable under every
+    # admissible coupling -- the joint is confined to the diagonal and the identified set is the
+    # single point the unit was observed at. The bug applied the Frechet/transportation
+    # relaxation regardless and reported CounterfactualBound(0.0, 0.4255, tight=True), i.e. a
+    # modelling choice dressed as a result. "What if we had done what we did" and placebo /
+    # negative-control checks are exactly this query.
+    scm = fit_scm(_binary_data(0.8, 0.3), graph=CausalGraph(directed_edges=[("A", "Y")]))
+    assert counterfactual_interval(
+        scm, evidence={"A": 0.0, "Y": 0.0}, interventions={"A": 0.0}, target="Y"
+    ) == CounterfactualBound(0.0, 0.0, True)
+    # A different observed value, so the answer is pinned to evidence[target] rather than to any
+    # constant that happens to match the case above.
+    assert counterfactual_interval(
+        scm, evidence={"A": 1.0, "Y": 1.0}, interventions={"A": 1.0}, target="Y"
+    ) == CounterfactualBound(1.0, 1.0, True)
+    # The degenerate entry path: no intervention at all also leaves the parents unchanged.
+    assert counterfactual_interval(
+        scm, evidence={"A": 1.0, "Y": 0.0}, interventions={}, target="Y"
+    ) == CounterfactualBound(0.0, 0.0, True)
+
+
+def test_intervening_on_the_target_itself_returns_the_intervened_value():
+    # I2 regression: do(Y=1) replaces Y's own mechanism with a constant, so Y_cf = 1 by
+    # definition -- no coupling is involved. `interventions` used to be consumed only by
+    # _ambiguous_upstream and _counterfactual_parents, neither of which looks at the target, so
+    # _pmf_at then evaluated the UN-mutilated mechanism: the answer was byte-identical to the
+    # no-intervention query and the reported interval [0.0, 0.4255] EXCLUDED the truth, while
+    # scm.do() and counterfactual_expectation both answer this query correctly.
+    scm = fit_scm(_binary_data(0.8, 0.3), graph=CausalGraph(directed_edges=[("A", "Y")]))
+    assert counterfactual_interval(
+        scm, evidence={"A": 0.0, "Y": 0.0}, interventions={"Y": 1.0}, target="Y"
+    ) == CounterfactualBound(1.0, 1.0, True)
+    # A per-sample vector value resolves to the unit's own entry, as _counterfactual_parents does.
+    assert counterfactual_interval(
+        scm, evidence={"A": 0.0, "Y": 0.0}, interventions={"Y": np.array([1.0])}, target="Y"
+    ) == CounterfactualBound(1.0, 1.0, True)
+
+
+def test_intervening_on_the_target_answers_even_when_an_ambiguous_node_lies_upstream():
+    # Ordering guard for I2's fix: A -> M -> Y with M non-invertible is the configuration
+    # test_upstream_non_invertible_node_refuses_rather_than_composing_a_loose_bound refuses. But
+    # do(Y=1) pins Y directly, so nothing upstream can reach it and the query is answerable.
+    # Placing the target-intervention check after _ambiguous_upstream would turn this defined
+    # answer into a refusal.
+    rng = np.random.default_rng(1)
+    n = 20_000
+    a = (rng.random(n) < 0.5).astype(int)
+    m = (rng.random(n) < np.where(a == 1, 0.8, 0.2)).astype(int)
+    y = (rng.random(n) < np.where(m == 1, 0.9, 0.1)).astype(int)
+    scm = fit_scm(
+        {"A": a, "M": m, "Y": y}, graph=CausalGraph(directed_edges=[("A", "M"), ("M", "Y")])
+    )
+    assert counterfactual_interval(
+        scm,
+        evidence={"A": 0.0, "M": 0.0, "Y": 0.0},
+        interventions={"A": 1.0, "Y": 1.0},
+        target="Y",
+    ) == CounterfactualBound(1.0, 1.0, True)
+
+
 def test_counterfactual_interval_requires_a_fitted_scm():
     from torch.distributions import Normal
 
