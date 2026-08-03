@@ -183,7 +183,7 @@ under latent confounding. Faithful to Spirtes, Glymour & Scheines and Meek (UAI 
 model rather than an estimate.
 
 ```python
-from causalrl import fit_scm, orient
+from causalrl import discover, fit_scm, orient
 
 cpdag = discover(data, variables=["X", "Y", "Z", "W"])   # the same data as above
 scm = fit_scm(data, graph=orient(cpdag, tiers=[["X", "Y"], ["Z"], ["W"]]))
