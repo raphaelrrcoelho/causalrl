@@ -21,7 +21,7 @@ amend it rather than trusting it blindly.
 | `identify/` | ✓ (as `identification/`) | `identification/` | keep; graph-level, type-agnostic |
 | `bounds/` | ✓ | `identification/bounds.py` | keep; `continuous/` is Phase 1 |
 | `estimate/` | ✗ (seam in `identification/estimate.py`) | `identification/estimate.py` | Phase 1 |
-| `scm/` | ✓ | `scm/` (`graph`, `mechanisms`, `scm`, `unrolled`) | keep; `continuous/` is Phase 1 |
+| `scm/` | ✓ | `scm/` (`graph`, `mechanisms`, `scm`, `unrolled`, `fit`, `fitters`) | keep; `continuous/` is Phase 1; `fit`/`fitters` (2026-08, `learn-the-scm`) learn a StructuralCausalModel from data (mechanisms + noise), with per-node fit provenance |
 | `learners/` | ✓ (as `agents/`) | `agents/` | keep (name differs; no rename in Phase 0) |
 | `policies/` | ✓ (scattered) | `agents/counterfactual.py`, `imitation.py`, `shaping.py` | keep |
 | `transport/` | ✓ (in `identification/`) | `identification/transport*.py` | keep; estimation layer is Phase 1 |

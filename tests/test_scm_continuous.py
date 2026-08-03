@@ -85,7 +85,7 @@ def test_flow_is_monotone_and_nonaffine() -> None:
     torch.manual_seed(1)
     mech = ConditionalFlowMechanism([], n_blocks=3, negative_slope=0.2)
     grid = torch.linspace(-3.0, 3.0, 200)  # no parents; the zero-column root path is used
-    y = mech({}, grid)
+    y = mech({}, grid).detach()  # a shape assertion, not a gradient one
     diffs = y[1:] - y[:-1]
     assert bool((diffs > 0).all())  # strictly increasing => invertible
     # Second differences are non-constant => the map is genuinely non-affine.

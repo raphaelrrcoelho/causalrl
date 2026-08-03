@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Literal
 
 import torch
 from torch.distributions import Distribution
 
-from causalrl.exceptions import CausalGraphError, RealizabilityError
+from causalrl.exceptions import CausalGraphError, NotIdentifiableError, RealizabilityError
 from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import FunctionalMechanism, Mechanism
+
+if TYPE_CHECKING:
+    from causalrl.scm.fit import FitReport
 
 Tensor = torch.Tensor
 
@@ -74,6 +78,9 @@ class StructuralCausalModel:
         graph: CausalGraph,
         mechanisms: dict[str, Mechanism],
         exogenous: dict[str, Distribution],
+        *,
+        provenance: Literal["specified", "fitted"] = "specified",
+        fit_report: FitReport | None = None,
     ) -> None:
         if graph.has_bidirected_edges():
             raise CausalGraphError(
@@ -101,6 +108,12 @@ class StructuralCausalModel:
         self.graph = graph
         self.mechanisms = mechanisms
         self.exogenous = exogenous
+        # Explicit annotation: without it pyright infers the attribute's declared type as the
+        # widened `str` (not the parameter's narrower Literal), so reading it back and passing
+        # it into another StructuralCausalModel(...) call -- e.g. from do() -- fails strict
+        # checking even though the value only ever holds one of the two literal members.
+        self.provenance: Literal["specified", "fitted"] = provenance
+        self.fit_report = fit_report
         self._generator = torch.Generator()  # type: ignore[reportPrivateImportUsage]
         self._generator.seed()
 
@@ -129,7 +142,13 @@ class StructuralCausalModel:
         return values
 
     def do(self, interventions: Mapping[str, Value]) -> StructuralCausalModel:
-        """Layer 2: return the mutilated SCM under do(interventions). Original is unchanged."""
+        """Layer 2: return the mutilated SCM under do(interventions). Original is unchanged.
+
+        Preserves ``provenance``/``fit_report``: the un-intervened mechanisms are the same
+        objects (shallow-copied dict), so a fitted model's L3 guard must still see them as
+        fitted after mutilation -- otherwise ``abduct`` on the result would silently stop
+        refusing point counterfactuals for the non-invertible nodes ``do`` never touched.
+        """
         graph = self.graph
         mechanisms = dict(self.mechanisms)
         for node, value in interventions.items():
@@ -148,7 +167,23 @@ class StructuralCausalModel:
                     [],
                     lambda pa, u, _v=value: _broadcast_value(_v, u.shape[0]).to(u.dtype),
                 )
-        return StructuralCausalModel(graph, mechanisms, self.exogenous)
+        return StructuralCausalModel(
+            graph,
+            mechanisms,
+            self.exogenous,
+            provenance=self.provenance,
+            fit_report=self.fit_report,
+        )
+
+    def non_invertible_nodes(self) -> list[str]:
+        """Nodes whose fitted mechanism cannot recover its noise from (parents, value).
+
+        Mechanisms without an ``invertible`` attribute are treated as invertible: a hand-written
+        mechanism is an assertion by its author, so its coupling is given rather than inferred.
+        """
+        return [
+            node for node, mech in self.mechanisms.items() if not getattr(mech, "invertible", True)
+        ]
 
     def abduct(
         self,
@@ -165,7 +200,36 @@ class StructuralCausalModel:
         rejection). Remaining exogenous are sampled; if ``evidence`` is given they are
         rejection-filtered so the factual evaluation matches ``evidence`` within ``atol``.
         Returns an :class:`ExogenousPosterior`; call its ``predict(do=...)``.
+
+        On a **fitted** SCM containing a non-invertible node this raises: L1 data identifies the
+        mechanisms but not the noise-to-value coupling, so a point counterfactual would report a
+        modelling choice as a result. Use :func:`causalrl.counterfactual_interval` instead.
         """
+        if self.provenance == "fitted":
+            ambiguous = self.non_invertible_nodes()
+            if ambiguous:
+                raise NotIdentifiableError(
+                    f"counterfactuals on a fitted SCM are not identified: node(s) "
+                    f"{sorted(ambiguous)} have a non-invertible mechanism, so their "
+                    "noise-to-value coupling is a modelling choice, not a fitted quantity. "
+                    "Use counterfactual_interval(...) for the identified interval.",
+                    witness=sorted(ambiguous),
+                )
+        return self._abduct(evidence, known=known, n=n, seed=seed, atol=atol)
+
+    def _abduct(
+        self,
+        evidence: dict[str, float] | None = None,
+        *,
+        known: Mapping[str, Value] | None = None,
+        n: int = 20_000,
+        seed: int | None = None,
+        atol: float = 1e-6,
+        allow_fitted: bool = False,
+    ) -> ExogenousPosterior:
+        """Unguarded abduction. ``allow_fitted`` documents intent at the call site: a caller that
+        has already established what its query licenses — sub-project 4's counterfactual data
+        augmentation replays *invertible* mechanisms on a fitted model — bypasses the guard here."""
         known = known or {}
         bad = set(known) - set(self.exogenous)
         if bad:

@@ -177,6 +177,28 @@ PC assumes causal sufficiency and faithfulness; the CPDAG may stay partially ori
 `to_causal_graph` raises rather than guess. See [Causal Discovery](discovery.md) for FCI / PAG
 under latent confounding. Faithful to Spirtes, Glymour & Scheines and Meek (UAI 1995).
 
+### Learn the SCM from data
+
+`discover` gives you structure; `fit_scm` gives you the mechanisms, so the result is an executable
+model rather than an estimate.
+
+```python
+from causalrl import discover, fit_scm, orient
+
+cpdag = discover(data, variables=["X", "Y", "Z", "W"])   # the same data as above
+scm = fit_scm(data, graph=orient(cpdag, tiers=[["X", "Y"], ["Z"], ["W"]]))
+scm.do({"Z": 1}).see(1000)          # any intervention, not one estimand
+```
+
+Counterfactuals on a fitted model return an interval, not a point *where a discrete mechanism is
+involved*: observational data pins `P(V | parents)` but not the noise-to-value coupling, so
+`counterfactual_interval` reports what is identified. `abduct` refuses on any fitted model that
+carries a non-invertible (discrete) mechanism — an all-continuous additive-noise fit inverts its
+noise exactly, so it keeps working.
+
+The mechanisms are fitted on `1 - holdout` of the rows (80% by default) and the rest is scored as
+`fit_report`'s per-node `holdout_score`; nothing is refitted on the full sample.
+
 ## Causal imitation learning (Task 6)
 
 When an unobserved confounder drives both the expert's actions and the outcome, naively cloning
