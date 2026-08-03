@@ -23,6 +23,15 @@ from causalrl.scm.scm import StructuralCausalModel
 
 _MAX_DISCRETE_LEVELS = 20
 
+_MAX_MEC_ENUMERATION = 4096
+"""Candidate orientations :func:`_enumerate_mec` will materialise before refusing.
+
+An equivalence class is enumerated by trying all ``2 ** k`` orientations of its ``k`` undirected
+edges, so the WORK is exponential in ``k`` whatever the resulting class size turns out to be.
+``max_members`` caps the class, not the search, so it cannot bound this. 4096 candidates costs
+about 0.15 s here; 2 ** 25 -- an ordinary PC output on 10 variables -- would not finish.
+"""
+
 
 class NodeFit(NamedTuple):
     """What was fitted at one node, and what that licenses.
@@ -93,9 +102,27 @@ def fit_scm(
     with at most 20 levels get :class:`TabularCPT`, everything else :class:`ANMFit`. The result is
     an ordinary :class:`StructuralCausalModel` marked ``provenance="fitted"``.
 
+    **The deployed mechanisms are fitted on a fraction of the data.** ``data`` is split once, by a
+    ``seed``-controlled permutation shared by every node: ``1 - holdout`` of the rows train the
+    mechanisms the returned SCM actually carries, and the remaining ``holdout`` fraction is scored
+    but never trained on. Nothing is refitted on the full sample afterwards, so at the default
+    ``holdout=0.2`` every number this model reports — every ``do()``, every contrast — comes from
+    an 80%-data fit. Pass a smaller ``holdout`` to trade the out-of-sample score for training rows.
+
+    ``holdout`` must lie in ``(0, 1)``. ``0.0`` is refused rather than silently reporting an
+    in-sample number under :attr:`NodeFit.holdout_score`, whose contract is data the fit never
+    saw; ``>= 1.0`` would leave a one-row training set.
+
     Raises :class:`NotIdentifiableError` on a graph with bidirected edges: under latent confounding
     a node's mechanism is not recoverable by regression on its observed parents.
     """
+    if not 0.0 < holdout < 1.0:
+        raise ValueError(
+            f"holdout={holdout} must lie in (0, 1): it is the fraction of rows held out of every "
+            "mechanism's fit and scored as NodeFit.holdout_score. At 0.0 there is no such data, "
+            "so the reported score would be an in-sample number under an out-of-sample name; at "
+            "1.0 or above there is nothing left to fit on."
+        )
     if graph.has_bidirected_edges():
         raise NotIdentifiableError(
             "fit_scm cannot fit a graph with bidirected edges: under latent confounding a "
@@ -127,6 +154,8 @@ def fit_scm(
         test_parents = {p: columns[p][test_index] for p in parents}
         holdout_score = (
             evaluate_holdout(fitted, test_parents, columns[node][test_index])
+            # A validated holdout in (0, 1) leaves the test partition empty only at n == 1, where
+            # the in-sample score is the only number there is.
             if len(test_index) > 0
             else fitted.score
         )
@@ -165,7 +194,25 @@ def fit_scm_mec(
     member fits it equally well. Sub-project 3 (active interventional discovery) shrinks this set
     by intervening. Raises ``ValueError`` above ``max_members`` naming the true class size —
     equivalence classes are exponential and silently truncating one would misreport the belief.
+
+    A second ``ValueError`` fires *before* enumerating when the CPDAG has too many undirected
+    edges: finding the class means trying all ``2 ** k`` orientations of them, and that work is
+    exponential in ``k`` no matter how small the class turns out to be, so ``max_members`` cannot
+    bound it (see :data:`_MAX_MEC_ENUMERATION`). The pre-check can only name ``2 ** k``, an upper
+    bound on the class size rather than the size itself, and so over-refuses: the honest reading
+    is "this search is too big to run", not "this class is too big to fit".
     """
+    undirected_count = len(cpdag.undirected_edges)
+    candidates = 1 << undirected_count
+    if candidates > _MAX_MEC_ENUMERATION:
+        raise ValueError(
+            f"cpdag has {undirected_count} undirected edges, so enumerating its equivalence class "
+            f"means orienting them 2**{undirected_count} = {candidates} ways -- above the "
+            f"_MAX_MEC_ENUMERATION={_MAX_MEC_ENUMERATION} search budget. That count is an upper "
+            f"bound on the class size, not the size itself, which is only known after the search; "
+            f"max_members caps the class and so cannot cap this. Narrow the CPDAG with tiers via "
+            f"orient() (or supply interventional data) before fitting."
+        )
     members = _enumerate_mec(cpdag)
     if len(members) > max_members:
         raise ValueError(

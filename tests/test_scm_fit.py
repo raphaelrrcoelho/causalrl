@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import pytest
 from torch.distributions import Uniform
@@ -203,6 +205,37 @@ def test_evaluate_holdout_raises_a_clear_error_when_log_prob_is_missing():
     )
     with pytest.raises(AttributeError, match="log_prob"):
         evaluate_holdout(broken, {}, np.zeros(4))
+
+
+@pytest.mark.parametrize("holdout", [0.0, -0.5, 1.0, 1.5])
+def test_fit_scm_rejects_a_holdout_outside_the_unit_interval(holdout):
+    # I6 regression: 1.5 and -0.5 were both accepted, and holdout=0.0 silently reported the
+    # IN-SAMPLE score under NodeFit.holdout_score, whose docstring promises data the fit never
+    # saw. holdout >= 1.0 left a one-row training set.
+    graph = CausalGraph(directed_edges=[("A", "Y")])
+    rng = np.random.default_rng(0)
+    data = {"A": rng.normal(size=200), "Y": rng.normal(size=200)}
+    with pytest.raises(ValueError, match="holdout"):
+        fit_scm(data, graph=graph, holdout=holdout)
+
+
+def test_fit_scm_mec_refuses_a_cpdag_whose_enumeration_would_not_finish():
+    # I4 regression: _enumerate_mec materialised all 2**k orientations, constructing a CausalGraph
+    # per candidate, BEFORE the max_members cap was consulted -- so an ordinary PC output on 10
+    # variables (~25 undirected edges) hung instead of raising the documented error. 2**25 = 33.5M
+    # candidates at the ~37us each measured here is roughly 20 minutes. max_members caps the class,
+    # not the search, so raising it must NOT re-open the hang: the budget is checked independently.
+    variables = tuple(f"V{i}" for i in range(26))
+    cpdag = CPDAG(
+        variables,
+        frozenset(),
+        frozenset(frozenset((f"V{i}", f"V{i + 1}")) for i in range(25)),
+    )
+    data = {v: np.zeros(4) for v in variables}
+    start = time.perf_counter()
+    with pytest.raises(ValueError, match="_MAX_MEC_ENUMERATION"):
+        fit_scm_mec(data, cpdag=cpdag, max_members=10**9)
+    assert time.perf_counter() - start < 5.0
 
 
 def test_fit_scm_mec_fits_every_orientation_of_a_single_undirected_edge():
