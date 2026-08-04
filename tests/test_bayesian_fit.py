@@ -13,23 +13,22 @@ from causalrl.scm.continuous.bayesian_fit import BayesianLinearFit
 
 
 def test_posterior_mean_recovers_the_generating_coefficients():
-    # X on a native scale far from 1 (mean 100, sd 5): standardisation-then-unstandardisation must
+    # X on a native scale far from 1 (mean 10, sd 5): standardisation-then-unstandardisation must
     # round-trip correctly here, or the recovered coefficients drift off 2.0 / 1.0. Regression
     # coverage for both the slope's `/ safe_scale_x[i]` and the intercept's mean-shift correction.
+    # mean_x=10 (not larger): the slope's posterior spread (theoretical sd ~= 0.5 / (scale_x *
+    # sqrt(n)) ~= 0.0022) amplifies onto the intercept by a factor of mean_x, so keeping mean_x
+    # modest keeps that amplified sd (~0.022 here) far inside the 0.1 tolerance below (~4.5 sd of
+    # headroom) instead of trading test power for tolerance-widening.
     rng = np.random.default_rng(0)
     n = 2000
-    x = 100.0 + 5.0 * rng.normal(size=n)
+    x = 10.0 + 5.0 * rng.normal(size=n)
     y = 2.0 * x + 1.0 + rng.normal(scale=0.5, size=n)
     fitted = BayesianLinearFit(draws=500, warmup=500, seed=0).fit({"X": x}, y)
     posterior = fitted.mechanism.posterior  # type: ignore[attr-defined]
     assert isinstance(posterior["X"], np.ndarray)
     assert abs(float(np.mean(posterior["X"])) - 2.0) < 0.1
-    # A wider tolerance than the slope's: at mean_x=100, intercept = ... - weight * mean_x, so the
-    # slope's own posterior spread (theoretical sd ~= 0.5 / (scale_x * sqrt(n)) ~= 0.0022) is
-    # amplified ~100x onto the intercept (theoretical sd ~= mean_x * that ~= 0.22). 0.3 stays far
-    # tighter than either mutation's failure mode (Mutation A fails the slope assertion above
-    # first, at ~10 vs true 2.0; Mutation B lands the intercept at ~201 vs true 1.0).
-    assert abs(float(np.mean(posterior["intercept"])) - 1.0) < 0.3
+    assert abs(float(np.mean(posterior["intercept"])) - 1.0) < 0.1
     assert fitted.invertible is True
 
 
