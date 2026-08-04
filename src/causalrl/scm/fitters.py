@@ -34,6 +34,20 @@ are pure Laplace prior, and the table has stopped being a conditional distributi
 nearest-neighbour memoriser of the training rows.
 """
 
+_MAX_POISSON_SUPPORT = 10_000
+"""Widest inverse-CDF support table :class:`PoissonGLMFit`'s sampler will build, in columns.
+
+Unlike :data:`_MAX_CPT_ROWS` (a fit-time, one-off cost), this table is rebuilt on EVERY
+``mechanism()`` call, sized ``(n, cap + 1)`` where
+``cap = max(20, ceil(lam_max + 10*sqrt(lam_max)))`` and ``lam_max`` is a BATCH max -- one outlier
+unit sets the table width for every row in that call.
+``eta`` is clamped to ``[-30, 30]`` before ``exp``, so an unstable upstream mechanism (e.g. a
+lag-unrolled chain whose coefficients amplify rather than decay) can still push ``lambda`` into the
+tens of thousands, and a large ``n`` (a ``see()`` rollout is commonly 10,000-40,000) turns that into
+a multi-gigabyte allocation. 10,000 columns is already generous for binned point-process data
+(rarely above a few hundred counts per bin) while catching a runaway upstream rate before it OOMs.
+"""
+
 
 class FittedMechanism(NamedTuple):
     """A fitted structural equation plus what the fit does and does not license."""
@@ -233,14 +247,17 @@ def evaluate_holdout(
 ) -> float:
     """Score the DEPLOYED (train-fitted) mechanism against data the fit never saw.
 
-    One shared path for all four families, dispatched on ``invertible`` rather than duplicated
-    per family. Invertible (additive-noise) mechanisms recover their mean prediction via
+    One shared path for every family, dispatched on ``invertible`` rather than duplicated per
+    family. Invertible (additive-noise) mechanisms recover their mean prediction via
     ``mechanism(parents, zeros)`` -- zero noise contributes nothing to an additive coupling -- and
     are scored by :func:`_r2` against the held-out targets, the same metric as their in-sample
-    ``score``. The one non-invertible family (:class:`TabularCPT`) has no residual to exploit, so
-    it is scored via mean held-out log-likelihood through the ``log_prob`` closure attached at fit
-    time, matching what ``TabularCPT.fit`` already reports in-sample. Either way the result sits
-    on the same scale as ``FittedMechanism.score``, so the two numbers are comparable.
+    ``score``. The non-invertible families (:class:`TabularCPT`, :class:`PoissonGLMFit`) have no
+    residual to exploit, so they are scored via mean held-out log-likelihood through the
+    ``log_prob`` closure attached at fit time, matching what each family's own ``fit`` already
+    reports in-sample -- dispatch is on the ``invertible`` flag and the attached ``log_prob``, not
+    a hardcoded type check, so this generalises to any future non-invertible family unchanged.
+    Either way the result sits on the same scale as ``FittedMechanism.score``, so the two numbers
+    are comparable.
     """
     names = sorted(parents)
     child_array = np.asarray(child, dtype=float)
@@ -563,6 +580,17 @@ class PoissonGLMFit:
             # approximation worth raising over.
             lam_max = float(lam.max())
             cap = max(20, int(np.ceil(lam_max + 10.0 * np.sqrt(lam_max))))
+            if cap > _MAX_POISSON_SUPPORT:
+                raise ValueError(
+                    f"PoissonGLMFit's sampler would need a support table {cap + 1} columns wide "
+                    f"(lambda up to {lam_max:.3g} in this batch) -- above "
+                    f"_MAX_POISSON_SUPPORT={_MAX_POISSON_SUPPORT}. That table is rebuilt on every "
+                    f"mechanism() call, sized (n={n}, cap+1), so its cost multiplies by the batch "
+                    f"size rather than being paid once at fit time. A lambda this large usually "
+                    f"means an unstable upstream mechanism (e.g. a lag chain whose coefficients "
+                    f"amplify rather than decay) rather than real point-process data -- check the "
+                    f"fitted coefficients feeding this node before raising the cap."
+                )
             counts = torch.arange(cap + 1, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
             log_pmf = (
                 counts.unsqueeze(0) * lam.log().unsqueeze(1)

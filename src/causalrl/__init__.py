@@ -319,6 +319,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "LinearGaussianFit": ("causalrl.scm.fitters", "LinearGaussianFit"),
     "NeuralFit": ("causalrl.scm.fitters", "NeuralFit"),
     "NodeFit": ("causalrl.scm.fit", "NodeFit"),
+    "PoissonGLMFit": ("causalrl.scm.fitters", "PoissonGLMFit"),
     "TabularCPT": ("causalrl.scm.fitters", "TabularCPT"),
     "counterfactual_interval": (
         "causalrl.identification.counterfactual_bounds",
@@ -327,7 +328,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "fit_scm": ("causalrl.scm.fit", "fit_scm"),
     "fit_scm_mec": ("causalrl.scm.fit", "fit_scm_mec"),
     "orient": ("causalrl.discovery", "orient"),
-    "PoissonGLMFit": ("causalrl.scm.fitters", "PoissonGLMFit"),
 }
 
 __all__ = [

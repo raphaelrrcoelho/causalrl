@@ -2,12 +2,19 @@ import time
 
 import numpy as np
 import pytest
+import torch
 from torch.distributions import Uniform
 
 from causalrl.discovery import CPDAG
 from causalrl.exceptions import NotIdentifiableError
 from causalrl.scm.fit import fit_scm, fit_scm_mec
-from causalrl.scm.fitters import ANMFit, FittedMechanism, LinearGaussianFit, evaluate_holdout
+from causalrl.scm.fitters import (
+    ANMFit,
+    FittedMechanism,
+    LinearGaussianFit,
+    PoissonGLMFit,
+    evaluate_holdout,
+)
 from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import FunctionalMechanism
 
@@ -298,3 +305,24 @@ def test_fit_scm_accepts_lag_embedded_node_names():
     # E[x0 | do(x2=1)] = 0.4*0.7 + 0.3 = 0.58
     drawn = scm.do({names[0]: 1.0}).see(20_000, seed=0)[names[2]]
     assert abs(float(drawn.mean()) - 0.58) < 0.05
+
+
+def test_fit_scm_wires_a_poisson_glm_node_end_to_end():
+    # The four direct-fit tests in test_scm_fitters.py all call PoissonGLMFit().fit(...) directly,
+    # so none of them exercise the wiring the brief's "Not auto-dispatched" section documents as
+    # the real use case: fit_scm(..., families={"Y": PoissonGLMFit()}). That path is what actually
+    # sets mechanism.invertible (fit.py), what the L3 guard in scm.py reads, what evaluate_holdout
+    # dispatches on for holdout_score, and what do()/see() sample through -- all untested until now.
+    graph = CausalGraph(directed_edges=[("X", "Y")])
+    rng = np.random.default_rng(0)
+    n = 4000
+    x = rng.normal(size=n)
+    y = rng.poisson(np.exp(0.2 + 0.5 * x))
+    scm = fit_scm({"X": x, "Y": y}, graph=graph, families={"Y": PoissonGLMFit()})
+    node = next(f for f in scm.fit_report.nodes if f.node == "Y")
+    assert node.invertible is False
+    assert node.family == "poisson_glm"  # pins fit.py's _FAMILY_NAMES entry, not the fallback
+    with pytest.raises(NotIdentifiableError, match="counterfactual_interval"):
+        scm.abduct(known={"Y": 2.0}, n=8)
+    drawn = scm.do({"X": 1.0}).see(2000, seed=0)["Y"]
+    assert torch.allclose(drawn, drawn.round())

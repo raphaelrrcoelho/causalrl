@@ -187,6 +187,7 @@ class MechanismFitter(Protocol):
 | `LinearGaussianFit` | continuous | closed-form OLS | `Normal(0, σ̂)` from residuals | `True` |
 | `ANMFit` | continuous | duck-typed `fit`/`predict` estimator, numpy-ridge default | empirical residual distribution | `True` |
 | `NeuralFit` | continuous | torch MLP into `NeuralMechanism` | `Normal(0, σ̂)`, additive head | `True` |
+| `PoissonGLMFit` | count | log-link GLM via IRLS, opt-in | `Uniform(0,1)` + inverse CDF | `False` |
 
 `ANMFit` mirrors `GFormulaBackdoorAgent`'s `outcome_model=` factory (`agents/mbrl.py:409`): a
 callable returning a fresh sklearn-style estimator, so sklearn stays optional.

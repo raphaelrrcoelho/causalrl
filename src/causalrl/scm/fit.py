@@ -72,6 +72,7 @@ _FAMILY_NAMES = {
     "LinearGaussianFit": "linear_gaussian",
     "ANMFit": "anm",
     "NeuralFit": "neural",
+    "PoissonGLMFit": "poisson_glm",
 }
 
 

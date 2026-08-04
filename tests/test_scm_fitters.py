@@ -269,6 +269,14 @@ def test_poisson_glm_mechanism_reproduces_the_conditional_mean():
     u = fitted.noise.sample((m,)).reshape(m).float()
     drawn = fitted.mechanism({"X": torch.ones(m)}, u)
     assert abs(float(drawn.mean()) - float(np.exp(0.8))) < 0.05
+    # Mutation guard: a mean predictor that discards `noise` and returns `rate(...)` directly would
+    # satisfy the mean assertion above exactly (constant lambda for every unit), so the inverse-CDF
+    # construction needs its own check -- integer-valued draws with Poisson dispersion
+    # (variance/mean ~= 1), neither of which a mean predictor can produce.
+    assert torch.allclose(drawn, drawn.round())
+    variance = float(drawn.var())
+    mean = float(drawn.mean())
+    assert abs(variance / mean - 1.0) < 0.1
 
 
 def test_poisson_glm_attaches_log_prob_for_holdout_scoring():
@@ -293,15 +301,21 @@ def test_poisson_glm_attaches_log_prob_for_holdout_scoring():
 
 
 def test_poisson_glm_beats_tabular_cpt_on_many_lagged_parents():
-    # 6 ternary parents = 729 configurations; TabularCPT's table is mostly prior at this n.
+    # 6 ternary parents = 729 configurations; at this n most are occupied but each by only a
+    # handful of raw rows, so TabularCPT's Laplace smoothing still dominates cell-by-cell while the
+    # GLM pools information across configurations through its shared linear coefficients. Fit on
+    # one partition, score on a disjoint 500-row holdout neither model trained on -- a same-rows
+    # in-sample comparison is fragile (favours the CPT, which can memorise rows it was fit on) and
+    # does not test the claim in this test's own name.
     rng = np.random.default_rng(3)
     n = 3000
     parents = {f"lag{i}": rng.integers(0, 3, size=n).astype(float) for i in range(6)}
     eta = 0.1 + sum(0.15 * parents[f"lag{i}"] for i in range(6))
     y = rng.poisson(np.exp(eta))
-    glm = PoissonGLMFit().fit(parents, y)
-    cpt = TabularCPT().fit({k: v.astype(int) for k, v in parents.items()}, y)
+    train = {k: v[500:] for k, v in parents.items()}
     held = {k: v[:500] for k, v in parents.items()}
+    glm = PoissonGLMFit().fit(train, y[500:])
+    cpt = TabularCPT().fit({k: v.astype(int) for k, v in train.items()}, y[500:])
     target = torch.tensor(y[:500], dtype=torch.float32)
     glm_ll = float(
         glm.mechanism.log_prob(  # type: ignore[attr-defined]
@@ -313,4 +327,16 @@ def test_poisson_glm_beats_tabular_cpt_on_many_lagged_parents():
             {k: torch.tensor(v, dtype=torch.float32) for k, v in held.items()}, target
         ).mean()
     )
-    assert glm_ll > cpt_ll
+    assert glm_ll > cpt_ll + 0.2
+
+
+def test_poisson_glm_refuses_a_support_table_too_wide_to_build_safely():
+    # A runaway upstream VALUE (not a runaway fit) pushes eta to its clamp boundary; the sampler's
+    # per-row support table must refuse rather than build a multi-gigabyte allocation.
+    rng = np.random.default_rng(4)
+    x = rng.normal(size=2000)
+    y = rng.poisson(np.exp(0.1 + 0.1 * x))
+    fitted = PoissonGLMFit().fit({"X": x}, y)
+    huge = torch.full((4,), 1000.0)
+    with pytest.raises(ValueError, match="_MAX_POISSON_SUPPORT"):
+        fitted.mechanism({"X": huge}, torch.rand(4))
