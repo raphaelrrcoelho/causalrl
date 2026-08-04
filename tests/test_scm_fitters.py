@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from causalrl.scm.fitters import ANMFit, LinearGaussianFit, NeuralFit, TabularCPT
+from causalrl.scm.fitters import ANMFit, LinearGaussianFit, NeuralFit, PoissonGLMFit, TabularCPT
 
 
 def test_tabular_cpt_root_recovers_the_marginal():
@@ -242,3 +242,75 @@ def test_neural_fit_residual_round_trips():
     noise = fitted.mechanism.residual(held_out, value)  # type: ignore[attr-defined]
     recovered = fitted.mechanism(held_out, noise)
     assert torch.allclose(recovered, value, rtol=0.0, atol=1e-4)
+
+
+def test_poisson_glm_recovers_log_linear_coefficients():
+    rng = np.random.default_rng(0)
+    n = 20_000
+    x = rng.normal(size=n)
+    z = rng.normal(size=n)
+    rate = np.exp(0.4 + 0.8 * x - 0.5 * z)
+    y = rng.poisson(rate)
+    fitted = PoissonGLMFit().fit({"X": x, "Z": z}, y)
+    coefficients = fitted.mechanism.coefficients  # type: ignore[attr-defined]
+    assert abs(coefficients["intercept"] - 0.4) < 0.05
+    assert abs(coefficients["X"] - 0.8) < 0.05
+    assert abs(coefficients["Z"] + 0.5) < 0.05
+    assert fitted.invertible is False
+
+
+def test_poisson_glm_mechanism_reproduces_the_conditional_mean():
+    rng = np.random.default_rng(1)
+    n = 20_000
+    x = rng.normal(size=n)
+    y = rng.poisson(np.exp(0.2 + 0.6 * x))
+    fitted = PoissonGLMFit().fit({"X": x}, y)
+    m = 40_000
+    u = fitted.noise.sample((m,)).reshape(m).float()
+    drawn = fitted.mechanism({"X": torch.ones(m)}, u)
+    assert abs(float(drawn.mean()) - float(np.exp(0.8))) < 0.05
+
+
+def test_poisson_glm_attaches_log_prob_for_holdout_scoring():
+    rng = np.random.default_rng(2)
+    n = 8000
+    x = rng.normal(size=n)
+    y = rng.poisson(np.exp(0.3 + 0.7 * x))
+    fitted = PoissonGLMFit().fit({"X": x}, y)
+    informative = float(
+        fitted.mechanism.log_prob(  # type: ignore[attr-defined]
+            {"X": torch.tensor(x, dtype=torch.float32)},
+            torch.tensor(y, dtype=torch.float32),
+        ).mean()
+    )
+    flat = PoissonGLMFit().fit({}, y)
+    uninformative = float(
+        flat.mechanism.log_prob(  # type: ignore[attr-defined]
+            {}, torch.tensor(y, dtype=torch.float32)
+        ).mean()
+    )
+    assert informative > uninformative
+
+
+def test_poisson_glm_beats_tabular_cpt_on_many_lagged_parents():
+    # 6 ternary parents = 729 configurations; TabularCPT's table is mostly prior at this n.
+    rng = np.random.default_rng(3)
+    n = 3000
+    parents = {f"lag{i}": rng.integers(0, 3, size=n).astype(float) for i in range(6)}
+    eta = 0.1 + sum(0.15 * parents[f"lag{i}"] for i in range(6))
+    y = rng.poisson(np.exp(eta))
+    glm = PoissonGLMFit().fit(parents, y)
+    cpt = TabularCPT().fit({k: v.astype(int) for k, v in parents.items()}, y)
+    held = {k: v[:500] for k, v in parents.items()}
+    target = torch.tensor(y[:500], dtype=torch.float32)
+    glm_ll = float(
+        glm.mechanism.log_prob(  # type: ignore[attr-defined]
+            {k: torch.tensor(v, dtype=torch.float32) for k, v in held.items()}, target
+        ).mean()
+    )
+    cpt_ll = float(
+        cpt.mechanism.log_prob(  # type: ignore[attr-defined]
+            {k: torch.tensor(v, dtype=torch.float32) for k, v in held.items()}, target
+        ).mean()
+    )
+    assert glm_ll > cpt_ll

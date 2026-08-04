@@ -327,6 +327,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "fit_scm": ("causalrl.scm.fit", "fit_scm"),
     "fit_scm_mec": ("causalrl.scm.fit", "fit_scm_mec"),
     "orient": ("causalrl.discovery", "orient"),
+    "PoissonGLMFit": ("causalrl.scm.fitters", "PoissonGLMFit"),
 }
 
 __all__ = [
@@ -407,6 +408,7 @@ __all__ = [
     "OnlineOnlyUCB",
     "POMISThompsonSampling",
     "PivotalityCertificate",
+    "PoissonGLMFit",
     "PolicyValueContrast",
     "Population",
     "PopulationAgentView",

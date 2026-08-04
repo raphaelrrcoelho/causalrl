@@ -276,3 +276,25 @@ def test_fit_scm_mec_raises_above_the_cap_and_names_the_real_size():
     data = {k: rng.normal(size=500) for k in ("A", "B", "C")}
     with pytest.raises(ValueError, match="3 member"):
         fit_scm_mec(data, cpdag=cpdag, max_members=2)
+
+
+def test_fit_scm_accepts_lag_embedded_node_names():
+    # Lag-unrolled frames use names like `M1_0@t-2`. Nothing may parse a node name.
+    rng = np.random.default_rng(0)
+    n = 4000
+    names = ["M1_0@t-2", "M1_0@t-1", "M1_0@t-0"]
+    x2 = rng.normal(size=n)
+    x1 = 0.7 * x2 + rng.normal(scale=0.5, size=n)
+    x0 = 0.4 * x1 + 0.3 * x2 + rng.normal(scale=0.5, size=n)
+    data = {names[0]: x2, names[1]: x1, names[2]: x0}
+    graph = CausalGraph(
+        directed_edges=[(names[0], names[1]), (names[1], names[2]), (names[0], names[2])]
+    )
+    scm = fit_scm(data, graph=graph, families=dict.fromkeys(names, LinearGaussianFit()))
+    assert [f.node for f in scm.fit_report.nodes] == names
+    assert scm.fit_report.nodes[2].parents == (names[1], names[0]) or set(
+        scm.fit_report.nodes[2].parents
+    ) == {names[0], names[1]}
+    # E[x0 | do(x2=1)] = 0.4*0.7 + 0.3 = 0.58
+    drawn = scm.do({names[0]: 1.0}).see(20_000, seed=0)[names[2]]
+    assert abs(float(drawn.mean()) - 0.58) < 0.05

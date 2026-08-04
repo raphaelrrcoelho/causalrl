@@ -130,6 +130,7 @@ def test_learned_scm_surface_is_exported_top_level():
         "LinearGaussianFit",
         "ANMFit",
         "NeuralFit",
+        "PoissonGLMFit",
     ):
         assert name in causalrl.__all__, f"{name} missing from __all__"
         assert getattr(causalrl, name) is not None
