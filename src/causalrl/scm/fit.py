@@ -81,6 +81,7 @@ _FAMILY_NAMES = {
     "ANMFit": "anm",
     "NeuralFit": "neural",
     "PoissonGLMFit": "poisson_glm",
+    "BayesianLinearFit": "bayesian_linear",
 }
 
 

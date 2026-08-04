@@ -188,6 +188,7 @@ class MechanismFitter(Protocol):
 | `ANMFit` | continuous | duck-typed `fit`/`predict` estimator, numpy-ridge default | empirical residual distribution | `True` |
 | `NeuralFit` | continuous | torch MLP into `NeuralMechanism` | `Normal(0, σ̂)`, additive head | `True` |
 | `PoissonGLMFit` | count | log-link GLM via IRLS, opt-in | `Uniform(0,1)` + inverse CDF | `False` |
+| `BayesianLinearFit` | continuous | NUTS posterior over `(intercept, w, σ)`, opt-in, `[numpyro]` extra | `Normal(0, E[σ])` from the posterior mean | `True` |
 
 `ANMFit` mirrors `GFormulaBackdoorAgent`'s `outcome_model=` factory (`agents/mbrl.py:409`): a
 callable returning a fresh sklearn-style estimator, so sklearn stays optional.

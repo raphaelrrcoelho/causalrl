@@ -10,6 +10,8 @@ pytest.importorskip("numpyro")
 pytest.importorskip("jax")
 
 from causalrl.scm.continuous.bayesian_fit import BayesianLinearFit
+from causalrl.scm.fit import fit_scm
+from causalrl.scm.graph import CausalGraph
 
 
 def test_posterior_mean_recovers_the_generating_coefficients():
@@ -30,6 +32,10 @@ def test_posterior_mean_recovers_the_generating_coefficients():
     assert abs(float(np.mean(posterior["X"])) - 2.0) < 0.1
     assert abs(float(np.mean(posterior["intercept"])) - 1.0) < 0.1
     assert fitted.invertible is True
+    # In-sample R^2 of the posterior-mean mechanism -- the same field, on the same scale, that
+    # LinearGaussianFit reports and that fit_scm falls back to when the holdout split is empty.
+    # signal var (5 * 2)^2 = 100 against residual var 0.25, so R^2 ~= 0.9975.
+    assert fitted.score > 0.9
 
 
 def test_posterior_sigma_recovers_the_true_noise_scale_at_large_child_scale():
@@ -44,6 +50,14 @@ def test_posterior_sigma_recovers_the_true_noise_scale_at_large_child_scale():
     fitted = BayesianLinearFit(draws=500, warmup=500, seed=0).fit({"X": x}, y)
     posterior = fitted.mechanism.posterior  # type: ignore[attr-defined]
     assert abs(float(np.mean(posterior["sigma"])) - true_sigma) < 0.1 * true_sigma
+    # ...and the same number must reach `fitted.noise`, which is the field fit_scm installs as this
+    # node's exogenous distribution (fit.py) and which every see()/do() draw is sampled from. The
+    # posterior dict is only reporting; the noise is deployed. Dropping the `* safe_scale_y`
+    # unstandardisation from the noise alone would leave the assertion above green while the SCM
+    # drew residuals ~200x too small here, so this is the assertion that pins the standardise /
+    # unstandardise hazard on the side that ships. Same shape as the point-estimate sibling's
+    # `abs(float(fitted.noise.stddev) - 0.5) < 0.05` in test_scm_fitters.py.
+    assert abs(float(fitted.noise.stddev) - true_sigma) < 0.1 * true_sigma
 
 
 def test_credible_interval_covers_the_truth_and_narrows_with_data():
@@ -87,3 +101,39 @@ def test_posterior_mean_mechanism_round_trips_like_its_siblings():
     value = torch.tensor([1.1], dtype=torch.float32)
     noise = fitted.mechanism.residual(parents, value)  # type: ignore[attr-defined]
     assert torch.allclose(fitted.mechanism(parents, noise), value, rtol=0.0, atol=1e-4)
+
+
+def test_fit_scm_wires_a_bayesian_linear_node_end_to_end():
+    # The direct-fit tests above all call BayesianLinearFit().fit(...) directly, so none of them
+    # exercise the wiring that is the real use case: fit_scm(..., families={"Y":
+    # BayesianLinearFit()}). That path is what sets mechanism.invertible (fit.py), what the L3
+    # guard in scm.py reads, what evaluate_holdout dispatches on for holdout_score, what
+    # _FAMILY_NAMES labels in the FitReport, and -- above all -- what installs `fitted.noise` as
+    # the node's exogenous distribution that do()/see() sample from. The same hole PoissonGLMFit
+    # closed in test_scm_fit.py::test_fit_scm_wires_a_poisson_glm_node_end_to_end.
+    #
+    # y's residual scale (5.0) is deliberately far from y's own scale (sd ~= 30.4): the deployed
+    # noise is unstandardised by safe_scale_y, so a regression there would show up as rollout
+    # spread ~6x too small while every mean below stayed correct.
+    graph = CausalGraph(directed_edges=[("X", "Y")])
+    rng = np.random.default_rng(0)
+    n = 2500
+    x = rng.normal(size=n)
+    y = 30.0 * x + 20.0 + rng.normal(scale=5.0, size=n)
+    scm = fit_scm(
+        {"X": x, "Y": y}, graph=graph, families={"Y": BayesianLinearFit(draws=400, warmup=400)}
+    )
+
+    node = next(f for f in scm.fit_report.nodes if f.node == "Y")
+    assert node.family == "bayesian_linear"  # pins fit.py's _FAMILY_NAMES entry, not the fallback
+    assert node.invertible is True
+    # evaluate_holdout's invertible branch: R^2 on rows the fit never saw, 900 / 925 ~= 0.973.
+    assert node.holdout_score > 0.9
+
+    # The L3 guard's permissive side: an all-invertible fitted SCM licenses point counterfactuals
+    # (the mirror of the Poisson node's NotIdentifiableError).
+    scm.abduct(known={"Y": 0.0}, n=8)
+
+    drawn = scm.do({"X": 1.0}).see(8000, seed=0)["Y"]
+    assert abs(float(drawn.mean()) - 50.0) < 1.0  # 30 * 1 + 20, from the posterior-mean mechanism
+    assert abs(float(drawn.std()) - 5.0) < 1.0  # from fitted.noise -- the deployed exogenous draw

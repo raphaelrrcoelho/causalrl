@@ -311,6 +311,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "transported_effect": ("causalrl.identification.transport", "transported_effect"),
     "value_iteration": ("causalrl.shaping", "value_iteration"),
     "ANMFit": ("causalrl.scm.fitters", "ANMFit"),
+    "BayesianLinearFit": ("causalrl.scm.continuous.bayesian_fit", "BayesianLinearFit"),
     "CounterfactualBound": (
         "causalrl.identification.counterfactual_bounds",
         "CounterfactualBound",
@@ -341,6 +342,7 @@ __all__ = [
     "AmortizedGaussianAbduction",
     "Assumption",
     "BackdoorAdjustedAgent",
+    "BayesianLinearFit",
     "BehavioralCloning",
     "BenchmarkEstimate",
     "BruteForceInterventionTS",

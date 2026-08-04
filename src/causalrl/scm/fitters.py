@@ -68,11 +68,13 @@ class MechanismFitter(Protocol):
 
     A fitter reporting ``invertible=True`` should attach a ``residual(parent_values, value) ->
     Tensor`` closure to the returned mechanism (see :func:`_attach_residual`), the way
-    :class:`LinearGaussianFit`, :class:`ANMFit`, and :class:`NeuralFit` all do. A fitter reporting
+    :class:`LinearGaussianFit`, :class:`ANMFit`, :class:`NeuralFit` and
+    :class:`~causalrl.scm.continuous.bayesian_fit.BayesianLinearFit` all do. A fitter reporting
     ``invertible=False`` must instead attach a ``log_prob(parent_values, value) -> Tensor``
-    closure, the way :class:`TabularCPT` does: :func:`evaluate_holdout` requires one of the two to
-    score a fitted mechanism out-of-sample, and raises a clear error naming which is missing
-    rather than letting an opaque ``AttributeError`` escape from inside a user-supplied fitter.
+    closure, the way :class:`TabularCPT` and :class:`PoissonGLMFit` do: :func:`evaluate_holdout`
+    requires one of the two to score a fitted mechanism out-of-sample, and raises a clear error
+    naming which is missing rather than letting an opaque ``AttributeError`` escape from inside a
+    user-supplied fitter.
     """
 
     def fit(self, parents: dict[str, np.ndarray], child: np.ndarray) -> FittedMechanism: ...
@@ -614,11 +616,12 @@ class PoissonGLMFit:
                     f"-- above _MAX_POISSON_CELLS={_MAX_POISSON_CELLS}. This table is rebuilt on "
                     f"every mechanism() call and its cost is the PRODUCT of the batch size and the "
                     f"per-row support width, so either factor alone -- a large batch or a large "
-                    f"lambda -- can trip it; the numbers above show which one did here. A lambda "
-                    f"this large usually means an unstable upstream mechanism (e.g. a lag chain "
-                    f"whose coefficients amplify rather than decay) rather than real point-process "
-                    f"data -- check the fitted coefficients feeding this node before raising the "
-                    f"cap."
+                    f"lambda -- can trip it; the numbers above show which one did here. The cap is "
+                    f"a fixed module constant with no parameter to raise it, so the fix is on the "
+                    f"calling side: a lambda this large usually means an unstable upstream "
+                    f"mechanism (e.g. a lag chain whose coefficients amplify rather than decay) "
+                    f"rather than real point-process data, so check the fitted coefficients "
+                    f"feeding this node; if lambda is ordinary, ask for fewer rows per call."
                 )
             counts = torch.arange(cap + 1, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
             log_pmf = (
