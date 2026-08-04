@@ -34,18 +34,23 @@ are pure Laplace prior, and the table has stopped being a conditional distributi
 nearest-neighbour memoriser of the training rows.
 """
 
-_MAX_POISSON_SUPPORT = 10_000
-"""Widest inverse-CDF support table :class:`PoissonGLMFit`'s sampler will build, in columns.
+_MAX_POISSON_CELLS = 25_000_000
+"""Largest ``(n, cap + 1)`` inverse-CDF support table :class:`PoissonGLMFit`'s sampler will build,
+counted in CELLS (``n * (cap + 1)``), not columns.
 
-Unlike :data:`_MAX_CPT_ROWS` (a fit-time, one-off cost), this table is rebuilt on EVERY
-``mechanism()`` call, sized ``(n, cap + 1)`` where
-``cap = max(20, ceil(lam_max + 10*sqrt(lam_max)))`` and ``lam_max`` is a BATCH max -- one outlier
-unit sets the table width for every row in that call.
-``eta`` is clamped to ``[-30, 30]`` before ``exp``, so an unstable upstream mechanism (e.g. a
-lag-unrolled chain whose coefficients amplify rather than decay) can still push ``lambda`` into the
-tens of thousands, and a large ``n`` (a ``see()`` rollout is commonly 10,000-40,000) turns that into
-a multi-gigabyte allocation. 10,000 columns is already generous for binned point-process data
-(rarely above a few hundred counts per bin) while catching a runaway upstream rate before it OOMs.
+Unlike :data:`_MAX_CPT_ROWS` (a fit-time cost independent of ``n``), this table is rebuilt on
+EVERY ``mechanism()`` call and its cost is the PRODUCT of the batch size ``n`` and the per-row
+support width ``cap + 1`` (``cap = max(20, ceil(lam_max + 10*sqrt(lam_max)))``, ``lam_max`` a BATCH
+max). Bounding either factor alone misses the other: an unstable upstream mechanism (e.g. a
+lag-unrolled chain whose coefficients amplify rather than decay) can push ``lambda`` into the tens
+of thousands at a modest ``n``, but equally an ORDINARY ``lambda`` (``cap`` as small as 20-50, real
+binned point-process data) at a large enough ``n`` (a ``see()`` rollout is commonly 10,000-40,000,
+and nothing stops a caller from asking for more) blows the same budget with no runaway rate at all
+-- a column-only cap cannot see that second case. 25M cells is ~100MB per float32 buffer; three
+such buffers are live at once inside ``mechanism()`` (``log_pmf``, its ``.exp()``, and ``cum``)
+plus a same-shaped bool comparison, so ~300-400MB peak -- comfortably safe on a modest machine,
+with 25x headroom over ordinary point-process data's shape (``lambda`` ~0-10, ``cap`` ~20-50,
+``n=20,000`` needs ~1M cells).
 """
 
 
@@ -580,16 +585,19 @@ class PoissonGLMFit:
             # approximation worth raising over.
             lam_max = float(lam.max())
             cap = max(20, int(np.ceil(lam_max + 10.0 * np.sqrt(lam_max))))
-            if cap > _MAX_POISSON_SUPPORT:
+            cells = n * (cap + 1)
+            if cells > _MAX_POISSON_CELLS:
                 raise ValueError(
-                    f"PoissonGLMFit's sampler would need a support table {cap + 1} columns wide "
-                    f"(lambda up to {lam_max:.3g} in this batch) -- above "
-                    f"_MAX_POISSON_SUPPORT={_MAX_POISSON_SUPPORT}. That table is rebuilt on every "
-                    f"mechanism() call, sized (n={n}, cap+1), so its cost multiplies by the batch "
-                    f"size rather than being paid once at fit time. A lambda this large usually "
-                    f"means an unstable upstream mechanism (e.g. a lag chain whose coefficients "
-                    f"amplify rather than decay) rather than real point-process data -- check the "
-                    f"fitted coefficients feeding this node before raising the cap."
+                    f"PoissonGLMFit's sampler would need a support table of {cells} cells "
+                    f"(n={n} rows x {cap + 1} columns, lambda up to {lam_max:.3g} in this batch) "
+                    f"-- above _MAX_POISSON_CELLS={_MAX_POISSON_CELLS}. This table is rebuilt on "
+                    f"every mechanism() call and its cost is the PRODUCT of the batch size and the "
+                    f"per-row support width, so either factor alone -- a large batch or a large "
+                    f"lambda -- can trip it; the numbers above show which one did here. A lambda "
+                    f"this large usually means an unstable upstream mechanism (e.g. a lag chain "
+                    f"whose coefficients amplify rather than decay) rather than real point-process "
+                    f"data -- check the fitted coefficients feeding this node before raising the "
+                    f"cap."
                 )
             counts = torch.arange(cap + 1, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
             log_pmf = (

@@ -330,13 +330,27 @@ def test_poisson_glm_beats_tabular_cpt_on_many_lagged_parents():
     assert glm_ll > cpt_ll + 0.2
 
 
-def test_poisson_glm_refuses_a_support_table_too_wide_to_build_safely():
+def test_poisson_glm_refuses_a_cell_budget_blown_by_a_runaway_lambda():
     # A runaway upstream VALUE (not a runaway fit) pushes eta to its clamp boundary; the sampler's
-    # per-row support table must refuse rather than build a multi-gigabyte allocation.
+    # per-row support table must refuse rather than build a multi-gigabyte allocation. Small n,
+    # huge lambda -- the corner a column-only guard can see.
     rng = np.random.default_rng(4)
     x = rng.normal(size=2000)
     y = rng.poisson(np.exp(0.1 + 0.1 * x))
     fitted = PoissonGLMFit().fit({"X": x}, y)
     huge = torch.full((4,), 1000.0)
-    with pytest.raises(ValueError, match="_MAX_POISSON_SUPPORT"):
+    with pytest.raises(ValueError, match="_MAX_POISSON_CELLS"):
         fitted.mechanism({"X": huge}, torch.rand(4))
+
+
+def test_poisson_glm_refuses_a_cell_budget_blown_by_a_large_batch():
+    # Same guard, the corner a column-only guard CANNOT see: an ordinary lambda (cap stays at the
+    # 20 floor -- no runaway rate anywhere) but a batch large enough that n * (cap + 1) alone
+    # exceeds the cell budget. Nothing about this call is pathological except its size.
+    rng = np.random.default_rng(5)
+    x = rng.normal(size=2000)
+    y = rng.poisson(np.exp(0.1 + 0.1 * x))
+    fitted = PoissonGLMFit().fit({"X": x}, y)
+    n = 2_000_000
+    with pytest.raises(ValueError, match="_MAX_POISSON_CELLS"):
+        fitted.mechanism({"X": torch.zeros(n)}, torch.rand(n))
