@@ -8,7 +8,8 @@ acting half that already exists in the library, with no new machinery:
     confounded logs --fit_scm--> StructuralCausalModel --StructuralCausalBanditEnv--> gym.Env
                     --Thompson sampling--> a policy --evaluated in the TRUE world--> regret
 
-Two world models are fitted **from the same rows by the same `fit_scm` call**, differing only in
+Two world models are fitted **from the same rows by the same fitter on the same split** (two
+`fit_scm` calls sharing `seed=0`, so the train/holdout permutation is identical), differing only in
 the causal structure they are given:
 
 * **causal** -- ``Z -> A``, ``Z -> Y``, ``A -> Y``: the confounder is a parent of the reward.
@@ -143,7 +144,15 @@ def plan_in_model(wrapped: CausalEnvWrapper, *, steps: int, seed: int) -> int:
 
 
 def true_arm_value(bandit: SimpsonBandit, arm: Mapping[str, int], *, status_quo: float) -> float:
-    """The arm's value in the REAL world: exact for ``do(A=a)``, ``E[Y]`` for the empty arm."""
+    """The arm's value in the REAL world: exact for ``do(A=a)``, ``E[Y]`` for the empty arm.
+
+    ``status_quo`` is measured once, under the *confounded* logging policy, and reused as the empty
+    arm's value in **both** regimes below. That reuse is sound only because of two `SimpsonBandit`
+    facts: the treatment effect is constant across ``Z`` (0.1 in either stratum), and ``P(A=1)``
+    averages to 0.5 under the confounded and the randomized policy alike -- so ``E[Y]`` is 0.45
+    either way. On a world without both properties the "observe" arm would need its own per-regime
+    measurement.
+    """
     return status_quo if not arm else bandit.true_action_value(arm["A"])
 
 

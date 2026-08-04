@@ -205,8 +205,13 @@ env = StructuralCausalBanditEnv(scm, dag, "W", ["Z"], {"Z": [0, 1]})  # arms = {
 env = CausalEnvWrapper(env, reward_node="W")
 env.reward_parents                  # ['Z'] — read off the learned model
 env.set_intervention({"X": 0.0})    # roll out under do(X=0): a lever no arm exposes
-obs, reward, *_ = env.step(2)       # a sampled reward from the learned model
+obs, reward, *_ = env.step(0)       # arm 0 = observe; the reward now flows X -> Z -> W
 ```
+
+Arm 0 is the one that shows the lever: it leaves `Z` free, so `do(X=0)` propagates `X -> Z -> W`
+and moves the reward (~0.67 unintervened, ~0.50 under `do(X=0)`, ~0.83 under `do(X=1)`). Pinning
+`Z` with `do(Z=0)`/`do(Z=1)` d-separates `W` from `X`, and the persistent intervention then has
+no effect at all — which is the learned model telling you the truth about its own graph.
 
 `examples/learned_scm_policy.py` runs the whole loop — learn from confounded logs, plan inside the
 model with Thompson sampling, score the resulting policy in the true world — and shows the regime
