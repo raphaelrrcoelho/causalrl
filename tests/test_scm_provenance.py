@@ -52,7 +52,7 @@ def test_fitted_scm_with_non_invertible_node_raises_and_names_the_alternative():
 
 def test_internal_abduct_bypasses_the_guard():
     scm = _scm(provenance="fitted", invertible=False)
-    post = scm._abduct(known={"A": 0.5}, n=8, allow_fitted=True)
+    post = scm._abduct(known={"A": 0.5}, n=8)
     assert len(post) == 8
 
 

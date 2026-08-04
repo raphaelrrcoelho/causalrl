@@ -274,10 +274,10 @@ that is the safe direction: it never lets a coupling choice through unlabelled, 
 Because the guard keys off provenance, hand-written SCMs are completely unaffected: the user
 asserted those mechanisms, so their couplings are given, not inferred.
 
-The guard needs an unguarded twin. `abduct` becomes a thin wrapper over a private
-`_abduct(..., allow_fitted=True)`, so a caller that has already established what its query licenses
-can bypass it — sub-project 4's counterfactual data augmentation replays invertible mechanisms on a
-fitted model and must not be blocked.
+The guard needs an unguarded twin. `abduct` becomes a thin wrapper over a private `_abduct`, so a
+caller that has already established what its query licenses can bypass it — sub-project 4's
+counterfactual data augmentation replays invertible mechanisms on a fitted model and must not be
+blocked.
 
 `counterfactual_interval` does not use either: rejection-sampled abduction never matches continuous
 evidence, so invertibility is made operational instead. Every invertible fitter attaches a

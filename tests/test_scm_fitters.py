@@ -41,18 +41,6 @@ def test_tabular_cpt_handles_multiple_parents():
     assert float(out.mean()) < 0.02
 
 
-def test_tabular_cpt_smooths_an_unseen_parent_configuration():
-    # A=1 never co-occurs with Z=1 in training; the fitted table must still be a distribution.
-    a = np.array([0, 0, 1, 1] * 100)
-    z = np.array([0, 1, 0, 0] * 100)
-    y = np.array([0, 1, 1, 0] * 100)
-    fitted = TabularCPT().fit({"A": a, "Z": z}, y)
-    n = 1000
-    u = fitted.noise.sample((n,)).reshape(n).float()
-    out = fitted.mechanism({"A": torch.ones(n), "Z": torch.ones(n)}, u)
-    assert set(np.unique(out.numpy())) <= {0.0, 1.0}
-
-
 def test_tabular_cpt_refuses_a_table_too_large_to_be_a_conditional_distribution():
     # I5 regression: each parent is discretised by its distinct observed values, so a CONTINUOUS
     # parent contributes one level per row and the table's row count (the product of parent

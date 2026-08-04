@@ -133,7 +133,7 @@ class TabularCPT:
         rows = (
             np.zeros(len(child), dtype=int)
             if not parent_names
-            else self._config_index(parents, parent_names, levels, strides, size)
+            else self._config_index(parents, parent_names, levels, strides)
         )
         counts = np.full((size, len(values)), self.alpha, dtype=float)
         col_of = {v: j for j, v in enumerate(values)}
@@ -195,12 +195,8 @@ class TabularCPT:
         parent_names: list[str],
         levels: dict[str, np.ndarray],
         strides: list[int],
-        size: int,
     ) -> np.ndarray:
-        n = len(next(iter(parents.values()))) if parents else 0
-        if not parent_names:
-            return np.zeros(max(n, 1) if parents else 0, dtype=int)
-        rows = np.zeros(n, dtype=int)
+        rows = np.zeros(len(next(iter(parents.values()))), dtype=int)
         for name, stride in zip(parent_names, strides, strict=True):
             rows += np.searchsorted(levels[name], parents[name]) * stride
         return rows
@@ -210,6 +206,21 @@ def _design(parents: dict[str, np.ndarray], names: list[str], n: int) -> np.ndar
     """Column-stacked ``[1, parents...]`` design matrix."""
     columns = [np.ones(n)] + [np.asarray(parents[name], dtype=float) for name in names]
     return np.column_stack(columns)
+
+
+def _parent_columns(parent_values: dict[str, Tensor], names: list[str], n: int) -> np.ndarray:
+    """``(n, len(names))`` float block of the parent tensors, column order following ``names``.
+
+    Shared by :func:`_attach_residual`'s ``residual`` closure and :class:`ANMFit`'s ``mechanism``
+    closure, which feed the same duck-typed ``predict(X)`` and so must agree exactly on dtype,
+    column order, and the no-parent shape — an ``(n, 0)`` block, which ``np.column_stack`` cannot
+    build from an empty list.
+    """
+    if not names:
+        return np.zeros((n, 0))
+    return np.column_stack(
+        [parent_values[name].reshape(-1).numpy().astype(float) for name in names]
+    )
 
 
 def _r2(y: np.ndarray, predicted: np.ndarray) -> float:
@@ -231,13 +242,7 @@ def _attach_residual(
 
     def residual(parent_values: dict[str, Tensor], value: Tensor) -> Tensor:
         flat = value.reshape(-1)
-        columns = (
-            np.column_stack(
-                [parent_values[name].reshape(-1).numpy().astype(float) for name in names]
-            )
-            if names
-            else np.zeros((flat.shape[0], 0))
-        )
+        columns = _parent_columns(parent_values, names, flat.shape[0])
         mean = torch.tensor(  # type: ignore[reportPrivateImportUsage]
             np.asarray(mean_fn(columns), dtype=float),
             dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
@@ -366,14 +371,13 @@ class ANMFit:
         residual_tensor = torch.tensor(residual, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
 
         def mechanism(parent_values: dict[str, Tensor], noise: Tensor) -> Tensor:
-            columns = np.column_stack(
-                [parent_values[name].reshape(-1).numpy().astype(float) for name in names]
-            )
+            flat_noise = noise.reshape(-1)
+            columns = _parent_columns(parent_values, names, flat_noise.shape[0])
             mean = torch.tensor(  # type: ignore[reportPrivateImportUsage]
                 np.asarray(model.predict(columns), dtype=float),
                 dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
             )
-            return mean + noise.reshape(-1)
+            return mean + flat_noise
 
         fitted_mechanism = FunctionalMechanism(names, mechanism)
         _attach_residual(fitted_mechanism, names, lambda columns: model.predict(columns))
@@ -425,10 +429,6 @@ class _Empirical(Distribution):
         index = torch.randint(0, self.values.shape[0], (n,))  # type: ignore[reportPrivateImportUsage]
         return self.values[index]
 
-    @property
-    def stddev(self) -> Tensor:
-        return self.values.std()
-
 
 class NeuralFit:
     """Continuous node: ``V = net(parents) + U``, an MLP mean with Gaussian residual noise.
@@ -478,8 +478,7 @@ class NeuralFit:
         # instead of silently re-building a live autograd graph through the trained weights.
         for parameter in net.parameters():
             parameter.requires_grad_(False)
-        with torch.no_grad():
-            predicted = net(x).squeeze(-1)
+        predicted = net(x).squeeze(-1)
         residual = target - predicted
         sigma = float(residual.std())
 

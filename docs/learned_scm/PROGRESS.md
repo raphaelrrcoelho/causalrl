@@ -92,6 +92,44 @@ additive-linear default.
   phase 1; the field exists so sub-project 2 can return valid-but-loose bounds without a breaking
   type change.
 
+## Task 14 lean pass — decisions kept, and the coverage gaps they leave
+
+Decisions **made and acted on** (not deferred):
+
+- **`CounterfactualBound.tight` — KEPT.** `Interval` cannot absorb a third field without breaking
+  its documented `lo, hi = interval` unpacking contract, which is why the two are separate types;
+  sub-project 2 returns valid-but-loose bounds and reads this field. Adding it later is the same
+  breaking change, so it is paid for once, now.
+- **`CounterfactualBound.interval` — KEPT.** It is the only bridge from this type into the
+  partial-identification surface (`Interval` is what `msm_policy_value_bounds` / `certify_*`
+  consume), and the two types cannot be substituted for each other. Currently only a test calls it;
+  that is a thin adapter on a shipped seam, not speculative generality.
+- **`OracleGateResult.gap` — KEPT as a stored field**, not converted to a property: it is a public
+  `NamedTuple` whose arity is part of its unpacking contract.
+- **`# type: ignore[code]` vs `# pyright: ignore[code]` — not changed here.** The former is
+  line-blanket, the latter rule-scoped, but ~15 sites across modules this sub-project does not own
+  use the former; changing them is a project-wide convention change, not a lean-pass edit.
+
+Coverage gaps left standing — every *addition* on the deferred-minor list is declined, so these are
+known rather than forgotten:
+
+- **`fit_scm_mec`'s cyclic-orientation branch** (`_enumerate_mec`'s `except CausalGraphError:
+  continue`) is untested — all fixtures are tree-shaped skeletons whose orientations stay acyclic.
+  The mechanism it delegates to, `CausalGraph.__init__`'s DAG check, is already well covered.
+- **No test uses** a non-default `TabularCPT.alpha`, a CPDAG with non-empty `directed_edges`
+  *and* undirected edges in `fit_scm_mec`, `counterfactual_interval`'s `RealizabilityError` path,
+  a multi-node intervention through the interval path, or a >2-level discrete target through it.
+  `_extreme_under_sum`'s exactness beyond 2 levels was verified pre-implementation against an LP
+  over the full transportation polytope — stronger evidence than a unit test would be.
+- **`_Empirical.sample`** (the `ANMFit` residual resampler) is live but never executed by the
+  suite: no test calls `see()` / `sample()` on an SCM whose noise came from an `ANMFit` node.
+- **`_counterfactual_parents`' invertible-replay branch** is likewise live but never executed: no
+  test places an *invertible* node strictly between the intervention and the target.
+- **`TabularCPT`'s Laplace smoothing** has no test after the lean pass removed
+  `test_tabular_cpt_smooths_an_unseen_parent_configuration`, which passed unchanged against an
+  all-zero-count (NaN) table. The `alpha > 0` constructor guard makes the NaN table unreachable
+  through the public API, which is why the brief prescribed the guard over a regression test.
+
 ## Next
 
 Sub-project 4: plan inside the learned model (`do()` rollouts, counterfactual data augmentation
