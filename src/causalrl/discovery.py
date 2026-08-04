@@ -45,6 +45,7 @@ __all__ = [
     "conditional_mutual_information",
     "discover",
     "discover_interventional",
+    "orient",
 ]
 
 
@@ -63,6 +64,7 @@ class CITest(Protocol):
     def __call__(
         self, data: Mapping[str, np.ndarray], x: str, y: str, z: Sequence[str]
     ) -> object: ...
+
 
 
 def conditional_mutual_information(
@@ -312,6 +314,93 @@ def discover(
 
     _apply_meek_rules(nodes, directed, undirected)
     return CPDAG(tuple(nodes), frozenset(directed), frozenset(undirected))
+
+
+def orient(cpdag: CPDAG, *, tiers: Sequence[Sequence[str]] | None = None) -> CausalGraph:
+    """Orient a CPDAG's remaining undirected edges into a DAG, or refuse.
+
+    Resolution order per undirected edge: (1) ``tiers`` — an edge between different tiers points
+    from the earlier tier to the later one; (2) acyclicity — if one direction would close a cycle,
+    take the other; (3) refuse. Silently picking an orientation would commit to a choice the data
+    does not identify, so the third case raises and names :func:`causalrl.fit_scm_mec`, which fits
+    every member of the equivalence class instead. Exception: if ``tiers`` are provided and a
+    tier-forced edge would create a cycle (indicating a conflict between tiers and discovered
+    structure), raises immediately with a message naming the specific colliding edges.
+    """
+    rank: dict[str, int] = {}
+    if tiers is not None:
+        for level, tier in enumerate(tiers):
+            for name in tier:
+                rank[name] = level
+        uncovered = set(cpdag.variables) - set(rank)
+        if uncovered:
+            raise CausalGraphError(
+                f"variable(s) {sorted(uncovered)} not covered by tiers {list(tiers)}"
+            )
+
+    directed = set(cpdag.directed_edges)
+    pending = sorted(tuple(sorted(edge)) for edge in cpdag.undirected_edges)
+    unresolved: list[tuple[str, str]] = []
+    # Repeat: each orientation can unlock another edge through the acyclicity rule.
+    while pending:
+        progressed = False
+        deferred: list[tuple[str, str]] = []
+        for a, b in pending:
+            if a in rank and b in rank and rank[a] != rank[b]:
+                # Orient according to tiers, but first check that it doesn't create a cycle.
+                tail, head = (a, b) if rank[a] < rank[b] else (b, a)
+                cycle_path = _creates_cycle(directed, tail, head)
+                if cycle_path is not None:
+                    # cycle_path is [head, ...nodes..., tail], forming path head -> ... -> tail.
+                    # The new edge tail -> head would close cycle: tail -> head -> ... -> tail.
+                    cycle_edges = " -> ".join([tail, *cycle_path])
+                    raise CausalGraphError(
+                        f"tier-implied edge {tail} -> {head} would create a cycle: {cycle_edges}"
+                    )
+                directed.add((tail, head))
+                progressed = True
+                continue
+            ab_ok = _creates_cycle(directed, a, b) is None
+            ba_ok = _creates_cycle(directed, b, a) is None
+            if ab_ok and not ba_ok:
+                directed.add((a, b))
+                progressed = True
+            elif ba_ok and not ab_ok:
+                directed.add((b, a))
+                progressed = True
+            else:
+                deferred.append((a, b))
+        if not progressed:
+            unresolved = deferred
+            break
+        pending = deferred
+
+    if unresolved:
+        raise CausalGraphError(
+            f"cannot orient edge(s) {sorted(unresolved)}: neither tiers nor acyclicity decides "
+            "them. Pass tiers=..., or use fit_scm_mec to fit every member of the equivalence class."
+        )
+    return CausalGraph(directed_edges=sorted(directed), nodes=list(cpdag.variables))
+
+
+def _creates_cycle(directed: set[tuple[str, str]], tail: str, head: str) -> list[str] | None:
+    """Check if adding ``tail -> head`` would close a cycle in ``directed``.
+
+    Returns the cycle path (nodes from ``head`` back to ``tail``) if a cycle would be created,
+    or ``None`` if no cycle would result.
+    """
+    stack: list[list[str]] = [[head]]
+    visited: set[str] = {head}
+    while stack:
+        path = stack.pop()
+        node = path[-1]
+        if node == tail:
+            return path  # Path from head to tail exists; cycle is path + [tail]
+        for u, v in directed:
+            if u == node and v not in visited:
+                visited.add(v)
+                stack.append([*path, v])
+    return None
 
 
 def _empirical_pmf(column: np.ndarray) -> dict[int, float]:

@@ -61,6 +61,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   actually run, with no asymptotic no-regret assumption. Certificate ladder: `IDENTIFIED` when the
   functional is constant over the polytope, `BOUNDED` under assumed-or-measured no-regret,
   `EMPIRICAL` abstention when the interval is vacuous or the premise is unavailable.
+- **`PoissonGLMFit` and `BayesianLinearFit`** (`causalrl.scm`, exported top-level) — two more
+  `fit_scm` mechanism families: a log-link Poisson GLM fitted by IRLS for count nodes
+  (`invertible=False`, scored by held-out log-likelihood), and a Bayesian linear structural
+  equation whose posterior over `(intercept, weights, sigma)` is sampled by NUTS and exposed as
+  `mechanism.posterior` (`invertible=True`, posterior-mean mechanism, `causalrl[numpyro]` extra —
+  the name imports without it and only `fit()` raises). A fitted `StructuralCausalModel` is also
+  now documented and tested as a **world model an agent acts in**: it drops straight into
+  `StructuralCausalBanditEnv` / `CausalEnvWrapper` with no adapter, so `do()`-arm rollouts and
+  persistent `set_intervention` levers run against learned mechanisms
+  (`examples/learned_scm_policy.py` learns from confounded logs, plans inside the model with
+  Thompson sampling, and scores the resulting policy in the true world).
 
 ### Added (experimental)
 - **`LinearCyclicSCM.stability_margin` / `spectral_abscissa` / `max_stable_learning_rate`** —

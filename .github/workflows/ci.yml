@@ -83,7 +83,7 @@ jobs:
       - name: Verify NumPyro / JAX import (fail loudly, never silently skip)
         run: uv run --python 3.11 --no-sync python -c "import sys, numpyro, jax; print(sys.version.split()[0], 'numpyro', numpyro.__version__, 'jax', jax.__version__)"
       - name: NUTS abduction tests
-        run: uv run --python 3.11 --no-sync pytest tests/test_scm_nuts.py -v --no-cov
+        run: uv run --python 3.11 --no-sync pytest tests/test_scm_nuts.py tests/test_bayesian_fit.py -v --no-cov
 
   jax:
     # Dedicated lane for the optional JAX scale backend (§9). Isolated on py3.11 (JAX/jaxlib have no

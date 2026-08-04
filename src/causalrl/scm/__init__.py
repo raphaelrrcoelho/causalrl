@@ -16,6 +16,9 @@ from typing import TYPE_CHECKING
 from causalrl.scm.graph import CausalGraph  # torch-free; safe to import eagerly
 
 if TYPE_CHECKING:  # for type checkers / IDEs only; not executed at runtime
+    from causalrl.scm.continuous.bayesian_fit import BayesianLinearFit
+    from causalrl.scm.fit import FitReport, NodeFit, fit_scm, fit_scm_mec
+    from causalrl.scm.fitters import ANMFit, LinearGaussianFit, NeuralFit, PoissonGLMFit, TabularCPT
     from causalrl.scm.mechanisms import (
         FunctionalMechanism,
         LinearGaussianMechanism,
@@ -28,6 +31,19 @@ if TYPE_CHECKING:  # for type checkers / IDEs only; not executed at runtime
 
 # name -> (submodule, attribute); resolved on first attribute access.
 _LAZY: dict[str, tuple[str, str]] = {
+    "FitReport": ("causalrl.scm.fit", "FitReport"),
+    "NodeFit": ("causalrl.scm.fit", "NodeFit"),
+    "fit_scm": ("causalrl.scm.fit", "fit_scm"),
+    "fit_scm_mec": ("causalrl.scm.fit", "fit_scm_mec"),
+    "ANMFit": ("causalrl.scm.fitters", "ANMFit"),
+    # Optional [numpyro] backend, exported lazily like `abduct_nuts`: this module's scope imports
+    # only numpy/torch/causalrl, so the name resolves without numpyro installed and only `fit()`
+    # raises the extra's ImportError.
+    "BayesianLinearFit": ("causalrl.scm.continuous.bayesian_fit", "BayesianLinearFit"),
+    "LinearGaussianFit": ("causalrl.scm.fitters", "LinearGaussianFit"),
+    "NeuralFit": ("causalrl.scm.fitters", "NeuralFit"),
+    "PoissonGLMFit": ("causalrl.scm.fitters", "PoissonGLMFit"),
+    "TabularCPT": ("causalrl.scm.fitters", "TabularCPT"),
     "FunctionalMechanism": ("causalrl.scm.mechanisms", "FunctionalMechanism"),
     "LinearGaussianMechanism": ("causalrl.scm.mechanisms", "LinearGaussianMechanism"),
     "LinearMechanism": ("causalrl.scm.mechanisms", "LinearMechanism"),
@@ -39,15 +55,25 @@ _LAZY: dict[str, tuple[str, str]] = {
 }
 
 __all__ = [
+    "ANMFit",
+    "BayesianLinearFit",
     "CausalGraph",
     "ExogenousPosterior",
+    "FitReport",
     "FunctionalMechanism",
+    "LinearGaussianFit",
     "LinearGaussianMechanism",
     "LinearMechanism",
     "Mechanism",
+    "NeuralFit",
     "NeuralMechanism",
+    "NodeFit",
+    "PoissonGLMFit",
     "StructuralCausalModel",
+    "TabularCPT",
     "build_unrolled_scm",
+    "fit_scm",
+    "fit_scm_mec",
 ]
 
 

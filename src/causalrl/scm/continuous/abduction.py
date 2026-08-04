@@ -182,8 +182,13 @@ def posterior_predictive_check(
     y: Tensor,
     noise: Tensor,
 ) -> dict[str, float]:
-    """Reconstruct ``y`` from ``noise`` through ``mechanism``; report the RMSE/bias PPC."""
-    resid = mechanism(dict(parent_values), noise.reshape(-1)).reshape(-1) - y.reshape(-1)
+    """Reconstruct ``y`` from ``noise`` through ``mechanism``; report the RMSE/bias PPC.
+
+    Detached at the source: this is a diagnostic, so no caller wants a gradient out of it, and
+    converting a grad-tracking tensor to a Python float builds a graph nobody frees and warns.
+    """
+    reconstructed = mechanism(dict(parent_values), noise.reshape(-1)).reshape(-1)
+    resid = (reconstructed - y.reshape(-1)).detach()
     rmse = float(torch.sqrt((resid**2).mean()))  # type: ignore[reportPrivateImportUsage]
     return {"ppc_rmse": rmse, "ppc_bias": float(resid.mean())}
 

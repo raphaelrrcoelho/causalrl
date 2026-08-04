@@ -52,7 +52,11 @@ def test_wrapper_is_gymnasium_env() -> None:
 
 def test_wrapper_passes_gymnasium_checker() -> None:
     wrapper = _make_chain_wrapper()
-    check_env(wrapper, skip_render_check=True)
+    # Checking the *wrapper* is the point of this test, so gymnasium's "you passed a wrapped env"
+    # advisory is expected. Asserting it fires keeps the output pristine and pins the intent: if
+    # this ever became check_env(wrapper.unwrapped), the warning would stop and this would fail.
+    with pytest.warns(UserWarning, match="different from the unwrapped version"):
+        check_env(wrapper, skip_render_check=True)
 
 
 def test_wrapper_observation_space_matches_inner() -> None:
