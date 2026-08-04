@@ -309,7 +309,7 @@ def orient(cpdag: CPDAG, *, tiers: Sequence[Sequence[str]] | None = None) -> Cau
         progressed = False
         deferred: list[tuple[str, str]] = []
         for a, b in pending:
-            if rank.get(a) is not None and rank.get(b) is not None and rank[a] != rank[b]:
+            if a in rank and b in rank and rank[a] != rank[b]:
                 # Orient according to tiers, but first check that it doesn't create a cycle.
                 tail, head = (a, b) if rank[a] < rank[b] else (b, a)
                 cycle_path = _creates_cycle(directed, tail, head)
@@ -323,10 +323,8 @@ def orient(cpdag: CPDAG, *, tiers: Sequence[Sequence[str]] | None = None) -> Cau
                 directed.add((tail, head))
                 progressed = True
                 continue
-            ab_cycle = _creates_cycle(directed, a, b)
-            ba_cycle = _creates_cycle(directed, b, a)
-            ab_ok = ab_cycle is None
-            ba_ok = ba_cycle is None
+            ab_ok = _creates_cycle(directed, a, b) is None
+            ba_ok = _creates_cycle(directed, b, a) is None
             if ab_ok and not ba_ok:
                 directed.add((a, b))
                 progressed = True

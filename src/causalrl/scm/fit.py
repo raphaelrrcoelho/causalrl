@@ -142,14 +142,13 @@ def fit_scm(
     cut = max(1, int(n * (1.0 - holdout)))
     train_index, test_index = permutation[:cut], permutation[cut:]
 
+    overrides = families or {}
     mechanisms: dict[str, Mechanism] = {}
     exogenous: dict[str, Distribution] = {}
     fits: list[NodeFit] = []
     for node in graph.topological_order():
         parents = tuple(sorted(graph.parents(node)))
-        fitter = (families or {}).get(node) or (
-            TabularCPT() if _is_discrete(columns[node]) else ANMFit()
-        )
+        fitter = overrides.get(node) or (TabularCPT() if _is_discrete(columns[node]) else ANMFit())
         train_parents = {p: columns[p][train_index] for p in parents}
         fitted = fitter.fit(train_parents, columns[node][train_index])
         test_parents = {p: columns[p][test_index] for p in parents}
@@ -227,7 +226,7 @@ def _enumerate_mec(cpdag: CPDAG) -> list[CausalGraph]:
     """Every acyclic orientation of the undirected edges that introduces no new v-structure."""
     undirected = [tuple(sorted(edge)) for edge in sorted(cpdag.undirected_edges, key=sorted)]
     base = set(cpdag.directed_edges)
-    adjacency = {frozenset(e) for e in base} | {frozenset(e) for e in undirected}
+    adjacency = {frozenset(e) for e in (*base, *undirected)}
     baseline = _v_structures(base, adjacency)
     graphs: list[CausalGraph] = []
     for choice in product([False, True], repeat=len(undirected)):

@@ -24,22 +24,13 @@ from torch.distributions import Normal
 
 from causalrl.scm.fitters import (
     FittedMechanism,
+    _affine_mean_fn,  # type: ignore[reportPrivateUsage]
     _attach_residual,  # type: ignore[reportPrivateUsage]
     _r2,  # type: ignore[reportPrivateUsage]
 )
 from causalrl.scm.mechanisms import LinearGaussianMechanism
 
 __all__ = ["BayesianLinearFit"]
-
-
-def _require_numpyro() -> Any:
-    try:
-        import numpyro
-    except ImportError as exc:  # pragma: no cover - exercised only without the extra
-        raise ImportError(
-            "BayesianLinearFit requires NumPyro (and JAX); install the 'causalrl[numpyro]' extra"
-        ) from exc
-    return numpyro
 
 
 class BayesianLinearFit:
@@ -70,12 +61,19 @@ class BayesianLinearFit:
         self.seed = seed
 
     def fit(self, parents: dict[str, np.ndarray], child: np.ndarray) -> FittedMechanism:
-        _require_numpyro()
-        import jax
-        import jax.numpy as jnp
-        import numpyro
-        import numpyro.distributions as dist
-        from numpyro.infer import MCMC, NUTS
+        # Guarded here rather than at module scope: the extra is optional, and the error must name
+        # it instead of surfacing a bare ModuleNotFoundError from six lines down.
+        try:
+            import jax
+            import jax.numpy as jnp
+            import numpyro
+            import numpyro.distributions as dist
+            from numpyro.infer import MCMC, NUTS
+        except ImportError as exc:  # pragma: no cover - exercised only without the extra
+            raise ImportError(
+                "BayesianLinearFit requires NumPyro (and JAX); install the 'causalrl[numpyro]' "
+                "extra"
+            ) from exc
 
         y = np.asarray(child, dtype=float)
         n = len(y)
@@ -153,12 +151,11 @@ class BayesianLinearFit:
         intercept_mean = float(intercept_draws.mean())
         weight_means = {name: float(weight_draws[name].mean()) for name in names}
         sigma_mean = float(sigma_draws.mean())
-        coefficients_vector = np.concatenate(
-            ([intercept_mean], [weight_means[name] for name in names])
+        # Same affine mean map LinearGaussianFit inverts, with posterior means in place of OLS
+        # coefficients -- so the residual round-trip identity holds here for the same reason.
+        mean_fn = _affine_mean_fn(
+            np.concatenate(([intercept_mean], [weight_means[name] for name in names]))
         )
-
-        def mean_fn(columns: np.ndarray) -> np.ndarray:
-            return np.column_stack([np.ones(len(columns)), columns]) @ coefficients_vector
 
         mechanism = LinearGaussianMechanism(names, weight_means, bias=intercept_mean)
         _attach_residual(mechanism, names, mean_fn)

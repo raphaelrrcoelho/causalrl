@@ -223,6 +223,38 @@ def _parent_columns(parent_values: dict[str, Tensor], names: list[str], n: int) 
     )
 
 
+def _parent_tensors(parents: dict[str, np.ndarray], names: list[str]) -> dict[str, Tensor]:
+    """The parent columns as float32 tensors, keyed by name — the numpy-to-torch direction of
+    :func:`_parent_columns`.
+
+    Shared by :func:`evaluate_holdout` and :class:`PoissonGLMFit`'s in-sample score, which feed the
+    *same* ``log_prob`` closure: the two numbers are documented as comparable, which they only are
+    if both sides enter at the same dtype.
+    """
+    return {
+        name: torch.tensor(  # type: ignore[reportPrivateImportUsage]
+            np.asarray(parents[name], dtype=float),
+            dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
+        )
+        for name in names
+    }
+
+
+def _affine_mean_fn(coefficients: np.ndarray) -> Callable[[np.ndarray], np.ndarray]:
+    """``columns -> [1, columns] @ coefficients`` for an ``[intercept, *weights]`` vector.
+
+    The mean map every linear structural equation inverts through :func:`_attach_residual`, shared
+    by :class:`LinearGaussianFit` (OLS coefficients) and
+    :class:`~causalrl.scm.continuous.bayesian_fit.BayesianLinearFit` (posterior means) — the same
+    affine map with a different estimator behind it.
+    """
+
+    def mean_fn(columns: np.ndarray) -> np.ndarray:
+        return np.column_stack([np.ones(len(columns)), columns]) @ coefficients
+
+    return mean_fn
+
+
 def _r2(y: np.ndarray, predicted: np.ndarray) -> float:
     total = float(np.sum((y - y.mean()) ** 2))
     if total == 0.0:
@@ -272,13 +304,7 @@ def evaluate_holdout(
     names = sorted(parents)
     child_array = np.asarray(child, dtype=float)
     n = len(child_array)
-    parent_tensors = {
-        name: torch.tensor(  # type: ignore[reportPrivateImportUsage]
-            np.asarray(parents[name], dtype=float),
-            dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
-        )
-        for name in names
-    }
+    parent_tensors = _parent_tensors(parents, names)
     if fitted.invertible:
         zeros = torch.zeros(n)  # type: ignore[reportPrivateImportUsage]
         with torch.no_grad():
@@ -325,11 +351,7 @@ class LinearGaussianFit:
         sigma = float(residual.std())
         weights = {name: float(coefficients[i + 1]) for i, name in enumerate(names)}
         mechanism = LinearGaussianMechanism(names, weights, bias=float(coefficients[0]))
-        _attach_residual(
-            mechanism,
-            names,
-            lambda columns: np.column_stack([np.ones(len(columns)), columns]) @ coefficients,
-        )
+        _attach_residual(mechanism, names, _affine_mean_fn(coefficients))
         return FittedMechanism(
             mechanism=mechanism,
             noise=Normal(0.0, max(sigma, 1e-6)),
@@ -623,16 +645,9 @@ class PoissonGLMFit:
         # In-sample mean log-likelihood of the training child values under the fitted rate --
         # same convention as TabularCPT.score, and routed through the same log_prob used for
         # holdout scoring rather than a second formula.
-        parent_tensors = {
-            name: torch.tensor(  # type: ignore[reportPrivateImportUsage]
-                np.asarray(parents[name], dtype=float),
-                dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
-            )
-            for name in names
-        }
         child_tensor = torch.tensor(y, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
         with torch.no_grad():
-            score = float(log_prob(parent_tensors, child_tensor).mean())
+            score = float(log_prob(_parent_tensors(parents, names), child_tensor).mean())
 
         return FittedMechanism(
             mechanism=fitted_mechanism,
