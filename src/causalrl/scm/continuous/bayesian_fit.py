@@ -56,9 +56,12 @@ class BayesianLinearFit:
     Materialising one SCM per draw is a natural follow-on; this fitter does not build it.
 
     Model: ``intercept ~ Normal(0, 10)``, ``w_j ~ Normal(0, 10)`` per parent, ``sigma ~
-    HalfNormal(1)``, ``y ~ Normal(intercept + X @ w, sigma)``. ``X`` is standardised internally so
-    the weakly-informative priors stay sensible regardless of the parents' scale; the posterior
-    draws are unstandardised back onto the original data scale before being exposed.
+    HalfNormal(1)``, ``y ~ Normal(intercept + X @ w, sigma)``. Both ``X`` and ``y`` are standardised
+    internally so the weakly-informative priors stay sensible regardless of native scale on either
+    side -- leaving ``y`` unstandardised would put ``sigma``'s ``HalfNormal(1)`` prior on the
+    child's raw scale, silently shrinking both sigma and the weights toward zero whenever that
+    scale is far from 1. The posterior draws are unstandardised back onto the original data scale
+    before being exposed.
     """
 
     def __init__(self, draws: int = 1000, warmup: int = 1000, seed: int = 0) -> None:
@@ -77,21 +80,34 @@ class BayesianLinearFit:
         y = np.asarray(child, dtype=float)
         n = len(y)
         names = sorted(parents)
+        reserved = {"intercept", "sigma"} & set(names)
+        if reserved:
+            raise ValueError(
+                f"BayesianLinearFit.fit: parent name(s) {sorted(reserved)} collide with the "
+                "reserved posterior keys 'intercept' and 'sigma' (the fitted intercept and "
+                "residual noise scale); rename the parent column(s) before fitting."
+            )
         n_parents = len(names)
         raw = (
             np.column_stack([np.asarray(parents[name], dtype=float) for name in names])
             if names
             else np.zeros((n, 0))
         )
-        # Standardise so N(0, 10) stays weakly-informative regardless of the parents' native
-        # scale; a constant column (std 0) is left unscaled rather than divided by zero.
+        # Standardise both X and y so N(0, 10) / HalfNormal(1) stay weakly-informative regardless
+        # of native scale on either side; a constant column (std 0) is left unscaled rather than
+        # divided by zero.
         mean_x = raw.mean(axis=0)
         scale_x = raw.std(axis=0)
         safe_scale_x = np.where(scale_x > 1e-9, scale_x, 1.0)
         x_std = (raw - mean_x) / safe_scale_x
 
+        mean_y = float(y.mean())
+        scale_y = float(y.std())
+        safe_scale_y = scale_y if scale_y > 1e-9 else 1.0
+        y_std = (y - mean_y) / safe_scale_y
+
         x_jax = jnp.asarray(x_std)
-        y_jax = jnp.asarray(y)
+        y_jax = jnp.asarray(y_std)
 
         def model(x: Any, y_obs: Any) -> None:
             intercept = numpyro.sample("intercept", dist.Normal(0.0, 10.0))
@@ -109,16 +125,24 @@ class BayesianLinearFit:
         samples = mcmc.get_samples()
 
         intercept_std = np.asarray(samples["intercept"], dtype=float)
-        sigma_draws = np.asarray(samples["sigma"], dtype=float)
+        sigma_std_draws = np.asarray(samples["sigma"], dtype=float)
+        # Unstandardise: w_j = w_std_j * scale_y / scale_x_j; intercept absorbs both mean shifts;
+        # sigma is a pure scale parameter so it only picks up scale_y. Re-derived independently
+        # from y = mean_y + scale_y * y_std and y_std = intercept_std + x_std @ w_std + eps_std.
+        sigma_draws = sigma_std_draws * safe_scale_y
         if n_parents > 0:
             w_std = np.asarray(samples["w"], dtype=float)  # (num_draws, n_parents)
-            weight_draws = {name: w_std[:, i] / safe_scale_x[i] for i, name in enumerate(names)}
-            intercept_draws = intercept_std - sum(
-                weight_draws[name] * mean_x[i] for i, name in enumerate(names)
+            weight_draws = {
+                name: w_std[:, i] * safe_scale_y / safe_scale_x[i] for i, name in enumerate(names)
+            }
+            intercept_draws = (
+                mean_y
+                + safe_scale_y * intercept_std
+                - sum(weight_draws[name] * mean_x[i] for i, name in enumerate(names))
             )
         else:
             weight_draws = {}
-            intercept_draws = intercept_std
+            intercept_draws = mean_y + safe_scale_y * intercept_std
 
         posterior: dict[str, np.ndarray] = {
             "intercept": intercept_draws,
@@ -129,15 +153,19 @@ class BayesianLinearFit:
         intercept_mean = float(intercept_draws.mean())
         weight_means = {name: float(weight_draws[name].mean()) for name in names}
         sigma_mean = float(sigma_draws.mean())
-        coefficients = np.concatenate(([intercept_mean], [weight_means[name] for name in names]))
+        coefficients_vector = np.concatenate(
+            ([intercept_mean], [weight_means[name] for name in names])
+        )
 
         def mean_fn(columns: np.ndarray) -> np.ndarray:
-            return np.column_stack([np.ones(len(columns)), columns]) @ coefficients
+            return np.column_stack([np.ones(len(columns)), columns]) @ coefficients_vector
 
         mechanism = LinearGaussianMechanism(names, weight_means, bias=intercept_mean)
         _attach_residual(mechanism, names, mean_fn)
         mechanism.posterior = posterior  # type: ignore[attr-defined]
-        mechanism.coefficients = coefficients  # type: ignore[attr-defined]
+        # dict[str, float], matching PoissonGLMFit's `coefficients` shape (Task 12) rather than a
+        # positional vector -- a generic consumer reads coefficients["intercept"], not index 0.
+        mechanism.coefficients = {"intercept": intercept_mean, **weight_means}  # type: ignore[attr-defined]
 
         predicted = mean_fn(raw)
         return FittedMechanism(
