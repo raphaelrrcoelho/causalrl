@@ -106,6 +106,14 @@ Decisions **made and acted on** (not deferred):
   that is a thin adapter on a shipped seam, not speculative generality.
 - **`OracleGateResult.gap` — KEPT as a stored field**, not converted to a property: it is a public
   `NamedTuple` whose arity is part of its unpacking contract.
+- **`TabularCPT`'s Laplace smoothing — now pinned by a discriminating test.**
+  `test_tabular_cpt_smooths_an_unseen_parent_configuration` was first deleted for being vacuous
+  (its only assertion, that draws are fitted levels, holds by construction for *every* table — it
+  passed unchanged against an all-zero-count NaN row) and then rewritten rather than left absent:
+  an unseen parent configuration must be a real distribution, both levels reachable at the prior's
+  50/50, while an observed row must *not* be flattened toward that prior. Zeroing the pseudo-count
+  fails the first assertion; a data-ignoring uniform table fails the second. The unreachable NaN
+  path behind the `alpha > 0` guard is still deliberately untested.
 - **`# type: ignore[code]` vs `# pyright: ignore[code]` — not changed here.** The former is
   line-blanket, the latter rule-scoped, but ~15 sites across modules this sub-project does not own
   use the former; changing them is a project-wide convention change, not a lean-pass edit.
@@ -125,10 +133,6 @@ known rather than forgotten:
   suite: no test calls `see()` / `sample()` on an SCM whose noise came from an `ANMFit` node.
 - **`_counterfactual_parents`' invertible-replay branch** is likewise live but never executed: no
   test places an *invertible* node strictly between the intervention and the target.
-- **`TabularCPT`'s Laplace smoothing** has no test after the lean pass removed
-  `test_tabular_cpt_smooths_an_unseen_parent_configuration`, which passed unchanged against an
-  all-zero-count (NaN) table. The `alpha > 0` constructor guard makes the NaN table unreachable
-  through the public API, which is why the brief prescribed the guard over a regression test.
 
 ## Next
 
