@@ -41,6 +41,37 @@ def test_tabular_cpt_handles_multiple_parents():
     assert float(out.mean()) < 0.02
 
 
+def test_tabular_cpt_smooths_an_unseen_parent_configuration():
+    # (A=1, Z=1) never occurs in training, so its count row is pure Laplace prior -- alpha's whole
+    # documented purpose. What must hold is that the row is still a DISTRIBUTION: both fitted
+    # levels reachable, at the prior's 50/50.
+    #
+    # The previous version of this test asserted only `set(unique(draws)) <= {0.0, 1.0}`, which
+    # `value_tensor[picked]` guarantees by construction for EVERY possible table -- it passed
+    # unchanged with the pseudo-count zeroed and the row NaN (NaN comparisons are all False, so
+    # every draw routes to index 0). Mutation-verified: with `np.full(..., 0.0)` in place of
+    # `np.full(..., self.alpha)` the first assertion below fails on a single-valued draw set.
+    #
+    # The observed (A=0, Z=0) row is pinned too, at the opposite extreme -- it saw y=0 100 times,
+    # so smoothing must not flatten it toward the prior. Together the two say "unseen row = prior,
+    # seen row = data": an all-uniform table fails the second, a prior-free table fails the first.
+    a = np.array([0, 0, 1, 1] * 100)
+    z = np.array([0, 1, 0, 0] * 100)
+    y = np.array([0, 1, 1, 0] * 100)
+    fitted = TabularCPT().fit({"A": a, "Z": z}, y)
+    n = 1000
+    # A deterministic sweep of the inverse CDF rather than a random sample: the proportions below
+    # are then exact rather than merely probable, with no seeding needed.
+    u = torch.linspace(0.0005, 0.9995, n)
+
+    unseen = fitted.mechanism({"A": torch.ones(n), "Z": torch.ones(n)}, u)
+    assert set(unseen.unique().tolist()) == {0.0, 1.0}
+    assert abs(float(unseen.mean()) - 0.5) < 0.05
+
+    seen = fitted.mechanism({"A": torch.zeros(n), "Z": torch.zeros(n)}, u)
+    assert float(seen.mean()) < 0.05
+
+
 def test_tabular_cpt_refuses_a_table_too_large_to_be_a_conditional_distribution():
     # I5 regression: each parent is discretised by its distinct observed values, so a CONTINUOUS
     # parent contributes one level per row and the table's row count (the product of parent
