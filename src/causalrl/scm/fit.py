@@ -3,6 +3,14 @@
 Fits into the *existing* SCM type, so ``do`` / ``see`` / ``CausalEnvWrapper`` / transport /
 certify all accept a learned model unchanged. The returned model carries ``provenance="fitted"``,
 which gates L3 queries: L1 data identifies the mechanisms but not the noise-to-value coupling.
+
+Fitting mechanisms from a fixed table is supervised learning, but the object it produces is a
+model-based-RL *world model*: hand it to
+:class:`~causalrl.envs.suite.scbandit.StructuralCausalBanditEnv` and an agent can act in it
+(``tests/test_learned_scm_as_env.py``, ``examples/learned_scm_policy.py``). Planning *inside* a
+fitted model with :class:`~causalrl.agents.causal_mbrl.CausalMBRLAgent` is not wired -- that agent
+builds its value table from columnar data and takes no SCM (sub-project 4 of
+``docs/learned_scm/DESIGN.md``).
 """
 
 from __future__ import annotations
