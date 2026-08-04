@@ -206,14 +206,14 @@ class StructuralCausalModel:
         modelling choice as a result. Use :func:`causalrl.counterfactual_interval` instead.
         """
         if self.provenance == "fitted":
-            ambiguous = self.non_invertible_nodes()
+            ambiguous = sorted(self.non_invertible_nodes())
             if ambiguous:
                 raise NotIdentifiableError(
                     f"counterfactuals on a fitted SCM are not identified: node(s) "
-                    f"{sorted(ambiguous)} have a non-invertible mechanism, so their "
+                    f"{ambiguous} have a non-invertible mechanism, so their "
                     "noise-to-value coupling is a modelling choice, not a fitted quantity. "
                     "Use counterfactual_interval(...) for the identified interval.",
-                    witness=sorted(ambiguous),
+                    witness=ambiguous,
                 )
         return self._abduct(evidence, known=known, n=n, seed=seed, atol=atol)
 
@@ -225,11 +225,10 @@ class StructuralCausalModel:
         n: int = 20_000,
         seed: int | None = None,
         atol: float = 1e-6,
-        allow_fitted: bool = False,
     ) -> ExogenousPosterior:
-        """Unguarded abduction. ``allow_fitted`` documents intent at the call site: a caller that
-        has already established what its query licenses — sub-project 4's counterfactual data
-        augmentation replays *invertible* mechanisms on a fitted model — bypasses the guard here."""
+        """Unguarded abduction, for a caller that has already established what its query licenses
+        — sub-project 4's counterfactual data augmentation replays *invertible* mechanisms on a
+        fitted model and must not be blocked by :meth:`abduct`'s provenance guard."""
         known = known or {}
         bad = set(known) - set(self.exogenous)
         if bad:

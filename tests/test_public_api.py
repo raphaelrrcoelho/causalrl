@@ -130,6 +130,10 @@ def test_learned_scm_surface_is_exported_top_level():
         "LinearGaussianFit",
         "ANMFit",
         "NeuralFit",
+        "PoissonGLMFit",
+        # Lazily exported optional [numpyro] backend: the name must resolve without numpyro
+        # installed (only `fit()` needs it), exactly as `abduct_nuts` does.
+        "BayesianLinearFit",
     ):
         assert name in causalrl.__all__, f"{name} missing from __all__"
         assert getattr(causalrl, name) is not None

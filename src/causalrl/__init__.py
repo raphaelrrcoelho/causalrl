@@ -311,6 +311,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "transported_effect": ("causalrl.identification.transport", "transported_effect"),
     "value_iteration": ("causalrl.shaping", "value_iteration"),
     "ANMFit": ("causalrl.scm.fitters", "ANMFit"),
+    "BayesianLinearFit": ("causalrl.scm.continuous.bayesian_fit", "BayesianLinearFit"),
     "CounterfactualBound": (
         "causalrl.identification.counterfactual_bounds",
         "CounterfactualBound",
@@ -319,6 +320,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "LinearGaussianFit": ("causalrl.scm.fitters", "LinearGaussianFit"),
     "NeuralFit": ("causalrl.scm.fitters", "NeuralFit"),
     "NodeFit": ("causalrl.scm.fit", "NodeFit"),
+    "PoissonGLMFit": ("causalrl.scm.fitters", "PoissonGLMFit"),
     "TabularCPT": ("causalrl.scm.fitters", "TabularCPT"),
     "counterfactual_interval": (
         "causalrl.identification.counterfactual_bounds",
@@ -340,6 +342,7 @@ __all__ = [
     "AmortizedGaussianAbduction",
     "Assumption",
     "BackdoorAdjustedAgent",
+    "BayesianLinearFit",
     "BehavioralCloning",
     "BenchmarkEstimate",
     "BruteForceInterventionTS",
@@ -407,6 +410,7 @@ __all__ = [
     "OnlineOnlyUCB",
     "POMISThompsonSampling",
     "PivotalityCertificate",
+    "PoissonGLMFit",
     "PolicyValueContrast",
     "Population",
     "PopulationAgentView",

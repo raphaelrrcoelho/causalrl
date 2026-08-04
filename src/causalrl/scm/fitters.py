@@ -34,6 +34,25 @@ are pure Laplace prior, and the table has stopped being a conditional distributi
 nearest-neighbour memoriser of the training rows.
 """
 
+_MAX_POISSON_CELLS = 25_000_000
+"""Largest ``(n, cap + 1)`` inverse-CDF support table :class:`PoissonGLMFit`'s sampler will build,
+counted in CELLS (``n * (cap + 1)``), not columns.
+
+Unlike :data:`_MAX_CPT_ROWS` (a fit-time cost independent of ``n``), this table is rebuilt on
+EVERY ``mechanism()`` call and its cost is the PRODUCT of the batch size ``n`` and the per-row
+support width ``cap + 1`` (``cap = max(20, ceil(lam_max + 10*sqrt(lam_max)))``, ``lam_max`` a BATCH
+max). Bounding either factor alone misses the other: an unstable upstream mechanism (e.g. a
+lag-unrolled chain whose coefficients amplify rather than decay) can push ``lambda`` into the tens
+of thousands at a modest ``n``, but equally an ORDINARY ``lambda`` (``cap`` as small as 20-50, real
+binned point-process data) at a large enough ``n`` (a ``see()`` rollout is commonly 10,000-40,000,
+and nothing stops a caller from asking for more) blows the same budget with no runaway rate at all
+-- a column-only cap cannot see that second case. 25M cells is ~100MB per float32 buffer; three
+such buffers are live at once inside ``mechanism()`` (``log_pmf``, its ``.exp()``, and ``cum``)
+plus a same-shaped bool comparison, so ~300-400MB peak -- comfortably safe on a modest machine,
+with 25x headroom over ordinary point-process data's shape (``lambda`` ~0-10, ``cap`` ~20-50,
+``n=20,000`` needs ~1M cells).
+"""
+
 
 class FittedMechanism(NamedTuple):
     """A fitted structural equation plus what the fit does and does not license."""
@@ -49,11 +68,13 @@ class MechanismFitter(Protocol):
 
     A fitter reporting ``invertible=True`` should attach a ``residual(parent_values, value) ->
     Tensor`` closure to the returned mechanism (see :func:`_attach_residual`), the way
-    :class:`LinearGaussianFit`, :class:`ANMFit`, and :class:`NeuralFit` all do. A fitter reporting
+    :class:`LinearGaussianFit`, :class:`ANMFit`, :class:`NeuralFit` and
+    :class:`~causalrl.scm.continuous.bayesian_fit.BayesianLinearFit` all do. A fitter reporting
     ``invertible=False`` must instead attach a ``log_prob(parent_values, value) -> Tensor``
-    closure, the way :class:`TabularCPT` does: :func:`evaluate_holdout` requires one of the two to
-    score a fitted mechanism out-of-sample, and raises a clear error naming which is missing
-    rather than letting an opaque ``AttributeError`` escape from inside a user-supplied fitter.
+    closure, the way :class:`TabularCPT` and :class:`PoissonGLMFit` do: :func:`evaluate_holdout`
+    requires one of the two to score a fitted mechanism out-of-sample, and raises a clear error
+    naming which is missing rather than letting an opaque ``AttributeError`` escape from inside a
+    user-supplied fitter.
     """
 
     def fit(self, parents: dict[str, np.ndarray], child: np.ndarray) -> FittedMechanism: ...
@@ -114,7 +135,7 @@ class TabularCPT:
         rows = (
             np.zeros(len(child), dtype=int)
             if not parent_names
-            else self._config_index(parents, parent_names, levels, strides, size)
+            else self._config_index(parents, parent_names, levels, strides)
         )
         counts = np.full((size, len(values)), self.alpha, dtype=float)
         col_of = {v: j for j, v in enumerate(values)}
@@ -176,12 +197,8 @@ class TabularCPT:
         parent_names: list[str],
         levels: dict[str, np.ndarray],
         strides: list[int],
-        size: int,
     ) -> np.ndarray:
-        n = len(next(iter(parents.values()))) if parents else 0
-        if not parent_names:
-            return np.zeros(max(n, 1) if parents else 0, dtype=int)
-        rows = np.zeros(n, dtype=int)
+        rows = np.zeros(len(next(iter(parents.values()))), dtype=int)
         for name, stride in zip(parent_names, strides, strict=True):
             rows += np.searchsorted(levels[name], parents[name]) * stride
         return rows
@@ -191,6 +208,53 @@ def _design(parents: dict[str, np.ndarray], names: list[str], n: int) -> np.ndar
     """Column-stacked ``[1, parents...]`` design matrix."""
     columns = [np.ones(n)] + [np.asarray(parents[name], dtype=float) for name in names]
     return np.column_stack(columns)
+
+
+def _parent_columns(parent_values: dict[str, Tensor], names: list[str], n: int) -> np.ndarray:
+    """``(n, len(names))`` float block of the parent tensors, column order following ``names``.
+
+    Shared by :func:`_attach_residual`'s ``residual`` closure and :class:`ANMFit`'s ``mechanism``
+    closure, which feed the same duck-typed ``predict(X)`` and so must agree exactly on dtype,
+    column order, and the no-parent shape — an ``(n, 0)`` block, which ``np.column_stack`` cannot
+    build from an empty list.
+    """
+    if not names:
+        return np.zeros((n, 0))
+    return np.column_stack(
+        [parent_values[name].reshape(-1).numpy().astype(float) for name in names]
+    )
+
+
+def _parent_tensors(parents: dict[str, np.ndarray], names: list[str]) -> dict[str, Tensor]:
+    """The parent columns as float32 tensors, keyed by name — the numpy-to-torch direction of
+    :func:`_parent_columns`.
+
+    Shared by :func:`evaluate_holdout` and :class:`PoissonGLMFit`'s in-sample score, which feed the
+    *same* ``log_prob`` closure: the two numbers are documented as comparable, which they only are
+    if both sides enter at the same dtype.
+    """
+    return {
+        name: torch.tensor(  # type: ignore[reportPrivateImportUsage]
+            np.asarray(parents[name], dtype=float),
+            dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
+        )
+        for name in names
+    }
+
+
+def _affine_mean_fn(coefficients: np.ndarray) -> Callable[[np.ndarray], np.ndarray]:
+    """``columns -> [1, columns] @ coefficients`` for an ``[intercept, *weights]`` vector.
+
+    The mean map every linear structural equation inverts through :func:`_attach_residual`, shared
+    by :class:`LinearGaussianFit` (OLS coefficients) and
+    :class:`~causalrl.scm.continuous.bayesian_fit.BayesianLinearFit` (posterior means) — the same
+    affine map with a different estimator behind it.
+    """
+
+    def mean_fn(columns: np.ndarray) -> np.ndarray:
+        return np.column_stack([np.ones(len(columns)), columns]) @ coefficients
+
+    return mean_fn
 
 
 def _r2(y: np.ndarray, predicted: np.ndarray) -> float:
@@ -212,13 +276,7 @@ def _attach_residual(
 
     def residual(parent_values: dict[str, Tensor], value: Tensor) -> Tensor:
         flat = value.reshape(-1)
-        columns = (
-            np.column_stack(
-                [parent_values[name].reshape(-1).numpy().astype(float) for name in names]
-            )
-            if names
-            else np.zeros((flat.shape[0], 0))
-        )
+        columns = _parent_columns(parent_values, names, flat.shape[0])
         mean = torch.tensor(  # type: ignore[reportPrivateImportUsage]
             np.asarray(mean_fn(columns), dtype=float),
             dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
@@ -233,25 +291,22 @@ def evaluate_holdout(
 ) -> float:
     """Score the DEPLOYED (train-fitted) mechanism against data the fit never saw.
 
-    One shared path for all four families, dispatched on ``invertible`` rather than duplicated
-    per family. Invertible (additive-noise) mechanisms recover their mean prediction via
+    One shared path for every family, dispatched on ``invertible`` rather than duplicated per
+    family. Invertible (additive-noise) mechanisms recover their mean prediction via
     ``mechanism(parents, zeros)`` -- zero noise contributes nothing to an additive coupling -- and
     are scored by :func:`_r2` against the held-out targets, the same metric as their in-sample
-    ``score``. The one non-invertible family (:class:`TabularCPT`) has no residual to exploit, so
-    it is scored via mean held-out log-likelihood through the ``log_prob`` closure attached at fit
-    time, matching what ``TabularCPT.fit`` already reports in-sample. Either way the result sits
-    on the same scale as ``FittedMechanism.score``, so the two numbers are comparable.
+    ``score``. The non-invertible families (:class:`TabularCPT`, :class:`PoissonGLMFit`) have no
+    residual to exploit, so they are scored via mean held-out log-likelihood through the
+    ``log_prob`` closure attached at fit time, matching what each family's own ``fit`` already
+    reports in-sample -- dispatch is on the ``invertible`` flag and the attached ``log_prob``, not
+    a hardcoded type check, so this generalises to any future non-invertible family unchanged.
+    Either way the result sits on the same scale as ``FittedMechanism.score``, so the two numbers
+    are comparable.
     """
     names = sorted(parents)
     child_array = np.asarray(child, dtype=float)
     n = len(child_array)
-    parent_tensors = {
-        name: torch.tensor(  # type: ignore[reportPrivateImportUsage]
-            np.asarray(parents[name], dtype=float),
-            dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
-        )
-        for name in names
-    }
+    parent_tensors = _parent_tensors(parents, names)
     if fitted.invertible:
         zeros = torch.zeros(n)  # type: ignore[reportPrivateImportUsage]
         with torch.no_grad():
@@ -298,11 +353,7 @@ class LinearGaussianFit:
         sigma = float(residual.std())
         weights = {name: float(coefficients[i + 1]) for i, name in enumerate(names)}
         mechanism = LinearGaussianMechanism(names, weights, bias=float(coefficients[0]))
-        _attach_residual(
-            mechanism,
-            names,
-            lambda columns: np.column_stack([np.ones(len(columns)), columns]) @ coefficients,
-        )
+        _attach_residual(mechanism, names, _affine_mean_fn(coefficients))
         return FittedMechanism(
             mechanism=mechanism,
             noise=Normal(0.0, max(sigma, 1e-6)),
@@ -344,14 +395,13 @@ class ANMFit:
         residual_tensor = torch.tensor(residual, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
 
         def mechanism(parent_values: dict[str, Tensor], noise: Tensor) -> Tensor:
-            columns = np.column_stack(
-                [parent_values[name].reshape(-1).numpy().astype(float) for name in names]
-            )
+            flat_noise = noise.reshape(-1)
+            columns = _parent_columns(parent_values, names, flat_noise.shape[0])
             mean = torch.tensor(  # type: ignore[reportPrivateImportUsage]
                 np.asarray(model.predict(columns), dtype=float),
                 dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
             )
-            return mean + noise.reshape(-1)
+            return mean + flat_noise
 
         fitted_mechanism = FunctionalMechanism(names, mechanism)
         _attach_residual(fitted_mechanism, names, lambda columns: model.predict(columns))
@@ -403,10 +453,6 @@ class _Empirical(Distribution):
         index = torch.randint(0, self.values.shape[0], (n,))  # type: ignore[reportPrivateImportUsage]
         return self.values[index]
 
-    @property
-    def stddev(self) -> Tensor:
-        return self.values.std()
-
 
 class NeuralFit:
     """Continuous node: ``V = net(parents) + U``, an MLP mean with Gaussian residual noise.
@@ -456,8 +502,7 @@ class NeuralFit:
         # instead of silently re-building a live autograd graph through the trained weights.
         for parameter in net.parameters():
             parameter.requires_grad_(False)
-        with torch.no_grad():
-            predicted = net(x).squeeze(-1)
+        predicted = net(x).squeeze(-1)
         residual = target - predicted
         sigma = float(residual.std())
 
@@ -488,3 +533,128 @@ class _AdditiveHead(torch.nn.Module):
     def forward(self, columns: Tensor) -> Tensor:
         parents, noise = columns[:, :-1], columns[:, -1:]
         return self.net(parents) + noise
+
+
+def _poisson_irls(design: np.ndarray, y: np.ndarray, max_iter: int, tol: float) -> np.ndarray:
+    """Fit ``log E[y | design] = design @ beta`` by IRLS/Fisher scoring, the standard fit for a
+    Poisson GLM under the canonical (log) link (McCullagh & Nelder, *Generalized Linear Models*,
+    2nd ed., §2.5).
+
+    ``design``'s first column is the intercept (see :func:`_design`), so a zero-parent fit is
+    just a one-column design going through this exact same loop, not a special case.
+    """
+    n_features = design.shape[1]
+    beta = np.zeros(n_features)
+    ridge = 1e-8 * np.eye(n_features)
+    for _ in range(max_iter):
+        eta = np.clip(design @ beta, -30.0, 30.0)
+        mu = np.exp(eta)
+        working_response = eta + (y - mu) / mu
+        lhs = design.T @ (design * mu[:, None]) + ridge
+        rhs = design.T @ (mu * working_response)
+        beta_next = np.linalg.solve(lhs, rhs)
+        step = np.max(np.abs(beta_next - beta))
+        beta = beta_next
+        if step < tol:
+            break
+    return beta
+
+
+class PoissonGLMFit:
+    """Count node: a Poisson GLM with a log link, fitted by IRLS.
+
+    ``log E[V | parents] = intercept + w · parents``. Linear in the parents where a conditional
+    probability table is exponential in them, which is what makes lag-unrolled count data (6-12
+    lagged parents) tractable at all — and it keeps the point-process structure a table discards.
+
+    The mechanism is ``V = F⁻¹(U | parents)`` with ``U ~ Uniform(0, 1)``, the same canonical
+    construction :class:`TabularCPT` uses. A Poisson draw is not recoverable from
+    ``(parents, count)``, so ``invertible=False``: counterfactuals at this node are genuinely
+    unidentified and the L3 guard correctly refuses them. ``log_prob`` is attached so
+    :func:`evaluate_holdout` scores this family by mean held-out log-likelihood rather than R².
+
+    Implements the standard IRLS/Fisher-scoring fit for a Poisson GLM (McCullagh & Nelder,
+    *Generalized Linear Models*, 2nd ed., §2.5); no external code is ported.
+    """
+
+    def __init__(self, max_iter: int = 50, tol: float = 1e-8) -> None:
+        self.max_iter = max_iter
+        self.tol = tol
+
+    def fit(self, parents: dict[str, np.ndarray], child: np.ndarray) -> FittedMechanism:
+        y = np.asarray(child, dtype=float)
+        names = sorted(parents)
+        design = _design(parents, names, len(y))
+        beta = _poisson_irls(design, y, self.max_iter, self.tol)
+        intercept = float(beta[0])
+        weights = {name: float(beta[i + 1]) for i, name in enumerate(names)}
+        coefficients = {"intercept": intercept, **weights}
+
+        def rate(parent_values: dict[str, Tensor], n: int) -> Tensor:
+            eta = torch.full((n,), intercept, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
+            for name in names:
+                eta = eta + weights[name] * parent_values[name].reshape(-1).float()
+            return eta.clamp(-30.0, 30.0).exp()
+
+        def mechanism(parent_values: dict[str, Tensor], noise: Tensor) -> Tensor:
+            flat_noise = noise.reshape(-1).float()
+            n = flat_noise.shape[0]
+            if n == 0:
+                return torch.zeros(0)  # type: ignore[reportPrivateImportUsage]
+            lam = rate(parent_values, n)
+            # Cap the support so the vectorised CDF is a finite (n, cap+1) table. A draw landing
+            # at the cap is astronomically unlikely at these rates (the Poisson tail decays
+            # super-exponentially), so clamping to it below is silently correct, not an
+            # approximation worth raising over.
+            lam_max = float(lam.max())
+            cap = max(20, int(np.ceil(lam_max + 10.0 * np.sqrt(lam_max))))
+            cells = n * (cap + 1)
+            if cells > _MAX_POISSON_CELLS:
+                raise ValueError(
+                    f"PoissonGLMFit's sampler would need a support table of {cells} cells "
+                    f"(n={n} rows x {cap + 1} columns, lambda up to {lam_max:.3g} in this batch) "
+                    f"-- above _MAX_POISSON_CELLS={_MAX_POISSON_CELLS}. This table is rebuilt on "
+                    f"every mechanism() call and its cost is the PRODUCT of the batch size and the "
+                    f"per-row support width, so either factor alone -- a large batch or a large "
+                    f"lambda -- can trip it; the numbers above show which one did here. The cap is "
+                    f"a fixed module constant with no parameter to raise it, so the fix is on the "
+                    f"calling side: a lambda this large usually means an unstable upstream "
+                    f"mechanism (e.g. a lag chain whose coefficients amplify rather than decay) "
+                    f"rather than real point-process data, so check the fitted coefficients "
+                    f"feeding this node; if lambda is ordinary, ask for fewer rows per call."
+                )
+            counts = torch.arange(cap + 1, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
+            log_pmf = (
+                counts.unsqueeze(0) * lam.log().unsqueeze(1)
+                - lam.unsqueeze(1)
+                - (counts + 1.0).lgamma().unsqueeze(0)
+            )
+            cum = log_pmf.exp().cumsum(dim=1)
+            picked = (flat_noise.unsqueeze(1) > cum).sum(dim=1)
+            return picked.clamp(max=cap).float()
+
+        def log_prob(parent_values: dict[str, Tensor], value: Tensor) -> Tensor:
+            """Per-sample log P(value | parents) under the fitted Poisson rate -- what
+            evaluate_holdout uses to score this non-invertible family, and what mechanism()'s
+            inverse-CDF table is itself built from (one Poisson log-pmf, not two)."""
+            flat_value = value.reshape(-1).float()
+            lam = rate(parent_values, flat_value.shape[0])
+            return flat_value * lam.log() - lam - (flat_value + 1.0).lgamma()
+
+        fitted_mechanism = FunctionalMechanism(names, mechanism)
+        fitted_mechanism.coefficients = coefficients  # type: ignore[attr-defined]
+        fitted_mechanism.log_prob = log_prob  # type: ignore[attr-defined]
+
+        # In-sample mean log-likelihood of the training child values under the fitted rate --
+        # same convention as TabularCPT.score, and routed through the same log_prob used for
+        # holdout scoring rather than a second formula.
+        child_tensor = torch.tensor(y, dtype=torch.float32)  # type: ignore[reportPrivateImportUsage]
+        with torch.no_grad():
+            score = float(log_prob(_parent_tensors(parents, names), child_tensor).mean())
+
+        return FittedMechanism(
+            mechanism=fitted_mechanism,
+            noise=Uniform(0.0, 1.0),
+            invertible=False,
+            score=score,
+        )

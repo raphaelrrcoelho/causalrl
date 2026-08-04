@@ -99,13 +99,13 @@ def counterfactual_interval(
 
     intervened = set(interventions)
     ambiguous = set(scm.non_invertible_nodes())
-    upstream = _ambiguous_upstream(scm, ambiguous, intervened, target)
+    upstream = sorted(_ambiguous_upstream(scm, ambiguous, intervened, target))
     if upstream:
         raise NotIdentifiableError(
-            f"node(s) {sorted(upstream)} are non-invertible and lie upstream of {target!r} on a "
+            f"node(s) {upstream} are non-invertible and lie upstream of {target!r} on a "
             "directed path from the intervention; composing per-node bounds would be loose rather "
             "than tight. The tight answer needs the neural-causal-model min/max.",
-            witness=sorted(upstream),
+            witness=upstream,
         )
 
     cf_parents = _counterfactual_parents(scm, target, evidence, interventions)

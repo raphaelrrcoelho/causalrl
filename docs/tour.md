@@ -177,7 +177,7 @@ PC assumes causal sufficiency and faithfulness; the CPDAG may stay partially ori
 `to_causal_graph` raises rather than guess. See [Causal Discovery](discovery.md) for FCI / PAG
 under latent confounding. Faithful to Spirtes, Glymour & Scheines and Meek (UAI 1995).
 
-### Learn the SCM from data
+### Learn the SCM from data — the world model an agent acts in
 
 `discover` gives you structure; `fit_scm` gives you the mechanisms, so the result is an executable
 model rather than an estimate.
@@ -189,6 +189,39 @@ cpdag = discover(data, variables=["X", "Y", "Z", "W"])   # the same data as abov
 scm = fit_scm(data, graph=orient(cpdag, tiers=[["X", "Y"], ["Z"], ["W"]]))
 scm.do({"Z": 1}).see(1000)          # any intervention, not one estimand
 ```
+
+**What this is, in RL terms.** Fitting mechanisms from a fixed table is supervised learning, not
+reinforcement learning — but a learned SCM is exactly what model-based RL calls a *world model*,
+and `fit_scm` returns the same `StructuralCausalModel` every environment surface already takes.
+So the fitted model **is** an environment you can act in, with no adapter:
+
+```python
+from causalrl import CausalEnvWrapper
+from causalrl.envs.suite.scbandit import StructuralCausalBanditEnv
+
+dag = orient(cpdag, tiers=[["X", "Y"], ["Z"], ["W"]])
+scm = fit_scm(data, graph=dag)
+env = StructuralCausalBanditEnv(scm, dag, "W", ["Z"], {"Z": [0, 1]})  # arms = {}, do(Z=0), do(Z=1)
+env = CausalEnvWrapper(env, reward_node="W")
+env.reward_parents                  # ['Z'] — read off the learned model
+env.set_intervention({"X": 0.0})    # roll out under do(X=0): a lever no arm exposes
+obs, reward, *_ = env.step(0)       # arm 0 = observe; the reward now flows X -> Z -> W
+```
+
+Arm 0 is the one that shows the lever: it leaves `Z` free, so `do(X=0)` propagates `X -> Z -> W`
+and moves the reward (~0.67 unintervened, ~0.50 under `do(X=0)`, ~0.83 under `do(X=1)`). Pinning
+`Z` with `do(Z=0)`/`do(Z=1)` d-separates `W` from `X`, and the persistent intervention then has
+no effect at all — which is the learned model telling you the truth about its own graph.
+
+`examples/learned_scm_policy.py` runs the whole loop — learn from confounded logs, plan inside the
+model with Thompson sampling, score the resulting policy in the true world — and shows the regime
+this is about: a confounder-blind world model fits `E[Y | A]` just as well and ships the *wrong*
+arm, while on a randomized log the causal structure buys nothing.
+
+This is the **model-learning half** of model-based RL. The acting half here is a rollout, not a
+planner: `CausalMBRLAgent` builds its adjusted-value table straight from columnar data and has no
+seam that takes a `StructuralCausalModel`, so it cannot yet plan *inside* a fitted model. That
+wiring is sub-project 4 (`docs/learned_scm/DESIGN.md` §11), not something this section implies.
 
 Counterfactuals on a fitted model return an interval, not a point *where a discrete mechanism is
 involved*: observational data pins `P(V | parents)` but not the noise-to-value coupling, so

@@ -88,6 +88,7 @@ see the [causal-MBRL results note](docs/causal_mbrl_agent/RESULTS.md).
 | --- | --- | --- |
 | Decision under confounding | Counterfactual Thompson sampling on the MABUC | `CausalThompsonSampling` |
 | Confounded offline agent | One front-door → back-door / discovery / transport / function-approx / sequential | `CausalMBRLAgent` |
+| Learned world model | Fit an SCM from logs, then act in it as a Gymnasium env | `fit_scm`, `orient`, `counterfactual_interval` |
 | 1 — Offline→online | Learn from confounded logs via causal bounds | `UCDTR`, `DOVI`, `DeepDeconfoundedQ` |
 | 2 — Where to intervene | POMIS / MIS, incl. non-manipulable variables | `pomis`, `minimal_intervention_sets` |
 | 3 — Counterfactual policy | Act on `E[Y_do(a) \| intent]` | `CounterfactualOptimalPolicy` |

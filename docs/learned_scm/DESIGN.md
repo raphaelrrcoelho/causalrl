@@ -187,6 +187,8 @@ class MechanismFitter(Protocol):
 | `LinearGaussianFit` | continuous | closed-form OLS | `Normal(0, σ̂)` from residuals | `True` |
 | `ANMFit` | continuous | duck-typed `fit`/`predict` estimator, numpy-ridge default | empirical residual distribution | `True` |
 | `NeuralFit` | continuous | torch MLP into `NeuralMechanism` | `Normal(0, σ̂)`, additive head | `True` |
+| `PoissonGLMFit` | count | log-link GLM via IRLS, opt-in | `Uniform(0,1)` + inverse CDF | `False` |
+| `BayesianLinearFit` | continuous | NUTS posterior over `(intercept, w, σ)`, opt-in, `[numpyro]` extra | `Normal(0, E[σ])` from the posterior mean | `True` |
 
 `ANMFit` mirrors `GFormulaBackdoorAgent`'s `outcome_model=` factory (`agents/mbrl.py:409`): a
 callable returning a fresh sklearn-style estimator, so sklearn stays optional.
@@ -273,10 +275,10 @@ that is the safe direction: it never lets a coupling choice through unlabelled, 
 Because the guard keys off provenance, hand-written SCMs are completely unaffected: the user
 asserted those mechanisms, so their couplings are given, not inferred.
 
-The guard needs an unguarded twin. `abduct` becomes a thin wrapper over a private
-`_abduct(..., allow_fitted=True)`, so a caller that has already established what its query licenses
-can bypass it — sub-project 4's counterfactual data augmentation replays invertible mechanisms on a
-fitted model and must not be blocked.
+The guard needs an unguarded twin. `abduct` becomes a thin wrapper over a private `_abduct`, so a
+caller that has already established what its query licenses can bypass it — sub-project 4's
+counterfactual data augmentation replays invertible mechanisms on a fitted model and must not be
+blocked.
 
 `counterfactual_interval` does not use either: rejection-sampled abduction never matches continuous
 evidence, so invertibility is made operational instead. Every invertible fitter attaches a

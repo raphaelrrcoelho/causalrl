@@ -137,7 +137,7 @@ pythonVersion = "3.11"
 [tool.coverage.run]
 # Optional GPU/MCMC backends are verified on their own py3.11 CI lanes, not the main matrix (which
 # installs neither numpyro nor jax), so exclude them from the 90% coverage gate.
-omit = ["*/scm/continuous/nuts.py", "*/backends/jax/*"]
+omit = ["*/scm/continuous/nuts.py", "*/scm/continuous/bayesian_fit.py", "*/backends/jax/*"]
 
 [tool.pytest.ini_options]
 addopts = "-q --cov=causalrl --cov-report=term-missing"

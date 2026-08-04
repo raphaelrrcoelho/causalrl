@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from causalrl.scm.fitters import ANMFit, LinearGaussianFit, NeuralFit, TabularCPT
+from causalrl.scm.fitters import ANMFit, LinearGaussianFit, NeuralFit, PoissonGLMFit, TabularCPT
 
 
 def test_tabular_cpt_root_recovers_the_marginal():
@@ -42,15 +42,34 @@ def test_tabular_cpt_handles_multiple_parents():
 
 
 def test_tabular_cpt_smooths_an_unseen_parent_configuration():
-    # A=1 never co-occurs with Z=1 in training; the fitted table must still be a distribution.
+    # (A=1, Z=1) never occurs in training, so its count row is pure Laplace prior -- alpha's whole
+    # documented purpose. What must hold is that the row is still a DISTRIBUTION: both fitted
+    # levels reachable, at the prior's 50/50.
+    #
+    # The previous version of this test asserted only `set(unique(draws)) <= {0.0, 1.0}`, which
+    # `value_tensor[picked]` guarantees by construction for EVERY possible table -- it passed
+    # unchanged with the pseudo-count zeroed and the row NaN (NaN comparisons are all False, so
+    # every draw routes to index 0). Mutation-verified: with `np.full(..., 0.0)` in place of
+    # `np.full(..., self.alpha)` the first assertion below fails on a single-valued draw set.
+    #
+    # The observed (A=0, Z=0) row is pinned too, at the opposite extreme -- it saw y=0 100 times,
+    # so smoothing must not flatten it toward the prior. Together the two say "unseen row = prior,
+    # seen row = data": an all-uniform table fails the second, a prior-free table fails the first.
     a = np.array([0, 0, 1, 1] * 100)
     z = np.array([0, 1, 0, 0] * 100)
     y = np.array([0, 1, 1, 0] * 100)
     fitted = TabularCPT().fit({"A": a, "Z": z}, y)
     n = 1000
-    u = fitted.noise.sample((n,)).reshape(n).float()
-    out = fitted.mechanism({"A": torch.ones(n), "Z": torch.ones(n)}, u)
-    assert set(np.unique(out.numpy())) <= {0.0, 1.0}
+    # A deterministic sweep of the inverse CDF rather than a random sample: the proportions below
+    # are then exact rather than merely probable, with no seeding needed.
+    u = torch.linspace(0.0005, 0.9995, n)
+
+    unseen = fitted.mechanism({"A": torch.ones(n), "Z": torch.ones(n)}, u)
+    assert set(unseen.unique().tolist()) == {0.0, 1.0}
+    assert abs(float(unseen.mean()) - 0.5) < 0.05
+
+    seen = fitted.mechanism({"A": torch.zeros(n), "Z": torch.zeros(n)}, u)
+    assert float(seen.mean()) < 0.05
 
 
 def test_tabular_cpt_refuses_a_table_too_large_to_be_a_conditional_distribution():
@@ -242,3 +261,115 @@ def test_neural_fit_residual_round_trips():
     noise = fitted.mechanism.residual(held_out, value)  # type: ignore[attr-defined]
     recovered = fitted.mechanism(held_out, noise)
     assert torch.allclose(recovered, value, rtol=0.0, atol=1e-4)
+
+
+def test_poisson_glm_recovers_log_linear_coefficients():
+    rng = np.random.default_rng(0)
+    n = 20_000
+    x = rng.normal(size=n)
+    z = rng.normal(size=n)
+    rate = np.exp(0.4 + 0.8 * x - 0.5 * z)
+    y = rng.poisson(rate)
+    fitted = PoissonGLMFit().fit({"X": x, "Z": z}, y)
+    coefficients = fitted.mechanism.coefficients  # type: ignore[attr-defined]
+    assert abs(coefficients["intercept"] - 0.4) < 0.05
+    assert abs(coefficients["X"] - 0.8) < 0.05
+    assert abs(coefficients["Z"] + 0.5) < 0.05
+    assert fitted.invertible is False
+
+
+def test_poisson_glm_mechanism_reproduces_the_conditional_mean():
+    rng = np.random.default_rng(1)
+    n = 20_000
+    x = rng.normal(size=n)
+    y = rng.poisson(np.exp(0.2 + 0.6 * x))
+    fitted = PoissonGLMFit().fit({"X": x}, y)
+    m = 40_000
+    u = fitted.noise.sample((m,)).reshape(m).float()
+    drawn = fitted.mechanism({"X": torch.ones(m)}, u)
+    assert abs(float(drawn.mean()) - float(np.exp(0.8))) < 0.05
+    # Mutation guard: a mean predictor that discards `noise` and returns `rate(...)` directly would
+    # satisfy the mean assertion above exactly (constant lambda for every unit), so the inverse-CDF
+    # construction needs its own check -- integer-valued draws with Poisson dispersion
+    # (variance/mean ~= 1), neither of which a mean predictor can produce.
+    assert torch.allclose(drawn, drawn.round())
+    variance = float(drawn.var())
+    mean = float(drawn.mean())
+    assert abs(variance / mean - 1.0) < 0.1
+
+
+def test_poisson_glm_attaches_log_prob_for_holdout_scoring():
+    rng = np.random.default_rng(2)
+    n = 8000
+    x = rng.normal(size=n)
+    y = rng.poisson(np.exp(0.3 + 0.7 * x))
+    fitted = PoissonGLMFit().fit({"X": x}, y)
+    informative = float(
+        fitted.mechanism.log_prob(  # type: ignore[attr-defined]
+            {"X": torch.tensor(x, dtype=torch.float32)},
+            torch.tensor(y, dtype=torch.float32),
+        ).mean()
+    )
+    flat = PoissonGLMFit().fit({}, y)
+    uninformative = float(
+        flat.mechanism.log_prob(  # type: ignore[attr-defined]
+            {}, torch.tensor(y, dtype=torch.float32)
+        ).mean()
+    )
+    assert informative > uninformative
+
+
+def test_poisson_glm_beats_tabular_cpt_on_many_lagged_parents():
+    # 6 ternary parents = 729 configurations; at this n most are occupied but each by only a
+    # handful of raw rows, so TabularCPT's Laplace smoothing still dominates cell-by-cell while the
+    # GLM pools information across configurations through its shared linear coefficients. Fit on
+    # one partition, score on a disjoint 500-row holdout neither model trained on -- a same-rows
+    # in-sample comparison is fragile (favours the CPT, which can memorise rows it was fit on) and
+    # does not test the claim in this test's own name.
+    rng = np.random.default_rng(3)
+    n = 3000
+    parents = {f"lag{i}": rng.integers(0, 3, size=n).astype(float) for i in range(6)}
+    eta = 0.1 + sum(0.15 * parents[f"lag{i}"] for i in range(6))
+    y = rng.poisson(np.exp(eta))
+    train = {k: v[500:] for k, v in parents.items()}
+    held = {k: v[:500] for k, v in parents.items()}
+    glm = PoissonGLMFit().fit(train, y[500:])
+    cpt = TabularCPT().fit({k: v.astype(int) for k, v in train.items()}, y[500:])
+    target = torch.tensor(y[:500], dtype=torch.float32)
+    glm_ll = float(
+        glm.mechanism.log_prob(  # type: ignore[attr-defined]
+            {k: torch.tensor(v, dtype=torch.float32) for k, v in held.items()}, target
+        ).mean()
+    )
+    cpt_ll = float(
+        cpt.mechanism.log_prob(  # type: ignore[attr-defined]
+            {k: torch.tensor(v, dtype=torch.float32) for k, v in held.items()}, target
+        ).mean()
+    )
+    assert glm_ll > cpt_ll + 0.2
+
+
+def test_poisson_glm_refuses_a_cell_budget_blown_by_a_runaway_lambda():
+    # A runaway upstream VALUE (not a runaway fit) pushes eta to its clamp boundary; the sampler's
+    # per-row support table must refuse rather than build a multi-gigabyte allocation. Small n,
+    # huge lambda -- the corner a column-only guard can see.
+    rng = np.random.default_rng(4)
+    x = rng.normal(size=2000)
+    y = rng.poisson(np.exp(0.1 + 0.1 * x))
+    fitted = PoissonGLMFit().fit({"X": x}, y)
+    huge = torch.full((4,), 1000.0)
+    with pytest.raises(ValueError, match="_MAX_POISSON_CELLS"):
+        fitted.mechanism({"X": huge}, torch.rand(4))
+
+
+def test_poisson_glm_refuses_a_cell_budget_blown_by_a_large_batch():
+    # Same guard, the corner a column-only guard CANNOT see: an ordinary lambda (cap stays at the
+    # 20 floor -- no runaway rate anywhere) but a batch large enough that n * (cap + 1) alone
+    # exceeds the cell budget. Nothing about this call is pathological except its size.
+    rng = np.random.default_rng(5)
+    x = rng.normal(size=2000)
+    y = rng.poisson(np.exp(0.1 + 0.1 * x))
+    fitted = PoissonGLMFit().fit({"X": x}, y)
+    n = 2_000_000
+    with pytest.raises(ValueError, match="_MAX_POISSON_CELLS"):
+        fitted.mechanism({"X": torch.zeros(n)}, torch.rand(n))
