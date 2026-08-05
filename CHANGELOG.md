@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (unit clamping), an LFP proxy, and a matched deterministic `MeanFieldAreaModel` solved by
     Newton (so the fixed point is found even where iterating the map would run away from it).
     `target_loop_gain` sets the mesoscopic regime directly.
+  - **`from_nwb_ecephys`** (`causalrl.neuro.io`) — read a sorted-spike NWB session straight into a
+    `MultiScaleRecording`: ragged `spike_times`, per-unit brain area resolved through
+    `peak_channel_id` -> the electrodes table's `location` (which becomes the abstraction's `tau`),
+    the published `ALLEN_QUALITY` unit filter, and optional LFP from the matching probe file
+    block-averaged onto the same bin grid. Reads with `h5py` alone — no pynwb, Neo or AllenSDK.
   - **`causalrl.neuro.io`** — duck-typed Neo bridge (`from_neo_block`, both scales onto one time
     base) and a DOI-carrying registry of the public datasets this pipeline targets. `load_dataset`
     reads a local copy and never downloads.

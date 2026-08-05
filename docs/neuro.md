@@ -178,6 +178,23 @@ block-averaged onto the same bin grid to become the meso scale. Neo is never imp
 the adapters are duck-typed, so a real `neo.Block` and a stand-in with the same attributes both
 work.
 
+For NWB sorted-spike sessions (Allen, IBL, most Neuropixels pipelines) use `from_nwb_ecephys`,
+which reads with `h5py` alone and needs neither pynwb nor Neo:
+
+```python
+from causalrl.neuro.io import from_nwb_ecephys
+
+rec = from_nwb_ecephys("session.nwb", bin_size=0.005, t_start=1000.0, t_stop=1600.0,
+                       areas=["VISp", "VISl", "VISal", "VISrl"], max_units_per_area=6,
+                       lfp_path="probe_lfp.nwb")
+```
+
+Each unit's brain area is resolved through its `peak_channel_id` and the electrodes table's
+`location`, so `unit_area` — and hence the abstraction's `tau` — comes from the recording's own
+anatomy rather than being supplied by hand. Units are filtered by the published `ALLEN_QUALITY`
+thresholds by default: a unit with refractory violations is partly another neuron's spikes, which
+is a *measurement-induced* dependence no downstream causal machinery can undo.
+
 `load_dataset` reads a **local** copy and never downloads. These datasets are large and versioned
 by DOI; when nothing is found it raises `DatasetUnavailableError` naming the DOI and source.
 

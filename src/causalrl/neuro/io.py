@@ -28,10 +28,12 @@ from numpy.typing import NDArray
 from causalrl.neuro.recording import MultiScaleRecording, RecordingError, bin_spike_times
 
 __all__ = [
+    "ALLEN_QUALITY",
     "DATASETS",
     "DatasetSpec",
     "DatasetUnavailableError",
     "from_neo_block",
+    "from_nwb_ecephys",
     "from_spike_trains",
     "load_dataset",
 ]
@@ -324,3 +326,204 @@ def _default_reader(path: Path) -> Any:
             f"Alternatively pass your own `reader` callable returning a neo.Block."
         ) from exc
     raise DatasetUnavailableError(f"no default Neo reader for {path.suffix!r} files")
+
+
+# --------------------------------------------------------------------------------------------
+# NWB ecephys: spikes and LFP straight out of an NWB file, via h5py.
+# --------------------------------------------------------------------------------------------
+
+#: Allen Institute's published quality thresholds for including a sorted unit.
+ALLEN_QUALITY = {
+    "presence_ratio": 0.9,  # minimum: unit present through the session
+    "isi_violations": 0.5,  # maximum: refractory-period violations
+    "amplitude_cutoff": 0.1,  # maximum: fraction of spikes lost below threshold
+    "firing_rate": 0.5,  # minimum Hz: below this nothing is estimable per bin
+}
+
+
+def _ragged(dataset: Any, index: Any, i: int) -> FloatArray:
+    """Row ``i`` of an NWB ragged column: ``index`` holds cumulative END offsets."""
+    start = 0 if i == 0 else int(index[i - 1])
+    return np.asarray(dataset[start : int(index[i])], dtype=np.float64)
+
+
+def from_nwb_ecephys(
+    session_path: str | Path,
+    *,
+    bin_size: float = 0.005,
+    t_start: float | None = None,
+    t_stop: float | None = None,
+    areas: Sequence[str] | None = None,
+    quality: Mapping[str, float] | None = None,
+    max_units_per_area: int | None = None,
+    lfp_path: str | Path | None = None,
+    lfp_max_channels: int = 8,
+) -> MultiScaleRecording:
+    """Read an NWB ecephys session (spikes, and optionally LFP) into a recording.
+
+    Targets the standard NWB ecephys layout — a ``units`` table with ragged ``spike_times`` and a
+    ``general/extracellular_ephys/electrodes`` table carrying a ``location`` per channel — which is
+    what the Allen Institute, IBL and most Neuropixels pipelines publish. Read with ``h5py`` only:
+    no pynwb, no Neo, no AllenSDK, consistent with the rest of this module.
+
+    Each unit's **brain area** comes from the ``location`` of its ``peak_channel_id``; that becomes
+    the ``unit_area`` map, and hence the ``tau`` of the micro→meso abstraction. ``areas`` restricts
+    which are kept.
+
+    ``quality`` filters the units table by column thresholds. Pass :data:`ALLEN_QUALITY` (the
+    default when ``quality`` is ``None``) for the published Allen criteria, or ``{}`` to keep every
+    unit. Sorted-unit quality is not cosmetic here: a unit with refractory violations is partly
+    another neuron's spikes, which is a *measurement-induced* dependence that no amount of causal
+    machinery downstream can undo.
+
+    ``lfp_path`` points at the matching probe file; its channels are block-averaged onto the same
+    bin grid and attached as the mesoscopic scale.
+    """
+    import h5py  # local: h5py is needed only for this reader
+
+    path = Path(session_path)
+    if not path.exists():
+        raise DatasetUnavailableError(f"NWB file not found: {path}")
+    thresholds = ALLEN_QUALITY if quality is None else dict(quality)
+
+    with h5py.File(path, "r") as f:
+        if "units" not in f:
+            raise RecordingError(f"{path.name} has no units table (not a sorted-spike NWB file)")
+        units = f["units"]
+        n_units = len(units["id"][()])
+
+        keep = np.ones(n_units, dtype=bool)
+        if "quality" in units:
+            keep &= units["quality"][()] == b"good"
+        for column, bound in thresholds.items():
+            if column not in units:
+                continue
+            values = np.asarray(units[column][()], dtype=np.float64)
+            # presence_ratio and firing_rate are floors; the rest are ceilings.
+            floor = column in ("presence_ratio", "firing_rate")
+            keep &= values >= bound if floor else values <= bound
+
+        area = np.full(n_units, "?", dtype=object)
+        electrodes = f.get("general/extracellular_ephys/electrodes")
+        if electrodes is not None and "peak_channel_id" in units:
+            location = {
+                int(i): loc.decode() if isinstance(loc, bytes) else str(loc)
+                for i, loc in zip(electrodes["id"][()], electrodes["location"][()], strict=True)
+            }
+            peak = units["peak_channel_id"][()]
+            area = np.array([location.get(int(p), "?") for p in peak], dtype=object)
+        if areas is not None:
+            keep &= np.isin(area, list(areas))
+
+        selected = np.flatnonzero(keep)
+        if max_units_per_area is not None:
+            counted: dict[str, int] = {}
+            trimmed = []
+            for i in selected:
+                a = str(area[i])
+                if counted.get(a, 0) >= max_units_per_area:
+                    continue
+                counted[a] = counted.get(a, 0) + 1
+                trimmed.append(i)
+            selected = np.array(trimmed, dtype=np.int64)
+        if selected.size == 0:
+            raise RecordingError(
+                f"no units survived the filter (areas={areas}, quality={thresholds}); "
+                f"{n_units} units in the file"
+            )
+
+        spike_times, spike_index = units["spike_times"], units["spike_times_index"][()]
+        trains = [_ragged(spike_times, spike_index, int(i)) for i in selected]
+        lo = float(t_start) if t_start is not None else float(min(t[0] for t in trains if t.size))
+        hi = float(t_stop) if t_stop is not None else float(max(t[-1] for t in trains if t.size))
+        if hi <= lo:
+            raise RecordingError(f"empty time window [{lo}, {hi})")
+        trains = [t[(t >= lo) & (t < hi)] for t in trains]
+
+        names = [f"{area[i]}_{int(units['id'][()][i])}" for i in selected]
+        unit_area = {n: str(area[i]) for n, i in zip(names, selected, strict=True)}
+        counts = bin_spike_times(trains, bin_size=bin_size, t_start=lo, t_stop=hi)
+
+    meso, meso_names = None, ()
+    if lfp_path is not None:
+        meso, meso_names = _read_nwb_lfp(
+            Path(lfp_path), t_start=lo, t_stop=hi, bin_size=bin_size,
+            n_bins=counts.shape[0], max_channels=lfp_max_channels,
+        )
+
+    return MultiScaleRecording(
+        spikes=counts,
+        unit_names=tuple(names),
+        bin_size=bin_size,
+        meso=meso,
+        meso_names=meso_names,
+        unit_area=unit_area,
+        metadata={
+            "source": "nwb-ecephys",
+            "file": path.name,
+            "t_start": lo,
+            "t_stop": hi,
+            "n_units_in_file": n_units,
+            "quality": dict(thresholds),
+        },
+    )
+
+
+def _read_nwb_lfp(
+    path: Path,
+    *,
+    t_start: float,
+    t_stop: float,
+    bin_size: float,
+    n_bins: int,
+    max_channels: int,
+) -> tuple[FloatArray, tuple[str, ...]]:
+    """Read the LFP window from an NWB probe file and block-average it onto the spike bin grid.
+
+    Only the requested time window is read off disk — a full probe's LFP is gigabytes, and the
+    timestamps are sorted, so a binary search bounds the slice.
+    """
+    import h5py
+
+    with h5py.File(path, "r") as f:
+        acquisition = f.get("acquisition")
+        if acquisition is None:
+            raise RecordingError(f"{path.name} has no acquisition group")
+        series = None
+        for key in acquisition:
+            group = acquisition[key]
+            if isinstance(group, h5py.Group):
+                for inner in group:
+                    candidate = group[inner]
+                    if isinstance(candidate, h5py.Group) and "timestamps" in candidate:
+                        series = candidate
+                        break
+            if series is not None:
+                break
+        if series is None:
+            raise RecordingError(f"{path.name} has no LFP series with timestamps")
+
+        timestamps = series["timestamps"]
+        lo = int(np.searchsorted(timestamps[()], t_start, side="left"))
+        hi = int(np.searchsorted(timestamps[()], t_stop, side="right"))
+        if hi <= lo:
+            raise RecordingError("LFP covers no part of the requested window")
+        data = series["data"]
+        step = max(1, data.shape[1] // max_channels)
+        channels = list(range(0, data.shape[1], step))[:max_channels]
+        window = np.asarray(data[lo:hi, :], dtype=np.float64)[:, channels]
+        times = np.asarray(timestamps[lo:hi], dtype=np.float64)
+
+    # Average every LFP sample into the spike bin it falls in; empty bins interpolate.
+    index = np.clip(((times - t_start) / bin_size).astype(np.int64), 0, n_bins - 1)
+    out = np.zeros((n_bins, len(channels)), dtype=np.float64)
+    hits = np.zeros(n_bins, dtype=np.int64)
+    np.add.at(out, index, window)
+    np.add.at(hits, index, 1)
+    filled = hits > 0
+    out[filled] /= hits[filled][:, np.newaxis]
+    if not filled.all():
+        rows = np.flatnonzero(filled)
+        for c in range(out.shape[1]):
+            out[:, c] = np.interp(np.arange(n_bins), rows, out[rows, c])
+    return out, tuple(f"lfp:{c}" for c in channels)

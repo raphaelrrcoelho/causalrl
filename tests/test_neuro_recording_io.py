@@ -165,3 +165,98 @@ def test_load_dataset_refuses_to_download_and_says_where_to_get_it(tmp_path) -> 
 def test_load_dataset_rejects_unknown_names(tmp_path) -> None:
     with pytest.raises(KeyError, match="unknown dataset"):
         load_dataset("not-a-dataset", tmp_path)
+
+
+# --- NWB ecephys reader -----------------------------------------------------------------------
+
+
+def _write_nwb(path, *, n_units=3, quality=None, locations=None) -> None:
+    """A minimal NWB ecephys file: units table with ragged spike times + electrodes table."""
+    h5py = pytest.importorskip("h5py")
+    locations = locations or ["VISp", "VISl", "VISp"]
+    quality = quality if quality is not None else [b"good"] * n_units
+    trains = [np.arange(0.01, 1.0, 0.1) + 0.01 * i for i in range(n_units)]
+    with h5py.File(path, "w") as f:
+        u = f.create_group("units")
+        u.create_dataset("id", data=np.arange(n_units))
+        u.create_dataset("spike_times", data=np.concatenate(trains))
+        u.create_dataset("spike_times_index", data=np.cumsum([len(t) for t in trains]))
+        u.create_dataset("quality", data=np.array(quality))
+        u.create_dataset("presence_ratio", data=np.full(n_units, 0.99))
+        u.create_dataset("isi_violations", data=np.zeros(n_units))
+        u.create_dataset("amplitude_cutoff", data=np.zeros(n_units))
+        u.create_dataset("firing_rate", data=np.full(n_units, 10.0))
+        u.create_dataset("peak_channel_id", data=np.arange(n_units))
+        e = f.create_group("general/extracellular_ephys/electrodes")
+        e.create_dataset("id", data=np.arange(n_units))
+        e.create_dataset("location", data=np.array([s.encode() for s in locations]))
+
+
+def test_from_nwb_reads_units_and_assigns_brain_areas(tmp_path) -> None:
+    from causalrl.neuro.io import from_nwb_ecephys
+
+    path = tmp_path / "session.nwb"
+    _write_nwb(path)
+    rec = from_nwb_ecephys(path, bin_size=0.01, t_start=0.0, t_stop=1.0)
+    assert rec.n_units == 3
+    assert rec.n_bins == 100
+    assert rec.areas == ("VISl", "VISp")
+    assert set(rec.unit_area.values()) == {"VISp", "VISl"}
+    assert int(rec.spikes.sum()) == 30
+
+
+def test_from_nwb_filters_by_area(tmp_path) -> None:
+    from causalrl.neuro.io import from_nwb_ecephys
+
+    path = tmp_path / "session.nwb"
+    _write_nwb(path)
+    rec = from_nwb_ecephys(path, bin_size=0.01, t_start=0.0, t_stop=1.0, areas=["VISp"])
+    assert rec.areas == ("VISp",)
+    assert rec.n_units == 2
+
+
+def test_from_nwb_applies_the_quality_filter(tmp_path) -> None:
+    from causalrl.neuro.io import from_nwb_ecephys
+
+    path = tmp_path / "session.nwb"
+    _write_nwb(path, quality=[b"good", b"noise", b"good"])
+    rec = from_nwb_ecephys(path, bin_size=0.01, t_start=0.0, t_stop=1.0)
+    assert rec.n_units == 2  # the 'noise' unit is dropped
+    everything = from_nwb_ecephys(path, bin_size=0.01, t_start=0.0, t_stop=1.0, quality={})
+    assert everything.n_units == 2  # 'quality' column still gates; thresholds are what {} clears
+
+
+def test_from_nwb_caps_units_per_area(tmp_path) -> None:
+    from causalrl.neuro.io import from_nwb_ecephys
+
+    path = tmp_path / "session.nwb"
+    _write_nwb(path)
+    rec = from_nwb_ecephys(path, bin_size=0.01, t_start=0.0, t_stop=1.0, max_units_per_area=1)
+    assert rec.n_units == 2  # one VISp + one VISl
+
+
+def test_from_nwb_reports_an_empty_selection_rather_than_an_empty_recording(tmp_path) -> None:
+    from causalrl.neuro.io import from_nwb_ecephys
+
+    path = tmp_path / "session.nwb"
+    _write_nwb(path)
+    with pytest.raises(RecordingError, match="no units survived"):
+        from_nwb_ecephys(path, bin_size=0.01, areas=["NOWHERE"])
+
+
+def test_from_nwb_rejects_a_missing_file(tmp_path) -> None:
+    from causalrl.neuro.io import DatasetUnavailableError, from_nwb_ecephys
+
+    with pytest.raises(DatasetUnavailableError, match="not found"):
+        from_nwb_ecephys(tmp_path / "absent.nwb")
+
+
+def test_from_nwb_rejects_a_file_without_a_units_table(tmp_path) -> None:
+    h5py = pytest.importorskip("h5py")
+    from causalrl.neuro.io import from_nwb_ecephys
+
+    path = tmp_path / "empty.nwb"
+    with h5py.File(path, "w") as f:
+        f.create_group("acquisition")
+    with pytest.raises(RecordingError, match="no units table"):
+        from_nwb_ecephys(path)
