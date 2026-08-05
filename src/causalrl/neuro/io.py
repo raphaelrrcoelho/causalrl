@@ -1,4 +1,4 @@
-# pyright: reportUnknownMemberType=false
+# pyright: reportUnknownMemberType=false, reportMissingTypeStubs=false
 """Bridges to the electrophysiology stack: Neo objects in, :class:`MultiScaleRecording` out.
 
 The analysis ecosystem this module targets — Neo, Elephant, NIX, and the Jülich INM-6/IAS-6
@@ -155,9 +155,7 @@ def from_spike_trains(
 ) -> MultiScaleRecording:
     """Build a recording from raw spike-time arrays (seconds), optionally with meso signals."""
     if len(spike_times) != len(unit_names):
-        raise RecordingError(
-            f"{len(spike_times)} spike trains but {len(unit_names)} unit names"
-        )
+        raise RecordingError(f"{len(spike_times)} spike trains but {len(unit_names)} unit names")
     counts = bin_spike_times(spike_times, bin_size=bin_size, t_start=t_start, t_stop=t_stop)
     return MultiScaleRecording(
         spikes=counts,
@@ -256,9 +254,7 @@ def from_neo_block(
     )
 
 
-def _block_average(
-    data: FloatArray, *, rate_hz: float, bin_size: float, n_bins: int
-) -> FloatArray:
+def _block_average(data: FloatArray, *, rate_hz: float, bin_size: float, n_bins: int) -> FloatArray:
     """Resample a continuous signal onto the spike bin grid by averaging within each bin.
 
     Block averaging is a low-pass followed by decimation, which is what keeps an LFP comparable to
@@ -386,7 +382,10 @@ def from_nwb_ecephys(
         raise DatasetUnavailableError(f"NWB file not found: {path}")
     thresholds = ALLEN_QUALITY if quality is None else dict(quality)
 
-    with h5py.File(path, "r") as f:
+    # h5py ships no type stubs and its __getitem__ returns Group | Dataset | Datatype, so narrow
+    # once here at the boundary rather than casting at every access site below.
+    with h5py.File(path, "r") as handle:
+        f = cast("Any", handle)
         if "units" not in f:
             raise RecordingError(f"{path.name} has no units table (not a sorted-spike NWB file)")
         units = f["units"]
@@ -447,8 +446,12 @@ def from_nwb_ecephys(
     meso, meso_names = None, ()
     if lfp_path is not None:
         meso, meso_names = _read_nwb_lfp(
-            Path(lfp_path), t_start=lo, t_stop=hi, bin_size=bin_size,
-            n_bins=counts.shape[0], max_channels=lfp_max_channels,
+            Path(lfp_path),
+            t_start=lo,
+            t_stop=hi,
+            bin_size=bin_size,
+            n_bins=counts.shape[0],
+            max_channels=lfp_max_channels,
         )
 
     return MultiScaleRecording(
@@ -485,30 +488,33 @@ def _read_nwb_lfp(
     """
     import h5py
 
-    with h5py.File(path, "r") as f:
+    with h5py.File(path, "r") as handle:  # narrowed for the same reason as above
+        f = cast("Any", handle)
         acquisition = f.get("acquisition")
         if acquisition is None:
             raise RecordingError(f"{path.name} has no acquisition group")
-        series = None
+        series: Any = None
         for key in acquisition:
-            group = acquisition[key]
-            if isinstance(group, h5py.Group):
-                for inner in group:
-                    candidate = group[inner]
-                    if isinstance(candidate, h5py.Group) and "timestamps" in candidate:
-                        series = candidate
-                        break
+            checked = acquisition[key]
+            if not isinstance(checked, h5py.Group):
+                continue
+            group: Any = checked  # guarded above; widen again for the unstubbed member access
+            for inner in group:
+                candidate = group[inner]
+                if isinstance(candidate, h5py.Group) and "timestamps" in candidate:
+                    series = candidate
+                    break
             if series is not None:
                 break
         if series is None:
             raise RecordingError(f"{path.name} has no LFP series with timestamps")
 
-        timestamps = series["timestamps"]
+        timestamps: Any = series["timestamps"]
         lo = int(np.searchsorted(timestamps[()], t_start, side="left"))
         hi = int(np.searchsorted(timestamps[()], t_stop, side="right"))
         if hi <= lo:
             raise RecordingError("LFP covers no part of the requested window")
-        data = series["data"]
+        data: Any = series["data"]
         step = max(1, data.shape[1] // max_channels)
         channels = list(range(0, data.shape[1], step))[:max_channels]
         window = np.asarray(data[lo:hi, :], dtype=np.float64)[:, channels]
