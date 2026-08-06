@@ -108,6 +108,18 @@ DATASETS: dict[str, DatasetSpec] = {
 }
 
 
+def _require_h5py() -> Any:
+    """Import h5py, or say how to get it. NWB files are HDF5; nothing else here needs it."""
+    try:
+        import h5py
+    except ImportError as exc:  # pragma: no cover - depends on the optional dependency
+        raise DatasetUnavailableError(
+            "reading NWB requires h5py (NWB files are HDF5): pip install 'causalrl[neuro]', "
+            "or pip install h5py"
+        ) from exc
+    return h5py
+
+
 def _seconds(value: Any) -> FloatArray:
     """Coerce a quantity-like or plain array to a float array of seconds.
 
@@ -375,17 +387,16 @@ def from_nwb_ecephys(
     ``lfp_path`` points at the matching probe file; its channels are block-averaged onto the same
     bin grid and attached as the mesoscopic scale.
     """
-    import h5py  # local: h5py is needed only for this reader
+    h5py = _require_h5py()
 
     path = Path(session_path)
     if not path.exists():
         raise DatasetUnavailableError(f"NWB file not found: {path}")
     thresholds = ALLEN_QUALITY if quality is None else dict(quality)
 
-    # h5py ships no type stubs and its __getitem__ returns Group | Dataset | Datatype, so narrow
-    # once here at the boundary rather than casting at every access site below.
-    with h5py.File(path, "r") as handle:
-        f = cast("Any", handle)
+    # h5py ships no type stubs and its __getitem__ returns Group | Dataset | Datatype, so the
+    # handle stays Any (via _require_h5py) rather than being cast at every access site below.
+    with h5py.File(path, "r") as f:
         if "units" not in f:
             raise RecordingError(f"{path.name} has no units table (not a sorted-spike NWB file)")
         units = f["units"]
@@ -486,10 +497,9 @@ def _read_nwb_lfp(
     Only the requested time window is read off disk — a full probe's LFP is gigabytes, and the
     timestamps are sorted, so a binary search bounds the slice.
     """
-    import h5py
+    h5py = _require_h5py()
 
-    with h5py.File(path, "r") as handle:  # narrowed for the same reason as above
-        f = cast("Any", handle)
+    with h5py.File(path, "r") as f:  # Any for the same reason as above
         acquisition = f.get("acquisition")
         if acquisition is None:
             raise RecordingError(f"{path.name} has no acquisition group")

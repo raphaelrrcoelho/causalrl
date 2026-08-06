@@ -351,6 +351,7 @@ data = [
     { name = "pyarrow" },
 ]
 dev = [
+    { name = "h5py" },
     { name = "hypothesis" },
     { name = "jupyter" },
     { name = "nbconvert" },
@@ -379,6 +380,9 @@ interop = [
 jax = [
     { name = "jax", marker = "python_full_version < '3.14'" },
 ]
+neuro = [
+    { name = "h5py" },
+]
 numpyro = [
     { name = "numpyro", marker = "python_full_version < '3.14'" },
 ]
@@ -401,6 +405,8 @@ requires-dist = [
     { name = "dowhy", marker = "extra == 'interop'", specifier = ">=0.11" },
     { name = "econml", marker = "extra == 'interop'", specifier = ">=0.15" },
     { name = "gymnasium", specifier = ">=1.0" },
+    { name = "h5py", marker = "extra == 'dev'", specifier = ">=3.10" },
+    { name = "h5py", marker = "extra == 'neuro'", specifier = ">=3.10" },
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.120" },
     { name = "jax", marker = "python_full_version < '3.14' and extra == 'jax'", specifier = ">=0.4" },
     { name = "jupyter", marker = "extra == 'dev'", specifier = ">=1.1" },
@@ -424,7 +430,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'examples'", specifier = ">=2.5" },
     { name = "torch", marker = "extra == 'torch'", specifier = ">=2.5" },
 ]
-provides-extras = ["torch", "examples", "docs", "dev", "interop", "scale", "data", "numpyro", "jax"]
+provides-extras = ["torch", "examples", "docs", "dev", "neuro", "interop", "scale", "data", "numpyro", "jax"]
 
 [package.metadata.requires-dev]
 dev = [
