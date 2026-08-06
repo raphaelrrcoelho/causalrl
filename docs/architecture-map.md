@@ -187,9 +187,12 @@ numpy / pure-Python; no new dependencies.
   (I2, via `topology_max_kind`). `equilibrium.py`: `certify_equilibrium` (exact best-response check
   for a robust (tol-)Nash equilibrium, optionally under an intervention `do`; hedges on deviation;
   `KindNotLicensedError` when a topology can't license the requested `Kind` — acceptance c, d).
-  `views.py`: `PopulationAgentView` / `agent_causal_env_view` — a per-agent `CausalEnvProtocol`
-  (`sample`/`do` → `TrajectoryLog`) so Phase-1 DR estimates the ego's action effect and matches the
-  MC ground truth (acceptance b).
+  `views.py`: `LinearGaussianPopulationEnv` / `linear_gaussian_population_env` — a synthetic
+  per-agent `CausalEnvProtocol` (`sample`/`do` → `TrajectoryLog`, a DGP rather than a learner) so
+  Phase-1 DR estimates the ego's action effect and matches the MC ground truth (acceptance b).
+  `learning.py`: `run_no_regret` — the learning population itself (regret matching / multiplicative
+  weights over `agents/no_regret.py`), returning the empirical joint `cce_regret` /
+  `certify_cce_do` consume.
 - **`interop/pettingzoo.py` (§8.3)** — `pettingzoo_to_trajectory_log`: duck-typed adapter (PettingZoo
   never imported) rolling any `ParallelEnv`-shaped object into a `TrajectoryLog` with `entity_id` =
   agent (acceptance a). Tested with a mock `ParallelEnv`. A file-level pyright directive silences the

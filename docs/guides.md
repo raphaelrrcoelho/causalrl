@@ -53,15 +53,25 @@ envelope = across_regimes(regimes, transported_value)   # worst-case across cali
 
 `examples/guides/04_certify_agent_in_population.py`
 
-`agent_causal_env_view` exposes one ego agent in a fixed population as a per-agent causal
+`linear_gaussian_population_env` exposes one ego agent in a fixed population as a per-agent causal
 environment; a doubly-robust `certify_effect` recovers the ego's action effect and matches the
-interventional ground truth from `view.do(...)`.
+interventional ground truth from `env.do(...)`.
 
 ```python
-from causalrl import agent_causal_env_view, certify_effect
+from causalrl import certify_effect, linear_gaussian_population_env
 
-view = agent_causal_env_view(ego="ego", ego_effect=1.5)
+env = linear_gaussian_population_env(ego="ego", ego_effect=1.5)
 cert = certify_effect(graph, "ego", "Y", data, method="aipw")
+```
+
+For the *learning* side of a population, `run_no_regret` plays the game with one no-regret learner
+per free agent and hands the realized empirical joint to the certificate layer:
+
+```python
+from causalrl import certify_cce_do, run_no_regret
+
+run = run_no_regret(population, 20_000, do={"A2": 0})
+cert = certify_cce_do(game, welfare, do={"A2": 0}, no_regret=False, epsilon=run.regret)
 ```
 
 ## 5. Scale it

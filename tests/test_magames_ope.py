@@ -9,7 +9,10 @@ numpy; fully local.
 from __future__ import annotations
 
 from causalrl.estimate.compiler import certify_effect
-from causalrl.magames.views import PopulationAgentView, agent_causal_env_view
+from causalrl.magames.views import (
+    LinearGaussianPopulationEnv,
+    linear_gaussian_population_env,
+)
 from causalrl.protocols import CausalEnvProtocol
 from causalrl.scm.graph import CausalGraph
 
@@ -22,7 +25,7 @@ def _view_graph() -> CausalGraph:
 
 
 def test_view_conforms_to_causal_env_protocol() -> None:
-    view = agent_causal_env_view()
+    view = linear_gaussian_population_env()
     assert isinstance(view, CausalEnvProtocol)
     log = view.sample(50, seed=0)
     assert set(log.column("name").tolist()) == {"Z", "ego", "co", "Y"}
@@ -30,7 +33,7 @@ def test_view_conforms_to_causal_env_protocol() -> None:
 
 
 def test_single_learner_ope_matches_monte_carlo() -> None:
-    view = PopulationAgentView(ego_effect=1.5, coplayer_effect=0.8, confound=1.0, noise=0.5)
+    view = LinearGaussianPopulationEnv(ego_effect=1.5, coplayer_effect=0.8, confound=1.0, noise=0.5)
 
     # Phase-1 DR on the confounded logged play (adjust for the observed context via the graph).
     _, frame = view.sample(8000, seed=0).pivot()

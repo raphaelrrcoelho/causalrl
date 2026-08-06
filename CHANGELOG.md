@@ -62,6 +62,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   paper's ablation a no-op), `factor_gae(lam=1.0)` reconciles Eq. 8/10 with the "GAE truncation"
   prose, and `blend()` exists because Algorithm 1's line-12 ordering leaves `g` and `beta` — the
   two parameters the paper calls learnable — with no gradient path.
+- **`run_no_regret` / `NoRegretRun`** (`causalrl.magames`, exported top-level) — the learning
+  population that `cce_regret` / `certify_cce_do` were always written for. `magames` computed the
+  quantity *"a no-regret population drives to 0"* and shipped no such population; `run_no_regret`
+  plays a finite `CausalGame` (or a `Population`) for `rounds` rounds with one no-regret learner per
+  agent free under `do`, and returns the realized empirical joint in exactly the form the
+  certificate layer already accepts — `run.empirical_joint` (mapping) and `run.weights` (aligned
+  with `cce_polytope(...).profiles`) both feed `cce_regret` unchanged, and `run.regret` is the
+  measured `epsilon` for the finite-time route `certify_cce_do(..., no_regret=False,
+  epsilon=run.regret)`. `run.regret_trace` records the measured regret at log-spaced horizons, so
+  the convergence is evidence rather than assertion.
+- **`NoRegretLearner` / `RegretMatching` / `MultiplicativeWeights`** (`causalrl.agents.no_regret`,
+  exported top-level) — `causalrl.agents.base.Agent` implementations of two published no-regret
+  algorithms: regret matching (Hart & Mas-Colell, *Econometrica* 2000, on external regrets, via
+  Blackwell approachability; parameter-free) and Hedge / multiplicative weights (Freund & Schapire,
+  *JCSS* 1997; anytime or horizon-tuned theory rate by default). `observe(payoffs)` is the
+  full-information update on the counterfactual payoff vector; `Agent.update(obs, action, reward)`
+  is the bandit case, expanding the one realized payoff by inverse-propensity weighting (EXP3, Auer
+  et al., *SICOMP* 2002, with `explore` supplying the uniform mixing). This is the first import edge
+  between `magames/` and `agents/`.
 - **`cce_polytope` / `cce_bounds` / `cce_regret` / `certify_cce_do`** (`causalrl.magames`, exported
   top-level) — partial identification of a learning population's time-averaged behaviour by the
   coarse-correlated-equilibrium polytope of a (possibly `do()`-intervened) finite game. Both bound
@@ -83,6 +102,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   persistent `set_intervention` levers run against learned mechanisms
   (`examples/learned_scm_policy.py` learns from confounded logs, plans inside the model with
   Thompson sampling, and scores the resulting policy in the true world).
+
+### Changed (breaking)
+- **`PopulationAgentView` → `LinearGaussianPopulationEnv`** and **`agent_causal_env_view` →
+  `linear_gaussian_population_env`** (`causalrl.magames.views`, both also renamed in the top-level
+  export list). The class never was an agent: it is a hand-written linear-Gaussian data-generating
+  process that never updates from experience, exposed as a `CausalEnvProtocol` — "agent" was the
+  name of a variable inside it, and the old name promised a learner the module does not contain
+  (for a learner, see `run_no_regret` above). No deprecation shim: this is a 3.0.0 breaking rename.
+  **Migration:** `from causalrl import agent_causal_env_view` →
+  `from causalrl import linear_gaussian_population_env`; `PopulationAgentView(...)` →
+  `LinearGaussianPopulationEnv(...)`. Constructor arguments, fields and the `sample` / `do` /
+  `noise_ledger` behaviour are unchanged, so only the two names need editing.
 
 ### Added (experimental)
 - **`LinearCyclicSCM.stability_margin` / `spectral_abscissa` / `max_stable_learning_rate`** —
