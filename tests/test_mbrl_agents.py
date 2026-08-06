@@ -59,6 +59,25 @@ def test_never_logged_action_is_skipped_not_crashed() -> None:
     assert all(a in (0, 1) for a in agent.policy)
 
 
+def test_downside_gate_changes_the_policy_the_agent_ships() -> None:
+    """The agent-side path into the conformal layer: with ``alpha`` the agent gates candidates on
+    a calibrated worst-case return, so a mean-improving but heavy-tailed action is no longer
+    shipped and the agent abstains to behavior. Without it the same agent ships that action."""
+    trs = [Transition(0, 0, 0.5, 0, True) for _ in range(1000)]
+    trs += [Transition(0, 1, 1.5, 0, True) for _ in range(950)]
+    trs += [Transition(0, 1, -5.0, 0, True) for _ in range(50)]
+    ds = ConfoundedTrajectoryDataset(trs, n_states=1, n_actions=2)
+
+    ungated = CertifiedPolicyAgent(n_states=1, n_actions=2, gamma_max=1.02)
+    ungated.ingest_offline(ds)
+    assert ungated.policy == [1]
+
+    gated = CertifiedPolicyAgent(n_states=1, n_actions=2, gamma_max=1.02, alpha=0.1)
+    gated.ingest_offline(ds)
+    assert gated.policy == [0]
+    assert gated.act({"state": 0}) == 0
+
+
 def test_policy_has_one_action_per_state() -> None:
     # Both actions logged in both states.
     trs: list[Transition] = []

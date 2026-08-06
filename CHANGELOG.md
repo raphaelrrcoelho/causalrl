@@ -7,7 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (BREAKING)
+- **`certify_conformal_interval` no longer takes `query`, and emits `EstimandSpec(query="see")`.**
+  It previously defaulted to `query="counterfactual"` — a string label with no counterfactual
+  mathematics behind it: split conformal around a fitted prediction consumes no causal assumption,
+  and `weights` only move the observational law to a shifted one. *Migration:* delete the argument.
+  A caller who passed `query="counterfactual"` was labelling an observational prediction interval
+  and should move to `conformal_action_value` (below), which computes the propensity ratio and
+  records the assumptions that license an interventional claim; a caller who passed anything else
+  was relabelling the same interval and loses nothing.
+
 ### Added
+- **`conformal_action_value(dataset, target_actions, *, alpha)`** (`causalrl.conformal`, exported
+  top-level) — the off-policy caller of the weighted conformal path, and the RL entry point to
+  `conformal/`. The calibration likelihood ratio `dP_test/dP_cal` that `conformal_quantile` already
+  accepted *is* the propensity ratio `pi_target(a|s) / pi_behavior(a|s)` for off-policy evaluation;
+  this computes it from a `ConfoundedTrajectoryDataset` and the same per-transition
+  `target_actions` `certify_policy` takes (`None` scores the logging policy itself). Returns an
+  `EMPIRICAL` certificate whose `ci` is a distribution-free band for **the return of one decision**
+  under the policy — `value` is `None` and the claim says so; it is not a confidence interval for
+  `V(pi) = E[return]`. Each end is a one-sided bound at `alpha/2`; the test point's own ratio is
+  bounded by the largest the policy can produce (conservative rather than average); a positivity
+  gap gives a vacuous band plus a `Hedge`, and too little effective weight gives an infinite end
+  rather than a false finite one. Assumptions recorded: weighted exchangeability, no unmeasured
+  confounding, positivity (with the effective sample size and the unsupported pairs as diagnostics).
+- **`certify_policy(..., alpha=...)` — the lower-confidence-bound gate for safe policy improvement.**
+  With `alpha` set, `certified` requires the confounding verdict *and* that the target policy's
+  calibrated downside beat the logging policy's, and the bound is reported in the new
+  `DecisionCertificate.conformal_lcb` field (`None` when the gate did not run; the default keeps
+  the previous behaviour exactly). An uninformative (`-inf`) bound refuses rather than passes.
+  `CertifiedPolicyAgent(..., alpha=...)` threads it through, so an agent gates its shipped policy
+  on the conformal layer: a candidate with the better *mean* but a heavier downside is refused.
+  `as_certificate` now reports `downside-not-certified` rather than `not-robust-to-confounding`
+  when the finite-sample gate is what refused.
 - **`cce_polytope` / `cce_bounds` / `cce_regret` / `certify_cce_do`** (`causalrl.magames`, exported
   top-level) — partial identification of a learning population's time-averaged behaviour by the
   coarse-correlated-equilibrium polytope of a (possibly `do()`-intervened) finite game. Both bound

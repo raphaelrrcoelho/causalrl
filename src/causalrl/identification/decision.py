@@ -33,6 +33,8 @@ class DecisionCertificate(NamedTuple):
     by the strongest layer that ran? When the structural/measured layer ran it carries its
     one-sided guarantee (no confounder consistent with the supplied information can flip the
     sign); otherwise it reports whether the MSM layer found the decision robust up to ``gamma_max``.
+    When the finite-sample gate also ran (:func:`causalrl.certify_policy` with ``alpha``),
+    ``certified`` requires it too and ``conformal_lcb`` reports the bound it gated on.
     The component fields and ``summary`` make the exact guarantee explicit.
     """
 
@@ -43,6 +45,9 @@ class DecisionCertificate(NamedTuple):
     tipping_gamma: float | None  # MSM odds-ratio at which the decision tips; None if not run/robust
     msm_certified: bool | None  # MSM layer robust to gamma_max? None if the MSM layer did not run
     summary: str
+    # Distribution-free lower bound on a fresh return under the policy under test, from the
+    # conformal gate; None when that gate did not run. A single return, not E[return].
+    conformal_lcb: float | None = None
 
     def __str__(self) -> str:
         return self.summary

@@ -2,6 +2,8 @@
 
 All numpy/local. Split conformal, CQR (heteroscedastic), and weighted conformal (covariate shift)
 each attain at least the nominal marginal coverage; the certificate wrapper records exchangeability.
+``conformal_action_value`` is the off-policy caller of the weighted path: the calibration weights
+are the propensity ratio, so the band it returns must move with the target policy.
 """
 
 from __future__ import annotations
@@ -12,11 +14,22 @@ import pytest
 from causalrl.certify.certificate import Certificate, Kind
 from causalrl.conformal.core import (
     certify_conformal_interval,
+    conformal_action_value,
     conformal_quantile,
     cqr_interval,
     split_conformal_interval,
 )
+from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition
 from causalrl.identification.bounds import Interval
+
+
+def _split_bandit_log() -> ConfoundedTrajectoryDataset:
+    """One state, 50/50 logging; action 1 always returns 1.0 and action 0 always returns 0.0."""
+    transitions: list[Transition] = []
+    for _ in range(100):
+        transitions.append(Transition(0, 1, 1.0, 0, True))
+        transitions.append(Transition(0, 0, 0.0, 0, True))
+    return ConfoundedTrajectoryDataset(transitions, n_states=1, n_actions=2)
 
 
 def test_conformal_quantile_finite_sample_formula() -> None:
@@ -110,3 +123,94 @@ def test_certify_conformal_marks_weighted_exchangeability() -> None:
     cert = certify_conformal_interval(0.0, cal.tolist(), [0.0] * 200, alpha=0.1, weights=w.tolist())
     assert cert.assumptions[0].name == "weighted-exchangeability"
     assert cert.method == "weighted-split-conformal"
+
+
+def test_certify_conformal_does_not_claim_a_counterfactual() -> None:
+    """Residuals of a fitted prediction contain no intervention: the query must be observational,
+    and must not be settable to a causal label the mathematics does not support."""
+    cert = certify_conformal_interval(0.0, [0.1, -0.2, 0.3], [0.0, 0.0, 0.0], alpha=0.1)
+    assert cert.estimand.query == "see"
+    with pytest.raises(TypeError):
+        certify_conformal_interval(  # type: ignore[call-arg]
+            0.0, [0.1, -0.2, 0.3], [0.0, 0.0, 0.0], query="counterfactual"
+        )
+
+
+def test_action_value_band_follows_the_target_policy_upward() -> None:
+    """The weights must be used: under a policy that always plays the paying action, the calibrated
+    downside is the paying return, while the unweighted (logged) band still reaches the loser."""
+    dataset = _split_bandit_log()
+    always_pay = conformal_action_value(dataset, [1] * len(dataset), alpha=0.1)
+    logged = conformal_action_value(dataset, None, alpha=0.1)
+    assert always_pay.ci is not None and logged.ci is not None
+    assert logged.ci == Interval(0.0, 1.0)  # the logging policy plays both arms
+    assert always_pay.ci == Interval(1.0, 1.0)  # the target policy plays only the paying one
+    assert always_pay.ci.lower > logged.ci.lower
+
+
+def test_action_value_band_follows_the_target_policy_downward() -> None:
+    """The opposite shift: a policy that always plays the losing action must have the *upper* end
+    pulled down to that action's return, not the logged mixture's."""
+    dataset = _split_bandit_log()
+    always_lose = conformal_action_value(dataset, [0] * len(dataset), alpha=0.1)
+    logged = conformal_action_value(dataset, None, alpha=0.1)
+    assert always_lose.ci is not None and logged.ci is not None
+    assert always_lose.ci == Interval(0.0, 0.0)
+    assert always_lose.ci.upper < logged.ci.upper
+
+
+def test_action_value_records_the_off_policy_assumptions() -> None:
+    dataset = _split_bandit_log()
+    cert = conformal_action_value(dataset, [1] * len(dataset), alpha=0.1)
+    assert cert.kind is Kind.EMPIRICAL
+    assert cert.value is None  # coverage of one return, never a point estimate of E[return]
+    assert cert.alpha == 0.1
+    assert cert.estimand.query == "policy_value" and cert.estimand.policy == "target"
+    assert cert.method == "weighted-conformal-return-band"
+    names = [a.name for a in cert.assumptions]
+    assert names == ["weighted-exchangeability", "no-unmeasured-confounding", "positivity"]
+    # Half the log is off-policy and carries zero weight: ESS is the matched half, not n.
+    assert cert.assumptions[0].params["effective_sample_size"] == pytest.approx(100.0)
+    assert cert.assumptions[2].params["max_propensity_ratio"] == pytest.approx(2.0)
+    assert cert.hedge is None
+    assert Certificate.from_json(cert.to_json()).to_dict() == cert.to_dict()
+
+
+def test_action_value_for_the_logging_policy_consumes_no_causal_assumption() -> None:
+    """No reweighting happens, so no unconfoundedness or positivity is spent — the logged returns
+    are already draws from the logging policy's own return distribution."""
+    cert = conformal_action_value(_split_bandit_log(), None, alpha=0.1)
+    assert [a.name for a in cert.assumptions] == ["exchangeability"]
+    assert cert.estimand.policy == "behavior"
+    assert cert.method == "conformal-return-band"
+
+
+def test_action_value_hedges_a_positivity_gap() -> None:
+    """A target action never played in a state it is taken in is not identified: vacuous + hedged,
+    never a finite band."""
+    transitions = [Transition(state, 1, 1.0, 0, True) for state in (0, 1) for _ in range(40)]
+    dataset = ConfoundedTrajectoryDataset(transitions, n_states=2, n_actions=2)
+    cert = conformal_action_value(dataset, [0] * len(transitions), alpha=0.1)
+    assert cert.ci == Interval(float("-inf"), float("inf"))
+    assert cert.hedge is not None and "positivity" in cert.hedge.reason
+    assert cert.hedge.detail is not None
+    assert cert.hedge.detail["unsupported_state_action_pairs"] == [[0, 0], [1, 0]]
+
+
+def test_action_value_is_vacuous_when_the_weighted_sample_is_too_small() -> None:
+    """Too few effectively-weighted points for the level returns an infinite end, not a false one:
+    only 5 of the 40 transitions carry weight, which cannot support alpha/2 = 0.05."""
+    transitions = [Transition(0, 1, 1.0, 0, True) for _ in range(5)]
+    transitions += [Transition(0, 0, 0.0, 0, True) for _ in range(35)]
+    dataset = ConfoundedTrajectoryDataset(transitions, n_states=1, n_actions=2)
+    cert = conformal_action_value(dataset, [1] * len(transitions), alpha=0.1)
+    assert cert.ci is not None and cert.ci.lower == float("-inf")
+    assert cert.hedge is None  # the log has support; it is simply too small for the level
+
+
+def test_action_value_validates_its_arguments() -> None:
+    with pytest.raises(ValueError, match="one action per logged transition"):
+        conformal_action_value(_split_bandit_log(), [1, 0], alpha=0.1)
+    # alpha is halved per end, so an out-of-range alpha would otherwise pass the primitive's check.
+    with pytest.raises(ValueError, match="alpha"):
+        conformal_action_value(_split_bandit_log(), None, alpha=1.5)

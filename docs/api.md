@@ -190,6 +190,8 @@
 
 ::: causalrl.identification.bounds.msm_stratified_bounds
 
+::: causalrl.conformal.core.conformal_action_value
+
 ## Decision Certificates
 
 The decision stack — certify whether a confounded / off-policy decision ("is the treated arm

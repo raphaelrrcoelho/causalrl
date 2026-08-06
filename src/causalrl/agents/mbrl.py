@@ -5,7 +5,8 @@ the highest-contrast deterministic policy whose improvement over the behavior po
 robust to hidden confounding by :func:`causalrl.certify_policy` (Tan's marginal sensitivity model),
 and abstains to the empirical behavior policy when nothing certifies. The certificate is the
 decision rule — the honest robust planner, since a naive Manski-lower-bound greedy does not correct
-a backdoor ``A <- U -> Y``.
+a backdoor ``A <- U -> Y``. With ``alpha`` it also gates on the finite-sample conformal lower bound
+(:func:`causalrl.conformal_action_value`), the agent-side entry point into the conformal layer.
 """
 
 from __future__ import annotations
@@ -103,12 +104,29 @@ def _transport_value(
 
 class CertifiedPolicyAgent(Agent):
     """Ship the best deterministic policy whose improvement over behavior certifies robust to hidden
-    confounding; abstain to the empirical behavior policy otherwise."""
+    confounding; abstain to the empirical behavior policy otherwise.
 
-    def __init__(self, n_states: int, n_actions: int, *, gamma_max: float = 5.0) -> None:
+    Setting ``alpha`` adds the finite-sample layer: a candidate must also clear
+    :func:`causalrl.certify_policy`'s conformal lower-confidence-bound gate, i.e. its calibrated
+    worst-case return (:func:`causalrl.conformal_action_value`, weights = the propensity ratio
+    ``pi/pi_behavior``) must be at least the behavior policy's. This is the safe-policy-improvement
+    reading of the agent: a candidate that improves the *mean* but degrades the downside, or that
+    has too little effective support to calibrate a bound at all, is refused. ``None`` (the
+    default) runs the confounding layer alone.
+    """
+
+    def __init__(
+        self,
+        n_states: int,
+        n_actions: int,
+        *,
+        gamma_max: float = 5.0,
+        alpha: float | None = None,
+    ) -> None:
         self.n_states = n_states
         self.n_actions = n_actions
         self.gamma_max = gamma_max
+        self.alpha = alpha
         self.policy: list[int] = [0] * n_states
 
     def _behavior_policy(self, dataset: ConfoundedTrajectoryDataset) -> list[int]:
@@ -130,7 +148,9 @@ class CertifiedPolicyAgent(Agent):
             ):
                 continue
             target_actions = [candidate[tr.state] for tr in transitions]
-            cert = certify_policy(dataset, target_actions, gamma_max=self.gamma_max)
+            cert = certify_policy(
+                dataset, target_actions, gamma_max=self.gamma_max, alpha=self.alpha
+            )
             if cert.certified and cert.naive_contrast > best_contrast:
                 best_contrast = cert.naive_contrast
                 best_policy = list(candidate)

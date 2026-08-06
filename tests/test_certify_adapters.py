@@ -45,6 +45,18 @@ def test_decision_abstain_has_hedge_and_msm_assumption() -> None:
     assert _roundtrips(c)
 
 
+def test_decision_refused_only_by_the_downside_gate_is_not_blamed_on_confounding() -> None:
+    """The MSM layer certified; the finite-sample conformal gate is what refused. Naming the
+    confounding layer would be exactly the false-provenance bug the certificate layer exists to
+    prevent."""
+    d = DecisionCertificate("prefer treated", 0.4, False, None, None, True, "gated", -5.0)
+    c = as_certificate(d)
+    assert c.hedge is not None and c.hedge.reason == "downside-not-certified"
+    assert c.hedge.detail is not None and c.hedge.detail["conformal_lcb"] == -5.0
+    assert any(a.name == "weighted-exchangeability" for a in c.assumptions)
+    assert _roundtrips(c)
+
+
 def test_transport_regret_adapts_and_roundtrips() -> None:
     c0 = TransportRegretCertificate(
         transportable=True,

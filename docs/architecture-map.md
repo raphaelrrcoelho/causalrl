@@ -133,7 +133,12 @@ shipped code, per plan §4):
   `moment_diagnostic` / `tail_index_hill`, `certify_mean` (heavy-tail → median downgrade),
   `certify_quantile` / `weighted_quantile` (percentile-bootstrap CIs).
 - `conformal/` (§7.4) — `conformal_quantile` (weighted), `split_conformal_interval`, `cqr_interval`,
-  `certify_conformal_interval` (`EMPIRICAL`). Marginal coverage ≥ 1 − α.
+  `certify_conformal_interval` (`EMPIRICAL`, `query="see"` — no causal label is earned by residuals
+  of a fitted prediction). Marginal coverage ≥ 1 − α. `conformal_action_value` is the off-policy
+  caller: the calibration likelihood ratio is `pi_target / pi_behavior` read off a
+  `ConfoundedTrajectoryDataset`, giving a distribution-free band for the return of one decision
+  under a target policy. Reached from the agent half via `CertifiedPolicyAgent(alpha=…)` →
+  `certify_policy(alpha=…)`, which gates `certified` on it (safe policy improvement).
 - `transport/` (§7.5) — shim over `identification.transport` + `transport/estimate.py`:
   `certify_transported_effect` (torch-free `transport_formula` decision + numpy g-computation),
   `transport_gcomp`.
