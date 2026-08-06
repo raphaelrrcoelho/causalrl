@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`StateEncoder` / `OneHotEncoder` / `IdentityEncoder` / `RBFEncoder` / `FeatureTransition`**
+  (`causalrl.state`, exported top-level) — the observation-side counterpart to set-valued
+  interventions. The tabular agents ask for `n_states` and index by `int`, forcing a discretisation
+  before the causal machinery is reached, even though the estimation core (cross-fitted DML,
+  ANM/neural mechanisms, continuous bounds) never needed one. An encoder maps an observation to a
+  feature vector and everything downstream works in feature space. The tabular case is *contained*,
+  not discarded: `OneHotEncoder` spans every function on a finite state set, and the fitted backup
+  over those features reproduces the tabular one to numerical tolerance (asserted in the tests).
+- **`FittedQIteration`** (`causalrl.agents.fitted`, exported top-level) — finite-horizon backward
+  induction over encoded features, the continuous-state counterpart of `DOVI`. Keeps DOVI's
+  recursion and replaces the `(H, S, A)` table and `(S, A, S)` transition tensor with one fitted
+  regressor per `(step, action)`. The regressor is the duck-typed `causalrl.estimate.nuisance
+  .Regressor` protocol the DML estimators already use, so the control layer went continuous without
+  a new dependency.
+
+  **It does not inherit DOVI's guarantee, and says so.** DOVI caps optimism with a Manski bound per
+  `(state, action)` cell; in feature space there are no cells, so `FittedQIteration` falls back to
+  a global cap — with per-step reward bounded by `reward_max`, the return from step `h` cannot
+  exceed `reward_max * (H - h + 1)`. That is valid without any function-class assumption and much
+  weaker than the per-cell bound. `certificate()` reports `Kind.EMPIRICAL` with an explicit
+  `downgraded_from="bounded"` hedge, and `is_certified` is `False`. The inherited
+  `observe_transition(state: int, ...)` hook raises rather than silently discarding a transition it
+  cannot represent.
 - **`InterventionSpace` / `Intervention` / `InterventionalAgent` / `ScalarAgentAdapter`**
   (`causalrl.intervention`, `causalrl.agents.interventional`, exported top-level) — the set-valued
   action vocabulary the rest of the library already spoke. `do()` takes a `Mapping[str, value]` and
