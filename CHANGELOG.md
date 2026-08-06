@@ -8,6 +8,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`InterventionSpace` / `Intervention` / `InterventionalAgent` / `ScalarAgentAdapter`**
+  (`causalrl.intervention`, `causalrl.agents.interventional`, exported top-level) — the set-valued
+  action vocabulary the rest of the library already spoke. `do()` takes a `Mapping[str, value]` and
+  `pomis` returns *sets*, but `Agent.act` returned an arm index, so a multi-variable intervention
+  could be identified and never executed. `InterventionSpace` states which variables are
+  manipulable **in a given context** and to which values; `assignments()` turns an intervention set
+  into the arms an agent chooses between; `InterventionalAgent` returns an intervention rather than
+  an `int`; `ScalarAgentAdapter` lifts any existing arm-indexed agent into the new contract without
+  rewriting it. `Agent` is unchanged — this is additive.
+- **`AdmissibleInterventions`** (`causalrl.identification.intervention_sets`, exported top-level) —
+  POMIS recomputed for the variables each context actually permits, memoised on the manipulable
+  set. Restricting that set is a *latent projection* (Lee & Bareinboim r40, Thm. 4), **not** a
+  filter of the unconstrained POMIS: projecting a variable away can introduce possibly-optimal sets
+  the unconstrained enumeration never listed, so filtering loses optimality. `arms()` composes it
+  with an `InterventionSpace` to give an agent its admissible interventions directly.
+- **`ExposureMapping` and the direct / spillover / total contrasts** (`causalrl.interference`,
+  exported top-level) — estimands for the case every other module rules out by assumption: units
+  whose outcomes are coupled through *other* units' treatments. Under an exposure mapping (Aronow &
+  Samii 2017) the outcome depends on the treatment vector only through a low-dimensional summary,
+  making `direct_effect`, `spillover_effect` and `total_effect` ordinary stratified contrasts.
+  Ships `neighbourhood_count`, `neighbourhood_fraction`, `any_neighbour_treated` and
+  `population_share`, plus `adjacency_from_matrix`. A required cell that no observation falls in
+  raises `NotIdentifiableError` (positivity) rather than extrapolating; no standard errors are
+  reported, because under interference the rows are dependent and the variance has to come from the
+  randomisation design.
+- **`PinnedMechanism`** (`causalrl.scm.fitters`, exported top-level) — deploy a **known**
+  structural equation at a node while `fit_scm` still learns the rest, for the ordinary case where
+  a documented rule sits beside behaviour with no closed form. Noise enters additively, so a pinned
+  node stays invertible and its counterfactuals identified. A model mixing pinned and learned nodes
+  carries the new `provenance="mixed"` (gated for L3 exactly like `"fitted"`); an all-pinned model
+  is `"specified"`. Pinned nodes are listed by `FitReport.pinned_nodes` and still scored — for them
+  `holdout_score` tests the asserted equation rather than measuring a fit.
+- **`Deadline`** (`causalrl.deadline`, exported top-level) — a monotonic per-decision wall-clock
+  budget, accepted by `InterventionalAgent.act`. Cooperative and advisory: nothing interrupts a
+  running computation, so an agent that honours it keeps a usable incumbent answer and returns it
+  when the budget is gone.
 - **`cce_polytope` / `cce_bounds` / `cce_regret` / `certify_cce_do`** (`causalrl.magames`, exported
   top-level) — partial identification of a learning population's time-averaged behaviour by the
   coarse-correlated-equilibrium polytope of a (possibly `do()`-intervened) finite game. Both bound

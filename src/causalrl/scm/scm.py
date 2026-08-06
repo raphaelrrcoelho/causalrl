@@ -79,7 +79,7 @@ class StructuralCausalModel:
         mechanisms: dict[str, Mechanism],
         exogenous: dict[str, Distribution],
         *,
-        provenance: Literal["specified", "fitted"] = "specified",
+        provenance: Literal["specified", "fitted", "mixed"] = "specified",
         fit_report: FitReport | None = None,
     ) -> None:
         if graph.has_bidirected_edges():
@@ -111,8 +111,8 @@ class StructuralCausalModel:
         # Explicit annotation: without it pyright infers the attribute's declared type as the
         # widened `str` (not the parameter's narrower Literal), so reading it back and passing
         # it into another StructuralCausalModel(...) call -- e.g. from do() -- fails strict
-        # checking even though the value only ever holds one of the two literal members.
-        self.provenance: Literal["specified", "fitted"] = provenance
+        # checking even though the value only ever holds one of the three literal members.
+        self.provenance: Literal["specified", "fitted", "mixed"] = provenance
         self.fit_report = fit_report
         self._generator = torch.Generator()  # type: ignore[reportPrivateImportUsage]
         self._generator.seed()
@@ -203,13 +203,15 @@ class StructuralCausalModel:
 
         On a **fitted** SCM containing a non-invertible node this raises: L1 data identifies the
         mechanisms but not the noise-to-value coupling, so a point counterfactual would report a
-        modelling choice as a result. Use :func:`causalrl.counterfactual_interval` instead.
+        modelling choice as a result. Use :func:`causalrl.counterfactual_interval` instead. A
+        ``"mixed"`` model (some nodes pinned, some learned) is gated the same way: pinning one
+        equation does not identify the coupling at a node that was still learned from data.
         """
-        if self.provenance == "fitted":
+        if self.provenance in ("fitted", "mixed"):
             ambiguous = sorted(self.non_invertible_nodes())
             if ambiguous:
                 raise NotIdentifiableError(
-                    f"counterfactuals on a fitted SCM are not identified: node(s) "
+                    f"counterfactuals on a {self.provenance} SCM are not identified: node(s) "
                     f"{ambiguous} have a non-invertible mechanism, so their "
                     "noise-to-value coupling is a modelling choice, not a fitted quantity. "
                     "Use counterfactual_interval(...) for the identified interval.",
