@@ -173,3 +173,19 @@ def test_pinning_composes_with_an_explicit_family_elsewhere() -> None:
     report = model.fit_report
     assert report is not None
     assert report.pinned_nodes == ("Y",)
+
+
+def test_pinned_mechanism_is_reachable_from_the_scm_subpackage() -> None:
+    # Every other fitter is re-exported from `causalrl.scm`; this one was not, so the documented
+    # `from causalrl.scm import <Fitter>` pattern raised ImportError for exactly one name.
+    from causalrl.scm import PinnedMechanism as FromSubpackage
+
+    assert FromSubpackage is PinnedMechanism
+
+
+def test_empty_fit_list_is_not_labelled_fitted() -> None:
+    # `_provenance` counted pinned nodes and fell through to "fitted" when there were none --
+    # including when there were no nodes at all, asserting a provenance the model does not have.
+    from causalrl.scm.fit import _provenance
+
+    assert _provenance([]) == "specified"

@@ -226,6 +226,12 @@ def _provenance(fits: list[NodeFit]) -> Literal["specified", "fitted", "mixed"]:
     a caller's assertion. ``"mixed"`` is gated like ``"fitted"`` for L3 queries -- a model is only
     as identified as its weakest node, and a mix still contains learned ones.
     """
+    if not fits:
+        # Degenerate, but the label still has to be true: nothing was learned from data, so
+        # "fitted" would assert a provenance the model does not have. An empty model has no
+        # non-invertible node either, so the L3 guard is unaffected either way -- this is a
+        # question of honest labelling, not of safety.
+        return "specified"
     pinned = sum(1 for fit in fits if fit.pinned)
     if pinned == 0:
         return "fitted"

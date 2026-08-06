@@ -186,7 +186,7 @@ class FunctionalManskiBounds:
         return self
 
     def _fit_fold(
-        self, x: FloatArray, a: FloatArray, r: FloatArray
+        self, x: FloatArray, a: NDArray[np.int_], r: FloatArray
     ) -> tuple[dict[int, Regressor], dict[int, Classifier]]:
         outcome: dict[int, Regressor] = {}
         propensity: dict[int, Classifier] = {}
