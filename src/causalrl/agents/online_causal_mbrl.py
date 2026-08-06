@@ -22,6 +22,14 @@ This is an implementation of published methods on this library's primitives, not
   incident to an intervention target is Peters, Buehlmann & Meinshausen, *Causal Inference using
   Invariant Prediction*, JRSS-B 2016. Both are already implemented in
   :func:`~causalrl.discovery.discover_interventional`; this module only feeds them data.
+- Acting by drawing one member of the belief and treating it as true -- Thompson sampling over
+  structure -- is Ortega & Braun, *Generalized Thompson Sampling for Sequential Decision-Making
+  and Causal Inference*, `arXiv:1303.4431 <https://arxiv.org/abs/1303.4431>`_.
+- Choosing the next intervention by how much the belief's members disagree about its effect is
+  standard active intervention design, where predictive disagreement stands in for expected
+  information gain: Scherrer et al., *Learning Neural Causal Models with Active Interventions*,
+  `arXiv:2109.02429 <https://arxiv.org/abs/2109.02429>`_, and Zhang et al., *Active learning for
+  optimal intervention design in causal models*, Nature Machine Intelligence 2023.
 
 What is this library's own stance is the refusal to guess: :func:`~causalrl.scm.fit.fit_scm_mec`
 raises rather than truncating an equivalence class it cannot enumerate, and this agent reports
@@ -32,6 +40,7 @@ first-class outputs instead of committing to an arbitrary member.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from itertools import combinations
 from typing import Literal, NamedTuple
 
 import numpy as np
@@ -45,6 +54,18 @@ Policy = Literal["thompson", "average", "robust"]
 
 _SOURCES: tuple[Source, ...] = ("observational", "interventional")
 _POLICIES: tuple[Policy, ...] = ("thompson", "average", "robust")
+
+_TV_BINS = 32
+"""Histogram bins :func:`_total_variation` scores two rollout samples on.
+
+Total variation between *continuous* distributions has no sample estimator without a binning
+choice, so :meth:`OnlineCausalMBRL.probe` compares two rollouts on a shared histogram over their
+pooled range. The count matters only in that every candidate target is scored on the same one: the
+score ranks targets against each other rather than reporting an absolute distance, and coarser bins
+can only understate a disagreement, never invent one. For an integer-valued outcome whose observed
+values span no more steps than this, every level falls in its own bin and the estimate is the exact
+discrete total variation.
+"""
 
 
 class RefitRecord(NamedTuple):
@@ -72,11 +93,16 @@ class OnlineCausalMBRL:
         discover_interventional(observational, interventional, variables)  ->  CPDAG (the I-MEC)
         fit_scm_mec(all rows, cpdag=..., max_members=...)  ->  one fitted SCM per member
 
-    ``policy``, ``actions`` and ``n_rollout`` describe how the belief will be turned into an action;
-    the action selection itself (``act``/``probe``) is not part of this class yet, so those three
-    are validated and stored here and nothing more. ``refit_every`` is likewise the cadence an
-    acting loop should call :meth:`refit` at -- rerunning PC every step is wasteful and makes the
-    belief flicker on sampling noise -- and is not self-triggering.
+    :meth:`act` turns the belief into an action from ``actions`` -- ``policy`` decides how the
+    members' verdicts are combined and ``n_rollout`` how many samples each verdict costs -- and
+    :meth:`probe` returns the intervention target the members disagree about most. The loop those
+    two are meant for branches on :meth:`structure_uncertain`::
+
+        target = agent.probe() if agent.structure_uncertain() else None
+        action = agent.act() if target is None else None
+
+    ``refit_every`` is the cadence that loop should call :meth:`refit` at -- rerunning PC every
+    step is wasteful and makes the belief flicker on sampling noise -- and is not self-triggering.
 
     ``max_members`` is handed to :func:`~causalrl.scm.fit.fit_scm_mec`, whose refusal above the cap
     propagates out of :meth:`refit` deliberately: an equivalence class too large to enumerate is
@@ -124,6 +150,7 @@ class OnlineCausalMBRL:
         self._cpdag: CPDAG | None = None
         self._history: list[RefitRecord] = []
         self._steps = 0
+        self._draws = 0
 
     # -- data in ------------------------------------------------------------------------------
     def ingest(
@@ -266,6 +293,162 @@ class OnlineCausalMBRL:
         self._history.append(RefitRecord(step=self._steps, belief_size=len(self._belief)))
         return self._belief
 
+    # -- acting -------------------------------------------------------------------------------
+    def act(self) -> float:
+        """Choose an action from ``actions`` by planning inside the belief.
+
+        Every policy scores an action the same way -- ``member.do({treatment: action})``, then
+        ``see(n_rollout)`` and the mean of ``outcome`` -- and they differ only in how the members'
+        verdicts are combined:
+
+        - ``"thompson"`` draws one member and returns its argmax. Thompson sampling over
+          structure (Ortega & Braun, `arXiv:1303.4431 <https://arxiv.org/abs/1303.4431>`_): the
+          spread of the belief supplies the exploration, so the policy sharpens exactly as the
+          I-MEC collapses and needs no separate schedule.
+        - ``"average"`` takes the mean value across members -- marginalising the structure out.
+        - ``"robust"`` takes the maximin: score each action by its *worst* member, then take the
+          best of those. The one to reach for when a wrong action is expensive, since it is the
+          only one of the three that never bets on a particular member being the true DAG.
+
+        Deterministic given ``seed``. The thompson draw comes from an RNG derived from ``seed``,
+        the transition count and the number of draws already taken, so a fixed seed replays the
+        whole decision sequence, successive calls draw successive members rather than repeating
+        one, and two seeds diverge. Rollouts are seeded per member, which also hands every action
+        of a member the same exogenous draws (common random numbers), so the gap between two
+        actions is not partly the gap between two samples. Ties go to the earliest action in
+        ``actions``.
+
+        **This costs rollouts:** ``n_rollout`` samples per action per member scored, so
+        ``len(actions) * n_rollout`` under ``"thompson"`` and
+        ``len(actions) * belief_size() * n_rollout`` under ``"average"`` and ``"robust"``, every
+        call. That is what planning in a model costs instead of reading a value table.
+
+        Raises ``ValueError`` before the first :meth:`refit`, when there is no belief to plan in.
+        """
+        belief = self._require_belief("act")
+        if self.policy == "thompson":
+            rng = np.random.default_rng((self.seed, self._steps, self._draws))
+            self._draws += 1
+            drawn = int(rng.integers(len(belief)))
+            values = [
+                self._action_value(belief[drawn], action, seed=self.seed + drawn)
+                for action in self.actions
+            ]
+        else:
+            by_member = [
+                [
+                    self._action_value(member, action, seed=self.seed + index)
+                    for action in self.actions
+                ]
+                for index, member in enumerate(belief)
+            ]
+            across = list(zip(*by_member, strict=True))
+            values = (
+                [float(np.mean(column)) for column in across]
+                if self.policy == "average"
+                else [min(column) for column in across]
+            )
+        return self.actions[max(range(len(self.actions)), key=lambda index: values[index])]
+
+    def probe(self) -> str:
+        """Return the intervention target the belief's members disagree about most.
+
+        A **target**, not an action: the answer to "what experiment should I run next", which is
+        the other half of the loop :meth:`act` serves. Each candidate is scored by the mean
+        pairwise total variation between the members' outcome distributions under ``do(candidate)``
+        -- predictive disagreement standing in for expected information gain, as in Scherrer et
+        al. (`arXiv:2109.02429 <https://arxiv.org/abs/2109.02429>`_) and Zhang et al. (Nature
+        Machine Intelligence 2023). It concentrates experiments on the edges the I-MEC still leaves
+        unoriented, because those are the only ones whose ``do()`` distribution the members can
+        disagree about; a target every member already predicts identically scores zero and is
+        excluded, and if *every* candidate scores zero this raises rather than returning an
+        arbitrary one.
+
+        Each candidate is intervened at one representative value: the largest it takes anywhere in
+        the agent's buffers. That keeps the do-value inside the observed support, so no fitted
+        mechanism is asked to extrapolate, while sitting as far as the data allows from the bottom
+        of the range -- a do-value near the middle of a variable's spread perturbs its descendants
+        least and makes members that disagree look alike. One value cannot certify agreement,
+        though: a zero score means "no disagreement detected at this value", not "these members
+        agree everywhere".
+
+        **This costs rollouts:** ``n_rollout`` samples per candidate per member, i.e.
+        ``len(variables) * belief_size() * n_rollout`` every call. All members share one exogenous
+        stream per candidate (common random numbers), because the score is a difference *between*
+        members and independent draws would put a finite-sample floor under it.
+
+        Raises ``ValueError`` before the first :meth:`refit`, on a single-member belief (nothing to
+        disambiguate -- :meth:`structure_uncertain` is the guard to branch on), and when no
+        candidate scores any disagreement at all.
+        """
+        belief = self._require_belief("probe")
+        if len(belief) == 1:
+            raise ValueError(
+                "probe() has nothing to disambiguate: the belief holds a single I-MEC member, so "
+                "every candidate target has exactly one implied do() distribution and no "
+                "experiment can separate anything. structure_uncertain() is the guard to branch "
+                "on -- probe() while it reports True, act() once it reports False."
+            )
+        scores = {
+            candidate: self._disagreement(candidate, belief) for candidate in sorted(self.variables)
+        }
+        best = max(scores, key=lambda candidate: scores[candidate])
+        if scores[best] <= 0.0:
+            raise ValueError(
+                f"probe() found no target the belief's {len(belief)} members disagree about: every "
+                f"candidate in {sorted(self.variables)} scored zero total variation between the "
+                "members' outcome distributions. Intervening on any of them would be an experiment "
+                "whose result every member already predicts identically, so returning one would "
+                "report an arbitrary pick as an informative choice. The members differ somewhere "
+                "else -- in a mechanism, or at a do-value other than the one probe() uses -- and "
+                "that is not something this score can locate."
+            )
+        return best
+
+    def _require_belief(self, caller: str) -> tuple[StructuralCausalModel, ...]:
+        """The belief, or a ``ValueError`` naming ``refit`` when none has been fitted."""
+        if not self._belief:
+            raise ValueError(
+                f"{caller}() needs a belief and none has been fitted yet: call refit() first. An "
+                "empty belief is not a structure the agent is certain about, it is one it knows "
+                "nothing about, and the documented loop branches on structure_uncertain() -- so "
+                "answering from an empty belief would route a caller who never fitted anything "
+                "straight into act(), planning in a model that does not exist."
+            )
+        return self._belief
+
+    def _action_value(self, member: StructuralCausalModel, action: float, *, seed: int) -> float:
+        """``member``'s mean ``outcome`` under ``do(treatment=action)``, over ``n_rollout`` rows."""
+        return float(np.mean(self._rollout(member, {self.treatment: action}, seed=seed)))
+
+    def _disagreement(self, candidate: str, belief: tuple[StructuralCausalModel, ...]) -> float:
+        """Mean pairwise total variation of the members' ``outcome`` under ``do(candidate)``."""
+        value = self._probe_value(candidate)
+        seed = self.seed + self.variables.index(candidate)
+        samples = [self._rollout(member, {candidate: value}, seed=seed) for member in belief]
+        return float(np.mean([_total_variation(a, b) for a, b in combinations(samples, 2)]))
+
+    def _probe_value(self, candidate: str) -> float:
+        """The largest value ``candidate`` takes across every buffer -- see :meth:`probe`."""
+        values = list(self._observational[candidate])
+        for buffer in self._interventional.values():
+            values.extend(buffer[candidate])
+        if not values:
+            raise ValueError(
+                f"probe() has no buffered row to take a do-value for {candidate!r} from: it "
+                "intervenes at the largest value each candidate is observed to take, so that the "
+                "do-value stays inside the support the mechanisms were fitted on. Ingest data "
+                "before probing."
+            )
+        return max(values)
+
+    def _rollout(
+        self, member: StructuralCausalModel, intervention: Mapping[str, float], *, seed: int
+    ) -> np.ndarray:
+        """``n_rollout`` draws of ``outcome`` from ``member`` under ``do(intervention)``."""
+        sample = member.do(intervention).see(self.n_rollout, seed=seed)
+        return np.asarray(sample[self.outcome].detach().numpy(), dtype=float)
+
     # -- what the agent believes --------------------------------------------------------------
     def belief(self) -> tuple[StructuralCausalModel, ...]:
         """The fitted I-MEC members -- empty until the first :meth:`refit`."""
@@ -278,10 +461,14 @@ class OnlineCausalMBRL:
     def structure_uncertain(self) -> bool:
         """Whether more than one I-MEC member survives -- a decision may need the certificate layer.
 
-        Before the first :meth:`refit` the belief is empty and this reads ``False``: there is
-        nothing to be uncertain *between* yet. That is not a claim that the structure is known.
+        Raises ``ValueError`` before the first :meth:`refit` rather than answering. With an empty
+        belief neither answer is honest: there is nothing to be uncertain *between* yet, and
+        nothing that says the structure is known either. This is the guard the documented loop
+        branches on -- :meth:`probe` while it is ``True``, :meth:`act` once it is ``False`` -- so
+        reporting ``False`` from an empty belief would quietly route a caller who never fitted
+        anything into the exploit branch.
         """
-        return self.belief_size() > 1
+        return len(self._require_belief("structure_uncertain")) > 1
 
     def history(self) -> tuple[RefitRecord, ...]:
         """An immutable snapshot of the belief trajectory, one :class:`RefitRecord` per refit."""
@@ -320,3 +507,18 @@ def _extend(
 def _columns(buffer: Mapping[str, list[float]]) -> dict[str, np.ndarray]:
     """The columnar buffer as the ``Mapping[str, np.ndarray]`` the library's data functions take."""
     return {variable: np.asarray(column, dtype=float) for variable, column in buffer.items()}
+
+
+def _total_variation(a: np.ndarray, b: np.ndarray) -> float:
+    """Empirical total-variation distance between two samples, on a histogram they share.
+
+    Deliberately not :func:`causalrl.discovery._total_variation`, which bins by ``int(value)``.
+    That is exact for the integer-valued marginals ``discover_interventional``'s shift test
+    compares, but the outcome of a fitted SCM is generally continuous and truncating toward zero
+    would merge values that differ -- reporting agreement the members do not have. See
+    :data:`_TV_BINS` for what the shared binning does and does not license.
+    """
+    edges = np.histogram_bin_edges(np.concatenate([a, b]), bins=_TV_BINS)
+    counts_a, _ = np.histogram(a, bins=edges)
+    counts_b, _ = np.histogram(b, bins=edges)
+    return 0.5 * float(np.abs(counts_a / len(a) - counts_b / len(b)).sum())
