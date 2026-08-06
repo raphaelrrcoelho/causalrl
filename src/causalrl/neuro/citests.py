@@ -24,7 +24,8 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -88,11 +89,7 @@ def digamma(x: FloatArray | float) -> FloatArray:
         small = v < 6.0
     inv = 1.0 / v
     inv2 = inv * inv
-    out += (
-        np.log(v)
-        - 0.5 * inv
-        - inv2 * (1.0 / 12.0 - inv2 * (1.0 / 120.0 - inv2 / 252.0))
-    )
+    out += np.log(v) - 0.5 * inv - inv2 * (1.0 / 12.0 - inv2 * (1.0 / 120.0 - inv2 / 252.0))
     return out
 
 
@@ -323,8 +320,12 @@ class KnnCMITest:
             value = (
                 digamma(float(k))
                 + digamma(float(dx.shape[0]))
-                - float(np.mean(digamma((n_xz + 1).astype(np.float64))
-                                + digamma((n_yz + 1).astype(np.float64))))
+                - float(
+                    np.mean(
+                        digamma((n_xz + 1).astype(np.float64))
+                        + digamma((n_yz + 1).astype(np.float64))
+                    )
+                )
             )
         else:
             value = digamma(float(k)) - float(
@@ -356,9 +357,7 @@ class KnnCMITest:
         null = np.empty(self.permutations, dtype=np.float64)
         for b in range(self.permutations):
             perm = rng.permutation(n)
-            null[b] = self._cmi_from_distances(
-                dx[np.ix_(perm, perm)], dy, dz, n_cond=n_cond
-            )
+            null[b] = self._cmi_from_distances(dx[np.ix_(perm, perm)], dy, dz, n_cond=n_cond)
         p = float((1.0 + np.sum(null >= stat)) / (self.permutations + 1.0))
         return CITestResult(stat, p, p > self.alpha, "knn-cmi-permutation", n)
 
@@ -375,18 +374,38 @@ class PoissonGLMTest:
 
     ``ridge`` adds a small quadratic penalty for numerical stability under collinear regressors
     (routine at short bin widths); it is reported in the result's method string when non-zero.
+
+    Two optimisations, both exact — they change how the same fit is reached, never the fit:
+
+    * **Reduced-model caching.** A structure search asks many questions of the form
+      "does X add anything to Y given Z?", and every one refits the same ``Y ~ Z`` null. During
+      PC1's zero-order pass ``Z`` is empty for *every* candidate of a target, so one intercept-only
+      fit serves them all. Keyed on the conditioning set together with the sample size and column
+      sums, so a different dataset can never collide with a cached fit.
+    * **Warm-started full model.** The alternative differs from the null by one column, so the
+      null's coefficients (padded with zero) are an excellent starting point — typically halving
+      the IRLS iterations against a cold start.
     """
 
     alpha: float = 0.01
     ridge: float = 1e-6
     max_iter: int = 50
     tol: float = 1e-9
+    cache_reduced: bool = True
+    _cache: dict[tuple[Any, ...], tuple[float, FloatArray]] = field(
+        default_factory=lambda: {}, repr=False, compare=False
+    )
 
-    def _fit(self, y: FloatArray, design: FloatArray) -> float:
-        """IRLS for a Poisson log-link GLM; returns the maximised log-likelihood."""
+    def _fit(
+        self, y: FloatArray, design: FloatArray, beta0: FloatArray | None = None
+    ) -> tuple[float, FloatArray]:
+        """IRLS for a Poisson log-link GLM; returns ``(log-likelihood, coefficients)``."""
         p = design.shape[1]
-        beta = np.zeros(p, dtype=np.float64)
-        beta[0] = math.log(max(float(y.mean()), 1e-6))
+        if beta0 is not None and beta0.shape[0] == p:
+            beta = beta0.astype(np.float64, copy=True)
+        else:
+            beta = np.zeros(p, dtype=np.float64)
+            beta[0] = math.log(max(float(y.mean()), 1e-6))
         penalty = self.ridge * np.eye(p)
         for _ in range(self.max_iter):
             eta = np.clip(design @ beta, -30.0, 30.0)
@@ -407,7 +426,7 @@ class PoissonGLMTest:
         eta = np.clip(design @ beta, -30.0, 30.0)
         mu = np.exp(eta)
         # Poisson log-likelihood up to the y! term, which cancels in the ratio.
-        return float(np.sum(y * eta - mu))
+        return float(np.sum(y * eta - mu)), np.asarray(beta, dtype=np.float64)
 
     def __call__(
         self, data: Mapping[str, FloatArray], x: str, y: str, z: Sequence[str]
@@ -423,8 +442,16 @@ class PoissonGLMTest:
         full = np.column_stack([reduced, xs])
         if float(ys.sum()) == 0.0:
             return CITestResult(0.0, 1.0, True, "poisson-glm-lrt", n)
-        ll_reduced = self._fit(ys, reduced)
-        ll_full = self._fit(ys, full)
+        key = (y, tuple(sorted(z)), n, float(ys.sum()), float(zs.sum()) if zs.size else 0.0)
+        cached = self._cache.get(key) if self.cache_reduced else None
+        if cached is None:
+            cached = self._fit(ys, reduced)
+            if self.cache_reduced:
+                self._cache[key] = cached
+        ll_reduced, beta_reduced = cached
+        # The full design is the reduced one plus X, so the null's fit is a warm start.
+        warm = np.concatenate([beta_reduced, np.zeros(xs.shape[1])])
+        ll_full, _ = self._fit(ys, full, warm)
         stat = max(2.0 * (ll_full - ll_reduced), 0.0)
         df = xs.shape[1]
         p = chi2_sf(stat, df)

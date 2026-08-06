@@ -164,6 +164,38 @@ question, and the certificate says so rather than substituting an area-wide inte
 
 Full numbers: [`docs/neuro/RESULTS.md`](neuro/RESULTS.md).
 
+## Fitting both scales from a recording
+
+`certify_abstraction` needs a simulator. On experimental data there is none, so both scales have to
+be learned — which is what `causalrl.neuro.fitted` does, using `PoissonGLMFit` on the lag-unrolled
+graph:
+
+```python
+from causalrl.neuro.fitted import certify_fitted_abstraction, render_outcomes
+
+certificate, report, scales = certify_fitted_abstraction(recording, max_lag=3, tolerance=2.0)
+print(certificate)
+print(render_outcomes(report))
+```
+
+Micro is one node per unit per lag; macro is one node per area per lag, carrying the area's **total**
+spike count. `tau` is summation, and `omega` maps "clamp every unit of area *A*" to "clamp *A*'s
+total" — exact, because the macro variable is the sum the micro intervention pins.
+
+Three things this path refuses to paper over:
+
+- **It never issues `IDENTIFIED`.** Two learned models agreeing is not agreement with ground truth.
+- **It checks that interventions are supported.** A fitted log-linear mechanism extrapolates
+  exponentially, so the drive level defaults to the 95th percentile of each unit's *sustained*
+  activity, and a clamp with under 1% of observed windows behind it is refused. The criterion is
+  support **mass**, not "was this level ever reached" — one rare burst is not a sustained regime,
+  and using the looser test let a 0.75 Hz unit be clamped to 75 Hz.
+- **It reports a finite horizon.** A lag-`L` model propagates a sustained intervention exactly `L`
+  bins; this is an `L`-step response, not an equilibrium.
+
+Requires the `[torch]` extra (`fit_scm` does), so it is an explicit import rather than part of the
+pure-NumPy `causalrl.neuro` surface.
+
 ## Loading real recordings
 
 ```python

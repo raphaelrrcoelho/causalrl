@@ -108,9 +108,7 @@ class ConditionedCITest:
     base: CITest
     always: Mapping[str, Sequence[str]]
 
-    def __call__(
-        self, data: Mapping[str, np.ndarray], x: str, y: str, z: Sequence[str]
-    ) -> object:
+    def __call__(self, data: Mapping[str, np.ndarray], x: str, y: str, z: Sequence[str]) -> object:
         extra: list[str] = []
         for endpoint in (x, y):
             for v in self.always.get(endpoint, ()):
@@ -176,7 +174,8 @@ class LaggedGraph:
         not evidence against common input — see :meth:`contemporaneous_ambiguous`.
         """
         return sorted(
-            (a, b) for a, b, _, _ in self.contemporaneous.edges()
+            (a, b)
+            for a, b, _, _ in self.contemporaneous.edges()
             if self.contemporaneous.is_bidirected(a, b)
         )
 
@@ -255,6 +254,16 @@ def _statistic(result: object) -> tuple[float, float | None, bool]:
     return (0.0, None, True) if bool(result) else (float("inf"), None, False)
 
 
+def _subsample(frame: Mapping[str, FloatArray], n_rows: int, seed: int) -> dict[str, FloatArray]:
+    """A row subsample of a lag-embedded frame, shared across every column so lags stay aligned."""
+    total = next(iter(frame.values())).shape[0]
+    if n_rows >= total:
+        return dict(frame)
+    rows = np.random.default_rng(seed).choice(total, size=n_rows, replace=False)
+    rows.sort()  # keep time order; the tests are exchangeable but sorted rows read better
+    return {name: column[rows] for name, column in frame.items()}
+
+
 def _pc1_parents(
     frame: Mapping[str, FloatArray],
     target: str,
@@ -298,6 +307,8 @@ def discover_lagged(
     contemporaneous: bool = True,
     max_conditioning_size: int = 3,
     max_contemporaneous_conditioning_size: int = 2,
+    screen_samples: int | None = None,
+    seed: int = 0,
 ) -> LaggedGraph:
     """Discover a lagged causal graph from multivariate time series (PCMCI + FCI at lag 0).
 
@@ -309,6 +320,16 @@ def discover_lagged(
 
     Set ``contemporaneous=False`` to skip the lag-0 phase entirely when the bin width is known to
     resolve every interaction of interest; the returned PAG is then empty.
+
+    ``screen_samples`` caps the rows used by the PC1 *screening* pass only; the MCI test that
+    decides each link, and the contemporaneous phase, always see the full sample.
+
+    **It trades recall for speed, and the trade is not cheap.** Measured on 6 units of Allen
+    Neuropixels data (60k bins at 10 ms, ``max_lag=3``): screening on 20k rows cut the run from
+    15.4 s to 9.7 s but recovered 5 of the 8 edges the full screen found — the losses being the
+    weak links that only clear the threshold on the whole sample, which PC1 then never passes to
+    MCI. Default is ``None`` (screen on everything) for that reason; set it only when a coarse,
+    fast pass is what you want, and treat the result as a lower bound on the edge set.
     """
     names = list(variables)
     if len(set(names)) != len(names):
@@ -323,9 +344,10 @@ def discover_lagged(
         target: [lag_name(v, lag) for v in names for lag in range(1, max_lag + 1)]
         for target in names
     }
+    screen = frame if screen_samples is None else _subsample(frame, screen_samples, seed)
     pc1: dict[str, list[str]] = {
         target: _pc1_parents(
-            frame,
+            screen,
             target,
             candidates[target],
             ci_test=lag_test,

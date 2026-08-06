@@ -327,8 +327,9 @@ class SpikingCorticalSimulator:
             return np.zeros((n_bins, 0), dtype=np.float64)
         t = np.arange(n_bins, dtype=np.float64) * spec.bin_size
         phase = rng.uniform(0.0, 2.0 * np.pi, size=spec.n_latent)
-        oscillation = np.sin(2.0 * np.pi * spec.latent_freqs[np.newaxis, :] * t[:, np.newaxis]
-                             + phase[np.newaxis, :])
+        oscillation = np.sin(
+            2.0 * np.pi * spec.latent_freqs[np.newaxis, :] * t[:, np.newaxis] + phase[np.newaxis, :]
+        )
         noise = rng.standard_normal((n_bins, spec.n_latent))
         decay = float(np.exp(-1.0 / spec.latent_ou_tau))
         ou = np.zeros_like(noise)

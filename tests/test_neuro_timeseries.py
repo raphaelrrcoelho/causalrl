@@ -57,8 +57,11 @@ def _linear_var(n: int = 4000, seed: int = 0) -> dict[str, np.ndarray]:
 
 def test_discover_lagged_recovers_a_known_var_chain() -> None:
     graph = discover_lagged(
-        _linear_var(), ["X", "Y", "Z"], max_lag=2,
-        ci_test=PartialCorrelationTest(alpha=1e-4), max_conditioning_size=2,
+        _linear_var(),
+        ["X", "Y", "Z"],
+        max_lag=2,
+        ci_test=PartialCorrelationTest(alpha=1e-4),
+        max_conditioning_size=2,
     )
     edges = set(graph.lagged_edges())
     assert ("X", "Y") in edges
@@ -72,8 +75,11 @@ def test_discover_lagged_recovers_a_known_var_chain() -> None:
 
 def test_self_links_are_recovered_but_kept_out_of_the_connectivity_edges() -> None:
     graph = discover_lagged(
-        _linear_var(), ["X", "Y", "Z"], max_lag=2,
-        ci_test=PartialCorrelationTest(alpha=1e-4), max_conditioning_size=2,
+        _linear_var(),
+        ["X", "Y", "Z"],
+        max_lag=2,
+        ci_test=PartialCorrelationTest(alpha=1e-4),
+        max_conditioning_size=2,
     )
     assert graph.self_links()  # autocorrelation is real and is modelled
     assert all(a != b for a, b in graph.lagged_edges())
@@ -82,8 +88,11 @@ def test_self_links_are_recovered_but_kept_out_of_the_connectivity_edges() -> No
 
 def test_parents_are_sorted_by_strength() -> None:
     graph = discover_lagged(
-        _linear_var(), ["X", "Y", "Z"], max_lag=2,
-        ci_test=PartialCorrelationTest(alpha=1e-4), max_conditioning_size=2,
+        _linear_var(),
+        ["X", "Y", "Z"],
+        max_lag=2,
+        ci_test=PartialCorrelationTest(alpha=1e-4),
+        max_conditioning_size=2,
     )
     parents = graph.parents("Z")
     assert parents
@@ -101,8 +110,11 @@ def test_parents_rejects_unknown_variables() -> None:
 
 def test_unrolled_admg_is_acyclic_and_carries_every_lag() -> None:
     graph = discover_lagged(
-        _linear_var(), ["X", "Y", "Z"], max_lag=2,
-        ci_test=PartialCorrelationTest(alpha=1e-4), max_conditioning_size=2,
+        _linear_var(),
+        ["X", "Y", "Z"],
+        max_lag=2,
+        ci_test=PartialCorrelationTest(alpha=1e-4),
+        max_conditioning_size=2,
     )
     admg = graph.unrolled_admg()
     # Construction succeeds only if the directed part is a DAG (CausalGraph enforces it).
@@ -112,8 +124,11 @@ def test_unrolled_admg_is_acyclic_and_carries_every_lag() -> None:
 
 def test_summary_graph_keeps_recurrence() -> None:
     graph = discover_lagged(
-        _linear_var(), ["X", "Y", "Z"], max_lag=2,
-        ci_test=PartialCorrelationTest(alpha=1e-4), max_conditioning_size=2,
+        _linear_var(),
+        ["X", "Y", "Z"],
+        max_lag=2,
+        ci_test=PartialCorrelationTest(alpha=1e-4),
+        max_conditioning_size=2,
     )
     summary = graph.summary_graph()
     assert set(summary.nodes) == {"X", "Y", "Z"}
@@ -145,8 +160,11 @@ def test_conditioned_ci_test_never_conditions_on_an_endpoint() -> None:
 
 def test_contemporaneous_phase_can_be_switched_off() -> None:
     graph = discover_lagged(
-        _linear_var(), ["X", "Y", "Z"], max_lag=1,
-        ci_test=PartialCorrelationTest(alpha=1e-4), contemporaneous=False,
+        _linear_var(),
+        ["X", "Y", "Z"],
+        max_lag=1,
+        ci_test=PartialCorrelationTest(alpha=1e-4),
+        contemporaneous=False,
     )
     assert graph.contemporaneous.edges() == []
 
@@ -169,8 +187,11 @@ def test_fast_common_input_is_never_reported_as_a_directed_edge() -> None:
         "C": rng.standard_normal(n),
     }
     graph = discover_lagged(
-        data, ["A", "B", "C"], max_lag=1,
-        ci_test=PartialCorrelationTest(alpha=1e-4), max_conditioning_size=1,
+        data,
+        ["A", "B", "C"],
+        max_lag=1,
+        ci_test=PartialCorrelationTest(alpha=1e-4),
+        max_conditioning_size=1,
     )
     assert ("A", "B") in graph.common_input_candidates()
     assert ("A", "B") not in graph.contemporaneous_directed()
@@ -188,8 +209,11 @@ def test_a_collider_lets_fci_commit_to_a_bidirected_edge() -> None:
     b = 1.3 * latent + 0.5 * rng.standard_normal(n)
     data = {"A": a, "B": b, "C": 1.0 * a + 1.0 * b + 0.5 * rng.standard_normal(n)}
     graph = discover_lagged(
-        data, ["A", "B", "C"], max_lag=1,
-        ci_test=PartialCorrelationTest(alpha=1e-4), max_conditioning_size=1,
+        data,
+        ["A", "B", "C"],
+        max_lag=1,
+        ci_test=PartialCorrelationTest(alpha=1e-4),
+        max_conditioning_size=1,
     )
     assert ("A", "B") in graph.common_input_candidates()
 
@@ -198,11 +222,48 @@ def test_discovery_runs_on_spike_counts_with_the_point_process_test() -> None:
     spec = two_area_microcircuit(n_per_area=3, latent_gain=0.0, n_latent=0, seed=0)
     rec = SpikingCorticalSimulator(spec, seed=1).simulate(8000)
     graph = discover_lagged(
-        rec.micro_columns(), list(rec.unit_names), max_lag=2,
-        ci_test=PoissonGLMTest(alpha=1e-3), max_conditioning_size=1,
+        rec.micro_columns(),
+        list(rec.unit_names),
+        max_lag=2,
+        ci_test=PoissonGLMTest(alpha=1e-3),
+        max_conditioning_size=1,
     )
     true_edges = set(spec.ground_truth_edges())
     found = set(graph.lagged_edges())
     # Every recovered edge must be a real synapse: the point-process test must not invent any
     # where there is no unrecorded common input to blame.
     assert found <= true_edges
+
+
+def test_screening_subsample_keeps_every_column_row_aligned() -> None:
+    from causalrl.neuro.timeseries import _subsample
+
+    frame = lagged_frame({"A": np.arange(100.0), "B": np.arange(100.0) * 2}, ["A", "B"], 1)
+    sub = _subsample(frame, 20, seed=0)
+    assert all(len(v) == 20 for v in sub.values())
+    # The lag-1 column must remain exactly one step behind the lag-0 column, row for row.
+    assert np.array_equal(sub["A"] - sub["A@t-1"], np.ones(20))
+    assert np.array_equal(sub["B"], sub["A"] * 2)
+
+
+def test_screening_subsample_is_a_no_op_when_larger_than_the_sample() -> None:
+    from causalrl.neuro.timeseries import _subsample
+
+    frame = lagged_frame({"A": np.arange(50.0)}, ["A"], 1)
+    assert _subsample(frame, 10_000, seed=0)["A"].shape == frame["A"].shape
+
+
+def test_screened_discovery_recovers_the_known_var_chain() -> None:
+    """PC1 screens on a subsample; the MCI decision still sees the whole series."""
+    graph = discover_lagged(
+        _linear_var(),
+        ["X", "Y", "Z"],
+        max_lag=2,
+        ci_test=PartialCorrelationTest(alpha=1e-4),
+        max_conditioning_size=2,
+        screen_samples=1500,
+    )
+    edges = set(graph.lagged_edges())
+    assert ("X", "Y") in edges
+    assert ("Y", "Z") in edges
+    assert ("X", "Z") not in edges

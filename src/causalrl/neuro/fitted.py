@@ -207,18 +207,17 @@ def _omega(scales: FittedScales, counts_per_area: Mapping[str, int]) -> Any:
     def lift(intervention: MicroIntervention) -> dict[str, float] | None:
         if not intervention.targets:
             return {}
-        by_area: dict[str, set[str]] = {}
-        values: dict[str, set[float]] = {}
+        by_area: dict[str, dict[str, float]] = {}
         for unit, value in intervention.targets.items():
-            area = scales.unit_area[unit]
-            by_area.setdefault(area, set()).add(unit)
-            values.setdefault(area, set()).add(float(value))
+            by_area.setdefault(scales.unit_area[unit], {})[unit] = float(value)
         macro: dict[str, float] = {}
-        for area, units in by_area.items():
+        for area, clamped in by_area.items():
             everyone = {u for u, a in scales.unit_area.items() if a == area}
-            if units != everyone or len(values[area]) != 1:
-                return None  # partial or heterogeneous: no macro counterpart exists
-            macro[area] = next(iter(values[area])) * counts_per_area[area]
+            if set(clamped) != everyone:
+                return None  # a partial area has no macro counterpart: the macro state does not
+                # resolve which units were clamped
+            # Heterogeneous levels lift exactly: the macro variable IS the sum being pinned.
+            macro[area] = float(sum(clamped.values()))
         return macro
 
     return lift
@@ -234,6 +233,8 @@ def certify_fitted_abstraction(
     severe_multiple: float = 5.0,
     n_samples: int = 8000,
     drive_count: float | None = None,
+    drive_quantile: float = 0.95,
+    min_support_mass: float = 0.01,
     seed: int = 0,
 ) -> tuple[Certificate, AbstractionReport, FittedScales]:
     """Fit both scales from a recording and certify whether the macro model licenses micro claims.
@@ -295,26 +296,43 @@ def certify_fitted_abstraction(
     # a disagreement produced there is arithmetic, not evidence.
     window = max_lag + 1
     kernel = np.ones(window) / window
-    sustained = np.stack(
-        [
-            np.convolve(recording.spikes[:, j].astype(np.float64), kernel, mode="valid")
-            for j in range(recording.n_units)
-        ]
-    )
-    sustained_max = float(sustained.max())
-    drive = float(np.quantile(sustained, 0.999)) if drive_count is None else float(drive_count)
-    unsupported: list[str] = []
-    if drive > sustained_max:
-        unsupported.append(
-            f"drive={drive:.3g} exceeds the largest sustained level observed "
-            f"over {window} bins ({sustained_max:.3g} counts/bin)"
+    sustained = {
+        unit: np.convolve(recording.spikes[:, j].astype(np.float64), kernel, mode="valid")
+        for j, unit in enumerate(recording.unit_names)
+    }
+    # Per unit, not pooled: a level routine for a 10 Hz unit is far outside support for a 0.5 Hz
+    # one, and clamping both to a shared level silently extrapolates the quiet ones.
+    drive_level = {
+        unit: (
+            float(np.quantile(series, drive_quantile))
+            if drive_count is None
+            else float(drive_count)
         )
+        for unit, series in sustained.items()
+    }
+    # "Was this level ever observed?" is the wrong question for a clamp held across every lag: an
+    # isolated burst answers yes while the sustained regime never goes near it. Ask instead what
+    # fraction of windows sit at or above the clamp, and require that mass to be non-negligible.
+    support_mass = {
+        unit: float(np.mean(sustained[unit] >= drive_level[unit])) for unit in drive_level
+    }
+    unsupported: list[str] = []
+    for unit, mass in sorted(support_mass.items()):
+        if mass < min_support_mass:
+            baseline = float(recording.spikes[:, recording.unit_names.index(unit)].mean())
+            unsupported.append(
+                f"{unit}: drive={drive_level[unit]:.3g} counts/bin sits at or above only "
+                f"{mass:.3%} of observed {window}-bin windows "
+                f"(mean {baseline:.3g}); the fit has effectively not seen this level sustained"
+            )
 
     interventions = [MicroIntervention({}, "observational")]
     for area in areas:
         members = recording.units_in(area)
         interventions.append(MicroIntervention(dict.fromkeys(members, 0.0), f"silence({area})"))
-        interventions.append(MicroIntervention(dict.fromkeys(members, drive), f"drive({area})"))
+        interventions.append(
+            MicroIntervention({u: drive_level[u] for u in members}, f"drive({area})")
+        )
         if len(members) > 1:
             half = members[: max(1, len(members) // 2)]
             interventions.append(
@@ -329,7 +347,17 @@ def certify_fitted_abstraction(
         stability_margin=float("nan"),  # not defined for a fitted finite-horizon model
         macro_variables=areas,
     )
-    certificate = _certify(report, scales, tolerance, severe_multiple, seed, unsupported, drive)
+    certificate = _certify(
+        report,
+        scales,
+        tolerance,
+        severe_multiple,
+        seed,
+        unsupported,
+        drive_level,
+        support_mass,
+        min_support_mass,
+    )
     return certificate, report, scales
 
 
@@ -340,7 +368,9 @@ def _certify(
     severe_multiple: float,
     seed: int,
     unsupported: Sequence[str],
-    drive: float,
+    drive_level: Mapping[str, float],
+    support_mass: Mapping[str, float],
+    min_support_mass: float,
 ) -> Certificate:
     """Turn a measured commutation report on fitted models into a certificate."""
     commutes = report.max_error <= tolerance
@@ -372,9 +402,13 @@ def _certify(
         ),
         Assumption(
             name="intervention-support",
-            params={"drive_count": drive},
+            params={
+                "drive_per_unit": {k: round(v, 4) for k, v in drive_level.items()},
+                "min_support_mass": min_support_mass,
+            },
             checkable=True,
             diagnostic={
+                "support_mass": {k: round(v, 5) for k, v in support_mass.items()},
                 "outside_observed_support": list(unsupported),
                 "reading": (
                     "a fitted log-linear mechanism extrapolates exponentially; an intervention "
@@ -401,9 +435,10 @@ def _certify(
             None,
             Hedge(
                 reason=(
-                    "an intervention lies outside the support the mechanisms were fitted on "
-                    f"({'; '.join(unsupported)}): the models are extrapolating, so any "
-                    "disagreement between them is uninformative"
+                    f"{len(unsupported)} unit(s) would be clamped to a level the recording does "
+                    f"not sustain (below {min_support_mass:.1%} of windows): "
+                    f"{unsupported[0]}. The mechanisms are extrapolating there, so a disagreement "
+                    "between them measures the extrapolation, not the circuit"
                 ),
                 detail={"unsupported": list(unsupported), "max_error_hz": report.max_error},
             ),

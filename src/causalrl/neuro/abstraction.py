@@ -275,9 +275,7 @@ def abstraction_error(
             (abs(micro_out.get(v, 0.0) - macro_out.get(v, 0.0)) for v in macro_variables),
             default=0.0,
         )
-        rows.append(
-            InterventionOutcome(iv.name(), True, micro_out, macro_out, float(err))
-        )
+        rows.append(InterventionOutcome(iv.name(), True, micro_out, macro_out, float(err)))
     return AbstractionReport(
         tuple(rows), float(stability_margin), tuple(macro_variables), int(n_equilibria)
     )
@@ -460,14 +458,8 @@ def default_interventions(spec: CorticalNetworkSpec) -> list[MicroIntervention]:
     for area in spec.areas:
         units = [u for u in spec.unit_names if spec.unit_area[u] == area]
         out.append(MicroIntervention(dict.fromkeys(units, 0.0), f"silence({area})"))
-        out.append(
-            MicroIntervention(
-                dict.fromkeys(units, min(0.25, 0.9)), f"drive({area})"
-            )
-        )
+        out.append(MicroIntervention(dict.fromkeys(units, min(0.25, 0.9)), f"drive({area})"))
         if len(units) > 1:
             half = units[: max(1, len(units) // 2)]
-            out.append(
-                MicroIntervention(dict.fromkeys(half, 0.0), f"silence(half of {area})")
-            )
+            out.append(MicroIntervention(dict.fromkeys(half, 0.0), f"silence(half of {area})"))
     return out

@@ -130,3 +130,41 @@ def test_ci_test_result_is_truthy_exactly_when_independent() -> None:
     test = PartialCorrelationTest(alpha=0.01)
     assert bool(test(_chain(), "X", "Z", ["Y"])) is True
     assert bool(test(_chain(), "X", "Z", [])) is False
+
+
+def test_reduced_model_cache_does_not_change_the_verdict() -> None:
+    """Caching the null fit is an optimisation; it must reproduce the uncached statistic exactly."""
+    data = _poisson_chain()
+    cached = PoissonGLMTest(alpha=0.01, cache_reduced=True)
+    uncached = PoissonGLMTest(alpha=0.01, cache_reduced=False)
+    for z in ([], ["CY"]):
+        a = cached(data, "X", "CZ", z)
+        b = uncached(data, "X", "CZ", z)
+        assert a.statistic == pytest.approx(b.statistic, rel=1e-9)
+        assert a.independent == b.independent
+
+
+def test_reduced_model_cache_is_reused_across_candidates_sharing_a_null() -> None:
+    data = _poisson_chain()
+    test = PoissonGLMTest(alpha=0.01)
+    test(data, "X", "CZ", [])
+    test(data, "CY", "CZ", [])  # same target, same (empty) conditioning set
+    assert len(test._cache) == 1
+
+
+def test_reduced_model_cache_separates_different_data() -> None:
+    """The key carries sample size and column sums, so another dataset cannot collide."""
+    test = PoissonGLMTest(alpha=0.01)
+    test(_poisson_chain(seed=0), "X", "CZ", [])
+    test(_poisson_chain(seed=1), "X", "CZ", [])
+    assert len(test._cache) == 2
+
+
+def test_warm_started_full_model_matches_a_cold_start() -> None:
+    data = _poisson_chain()
+    test = PoissonGLMTest(alpha=0.01)
+    ys = data["CZ"]
+    design = np.column_stack([np.ones(len(ys)), data["CY"], data["X"]])
+    cold, _ = test._fit(ys, design)
+    warm, _ = test._fit(ys, design, np.array([0.1, 0.2, 0.3]))
+    assert cold == pytest.approx(warm, rel=1e-6)

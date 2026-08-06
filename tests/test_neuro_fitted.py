@@ -103,18 +103,22 @@ def test_out_of_support_drive_is_refused_rather_than_reported_as_disagreement() 
     )
     assert cert.kind is Kind.EMPIRICAL
     assert cert.hedge is not None
-    assert "outside the support" in cert.hedge.reason
+    assert "does not sustain" in cert.hedge.reason
     support = next(a for a in cert.assumptions if a.name == "intervention-support")
     assert support.diagnostic is not None
     assert support.diagnostic["outside_observed_support"]
+    # A clamp this far above the data must have essentially no observed sustained mass behind it.
+    assert all(m < 0.01 for m in support.diagnostic["support_mass"].values())
 
 
 def test_default_drive_stays_inside_the_observed_sustained_range() -> None:
+    """The default drive is a level the recording actually sustains, not one it once touched."""
     rec = _recording()
     cert, _, _ = certify_fitted_abstraction(rec, max_lag=2, n_samples=1000)
     support = next(a for a in cert.assumptions if a.name == "intervention-support")
     assert support.diagnostic is not None
     assert support.diagnostic["outside_observed_support"] == []
+    assert all(m >= 0.01 for m in support.diagnostic["support_mass"].values())
 
 
 def test_certificate_records_the_finite_horizon_it_measured_over() -> None:
