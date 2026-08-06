@@ -317,3 +317,11 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 ::: causalrl.state.encode_batch
 
 ::: causalrl.agents.fitted.FittedQIteration
+
+## Function-Valued Causal Bounds
+
+::: causalrl.bounds.functional.FunctionalManskiBounds
+
+::: causalrl.bounds.functional.OverlapDiagnostic
+
+::: causalrl.agents.bounded_fitted.BoundedFittedQIteration
