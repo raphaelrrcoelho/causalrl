@@ -132,6 +132,15 @@ class OnlineCausalMBRL:
             raise ValueError("actions is empty: there is nothing for the agent to choose between")
         if policy not in _POLICIES:
             raise ValueError(f"policy={policy!r} is not one of {list(_POLICIES)}")
+        if n_rollout < 1:
+            # Every action value is the mean of a `see(n_rollout)` sample. At zero that mean is
+            # nan, nan comparisons are all False, and argmax silently returns the first action --
+            # a decision that looks like a choice and is not one.
+            raise ValueError(
+                f"n_rollout={n_rollout} must be at least 1: action values are means over "
+                f"see(n_rollout) draws, and an empty draw makes every value nan, which argmax "
+                f"resolves to the first action rather than reporting that nothing was compared."
+            )
         self.treatment = treatment
         self.outcome = outcome
         self.actions = tuple(actions)

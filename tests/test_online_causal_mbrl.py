@@ -401,3 +401,11 @@ def test_the_thompson_draw_advances_with_the_step_counter() -> None:
     quiet._belief = _disagreeing_belief()
     busy._belief = _disagreeing_belief()
     assert [quiet.act() for _ in range(12)] != [busy.act() for _ in range(12)]
+
+
+def test_n_rollout_below_one_is_refused() -> None:
+    # Action values are means over see(n_rollout) draws. At n_rollout=0 every mean is nan, nan
+    # comparisons are all False, and argmax returns index 0 -- so act() would return a valid-looking
+    # action having compared nothing. Discriminating: removing the guard makes this not raise.
+    with pytest.raises(ValueError, match="n_rollout"):
+        OnlineCausalMBRL(["A", "Y"], treatment="A", outcome="Y", actions=(0.0, 1.0), n_rollout=0)

@@ -31,9 +31,9 @@ research contribution. Specifically:
   Data-Fusion for Online Reinforcement Learners*. Their result is the reason this design exists at
   all: under unobserved confounding an agent needs **both** quantities, and averaging confounders out
   can incur unbounded regret. This library is already anchored to that taxonomy.
-- **Thompson sampling over structure** appears in Wang et al., *Generalized Thompson Sampling for
-  Sequential Decision-Making and Causal Inference*, [arXiv:1303.4431](https://arxiv.org/abs/1303.4431),
-  and in later causal-bandit variants.
+- **Thompson sampling over structure** appears in Ortega & Braun (2013), *Generalized Thompson
+  Sampling for Sequential Decision-Making and Causal Inference*,
+  [arXiv:1303.4431](https://arxiv.org/abs/1303.4431), and in later causal-bandit variants.
 - **Choosing interventions by expected information gain** is standard active intervention design:
   Scherrer et al., *Learning Neural Causal Models with Active Interventions*
   ([arXiv:2109.02429](https://arxiv.org/abs/2109.02429)); Zhang et al., *Active learning for optimal
