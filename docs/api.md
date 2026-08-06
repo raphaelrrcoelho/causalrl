@@ -301,3 +301,19 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 ## Known Mechanisms
 
 ::: causalrl.scm.fitters.PinnedMechanism
+
+## Continuous States
+
+::: causalrl.state.StateEncoder
+
+::: causalrl.state.OneHotEncoder
+
+::: causalrl.state.IdentityEncoder
+
+::: causalrl.state.RBFEncoder
+
+::: causalrl.state.FeatureTransition
+
+::: causalrl.state.encode_batch
+
+::: causalrl.agents.fitted.FittedQIteration
