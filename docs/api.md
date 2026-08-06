@@ -12,6 +12,8 @@
 
 ::: causalrl.identification.intervention_sets.requires_experiment
 
+::: causalrl.identification.intervention_sets.AdmissibleInterventions
+
 ## Structural Causal Models
 
 ::: causalrl.scm.scm.StructuralCausalModel
@@ -261,3 +263,41 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 ::: causalrl.scale.d3rlpy.certify_fqe
 
 ::: causalrl.scale.d3rlpy.policy_actions
+
+## Set-Valued Interventions
+
+::: causalrl.intervention.InterventionSpace
+
+::: causalrl.intervention.canonical
+
+::: causalrl.agents.interventional.InterventionalAgent
+
+::: causalrl.agents.interventional.ScalarAgentAdapter
+
+::: causalrl.deadline.Deadline
+
+## Interference (Spillovers)
+
+::: causalrl.interference.ExposureMapping
+
+::: causalrl.interference.ExposureContrast
+
+::: causalrl.interference.neighbourhood_count
+
+::: causalrl.interference.neighbourhood_fraction
+
+::: causalrl.interference.any_neighbour_treated
+
+::: causalrl.interference.population_share
+
+::: causalrl.interference.adjacency_from_matrix
+
+::: causalrl.interference.direct_effect
+
+::: causalrl.interference.spillover_effect
+
+::: causalrl.interference.total_effect
+
+## Known Mechanisms
+
+::: causalrl.scm.fitters.PinnedMechanism

@@ -9,14 +9,20 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from itertools import combinations, product
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 import numpy as np
 from torch.distributions import Distribution
 
 from causalrl.discovery import CPDAG
 from causalrl.exceptions import CausalGraphError, NotIdentifiableError
-from causalrl.scm.fitters import ANMFit, MechanismFitter, TabularCPT, evaluate_holdout
+from causalrl.scm.fitters import (
+    ANMFit,
+    MechanismFitter,
+    PinnedMechanism,
+    TabularCPT,
+    evaluate_holdout,
+)
 from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import Mechanism
 from causalrl.scm.scm import StructuralCausalModel
@@ -41,6 +47,11 @@ class NodeFit(NamedTuple):
     (invertible, additive-noise) one -- via :func:`causalrl.scm.fitters.evaluate_holdout`. It sits
     on the same scale as each family's in-sample ``score``, but is a genuine out-of-sample number:
     an overfit deployed mechanism scores worse here even though its in-sample ``score`` looks fine.
+
+    ``pinned`` marks a node whose equation was SUPPLIED rather than learned (see
+    :class:`causalrl.scm.fitters.PinnedMechanism`). It changes how ``holdout_score`` should be
+    read: for a learned node the score measures how well a family fitted, and for a pinned one it
+    measures whether the equation the caller asserted survives contact with held-out data.
     """
 
     node: str
@@ -48,6 +59,7 @@ class NodeFit(NamedTuple):
     parents: tuple[str, ...]
     holdout_score: float
     invertible: bool
+    pinned: bool = False
 
 
 class FitReport(NamedTuple):
@@ -60,11 +72,17 @@ class FitReport(NamedTuple):
         lines = [f"FitReport(n={self.n_samples})"]
         for fit in self.nodes:
             parents = ", ".join(fit.parents) or "-"
+            marker = " PINNED" if fit.pinned else ""
             lines.append(
                 f"  {fit.node}: family={fit.family} parents=[{parents}] "
-                f"holdout={fit.holdout_score:.3f} invertible={fit.invertible}"
+                f"holdout={fit.holdout_score:.3f} invertible={fit.invertible}{marker}"
             )
         return "\n".join(lines)
+
+    @property
+    def pinned_nodes(self) -> tuple[str, ...]:
+        """Nodes whose equation was supplied rather than learned, in report order."""
+        return tuple(fit.node for fit in self.nodes if fit.pinned)
 
 
 _FAMILY_NAMES = {
@@ -72,6 +90,7 @@ _FAMILY_NAMES = {
     "LinearGaussianFit": "linear_gaussian",
     "ANMFit": "anm",
     "NeuralFit": "neural",
+    "PinnedMechanism": "pinned",
 }
 
 
@@ -101,6 +120,15 @@ def fit_scm(
     Each node is fitted by ``families[node]`` when given, else by dtype: integer-valued columns
     with at most 20 levels get :class:`TabularCPT`, everything else :class:`ANMFit`. The result is
     an ordinary :class:`StructuralCausalModel` marked ``provenance="fitted"``.
+
+    **Mechanisms may be pinned instead of learned.** Passing
+    :class:`~causalrl.scm.fitters.PinnedMechanism` as a node's family deploys the equation you
+    supply at that node while the rest of the graph is still fitted from ``data`` — the ordinary
+    case where a documented rule sits next to behaviour that has no closed form. A model with both
+    kinds of node carries ``provenance="mixed"``; one whose every node is pinned carries
+    ``provenance="specified"``, since nothing about its equations came from the data. Pinned nodes
+    are listed by :attr:`FitReport.pinned_nodes` and still receive a ``holdout_score``, which for
+    them tests the asserted equation rather than measuring a fit.
 
     **The deployed mechanisms are fitted on a fraction of the data.** ``data`` is split once, by a
     ``seed``-controlled permutation shared by every node: ``1 - holdout`` of the rows train the
@@ -168,6 +196,7 @@ def fit_scm(
                 parents=parents,
                 holdout_score=holdout_score,
                 invertible=fitted.invertible,
+                pinned=isinstance(fitter, PinnedMechanism),
             )
         )
         fitted.mechanism.invertible = fitted.invertible  # type: ignore[attr-defined]
@@ -176,9 +205,22 @@ def fit_scm(
         graph,
         mechanisms,
         exogenous,
-        provenance="fitted",
+        provenance=_provenance(fits),
         fit_report=FitReport(nodes=tuple(fits), n_samples=n),
     )
+
+
+def _provenance(fits: list[NodeFit]) -> Literal["specified", "fitted", "mixed"]:
+    """Where the returned model's equations came from: all supplied, all learned, or both.
+
+    ``"specified"`` for an all-pinned model matches a hand-built SCM, whose mechanisms are equally
+    a caller's assertion. ``"mixed"`` is gated like ``"fitted"`` for L3 queries -- a model is only
+    as identified as its weakest node, and a mix still contains learned ones.
+    """
+    pinned = sum(1 for fit in fits if fit.pinned)
+    if pinned == 0:
+        return "fitted"
+    return "specified" if pinned == len(fits) else "mixed"
 
 
 def fit_scm_mec(
