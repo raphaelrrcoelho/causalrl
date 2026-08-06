@@ -133,3 +133,49 @@ def test_learned_scm_surface_is_exported_top_level():
     ):
         assert name in causalrl.__all__, f"{name} missing from __all__"
         assert getattr(causalrl, name) is not None
+
+
+# --- Surface curation gates -------------------------------------------------------------------
+#
+# `__all__` is flat and large. These two tests are what keep it navigable: every export must be
+# placed in exactly one tier, and every export must actually appear in the API reference. Both
+# failures are silent otherwise -- mkdocstrings validates the references that exist, never the ones
+# that are missing, so `mkdocs --strict` passed for a long time with half the surface undocumented.
+
+_SURFACE_META = {"__version__", "API_TIERS"}
+"""Names that describe the surface rather than belonging to it, so they carry no tier."""
+
+
+def test_api_tiers_partition_the_public_surface():
+    tiered = [name for names in causalrl.API_TIERS.values() for name in names]
+    assert len(tiered) == len(set(tiered)), "a name appears in more than one tier"
+    assert set(tiered) == set(causalrl.__all__) - _SURFACE_META
+
+
+def test_core_tier_stays_small_enough_to_read():
+    # The tier exists to answer "where do I start"; a core of 40 names would not answer it.
+    assert len(causalrl.API_TIERS["core"]) <= 20
+
+
+def test_every_export_appears_in_the_api_reference():
+    import re
+
+    root = Path(__file__).resolve().parent.parent
+    reference = (root / "docs" / "api.md").read_text()
+    documented = {m.rsplit(".", 1)[-1] for m in re.findall(r"^::: ([\w\.]+)", reference, re.M)}
+    # The lazy export map may rename on the way out (attr `canonical` -> export
+    # `canonical_intervention`), so resolve each export to the attribute it actually points at.
+    source = (root / "src" / "causalrl" / "__init__.py").read_text()
+    block = source[source.index("_EXPORTS") : source.index("API_TIERS")]
+    targets = {
+        name: attr
+        for name, _module, attr in re.findall(
+            r'"([\w]+)":\s*\(\s*\n?\s*"([\w\.]+)",\s*\n?\s*"([\w]+)"', block
+        )
+    }
+    missing = sorted(
+        name
+        for name in set(causalrl.__all__) - _SURFACE_META
+        if targets.get(name, name) not in documented
+    )
+    assert not missing, f"{len(missing)} exported name(s) absent from docs/api.md: {missing}"
