@@ -320,8 +320,12 @@ Faithful to Koller & Milch (multi-agent influence diagrams, 2003) and Hammond et
 
 `CausalEnvWrapper` exposes the causal structure of any SCM-backed environment as a
 standard Gymnasium interface, and enables **persistent interventional rollouts** via
-`set_intervention`.  `factored_advantage` is the framework-agnostic causal primitive that
-decomposes the PPO advantage along the SCM parents of the reward (arXiv:2605.06066).
+`set_intervention`.  CGFA-PPO (arXiv:2605.06066) then decomposes the PPO advantage along the
+SCM parents of the reward.  It ships in two halves: `factor_rewards` / `factor_gae` /
+`blend_advantages` / `factored_advantage` are pure-NumPy and framework-agnostic, and
+`FactoredCritic` (the `causalrl[torch]` extra) is the `K`-head critic — one value head per
+SCM parent, trained on that parent's own return, plus the learnable mixture weights and the
+state-conditional residual gate.
 
 After `import causalrl`, all demo environments are also available via `gymnasium.make`.
 
@@ -351,12 +355,24 @@ obs, r, terminated, truncated, _ = env.step(0)
 print(r)                              # ~0.5 under do(X3=1)
 env.clear_intervention()             # restore original SCM
 
-# --- CGFA-PPO causal primitive ---
+# --- CGFA-PPO causal primitives (pure NumPy) ---
 config = FactoredAdvantageConfig(factor_nodes=env.reward_parents, aggregation="sum")
 K, T = len(config.factor_nodes), 8
 V = np.random.default_rng(0).standard_normal((T, K))
 b = np.random.default_rng(1).standard_normal(T)
 adv = factored_advantage(V, b, config=config)   # shape (T,)
+
+# --- CGFA-PPO K-head critic (needs the [torch] extra) ---
+from causalrl import FactoredCritic
+
+critic = FactoredCritic(obs_dim=4, factor_nodes=env.reward_parents, seed=0)
+obs_batch = np.random.default_rng(2).standard_normal((T, 4))
+phi = np.random.default_rng(3).standard_normal((T + 1, K))   # per-factor trace phi(s_t)
+bundle = critic.advantages(
+    obs_batch, np.diff(phi, axis=0), adv, gamma=0.99          # Eq. 8, 10, 11
+)
+critic.update(obs_batch, bundle.returns)                      # Eq. 9 trains the K heads
+print(bundle.used.shape, critic.mixture_weights())            # (8,)  softmax(beta)
 
 # --- gym.make and vectorized envs ---
 env2 = gymnasium.make("causalrl/StructuralCausalBandit-v0", n_mc=200)

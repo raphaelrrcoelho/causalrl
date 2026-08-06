@@ -150,11 +150,31 @@
 
 ::: causalrl.envs.wrapper.CausalEnvWrapper
 
-## Causal Graph-Factored Advantage (CGFA)
+## Causal Graph-Factored Advantage (CGFA-PPO)
+
+The pure-NumPy rollout arithmetic (no framework dependency):
+
+::: causalrl.agents.factored_advantage.factor_rewards
+
+::: causalrl.agents.factored_advantage.factor_gae
+
+::: causalrl.agents.factored_advantage.blend_advantages
 
 ::: causalrl.agents.factored_advantage.factored_advantage
 
 ::: causalrl.agents.factored_advantage.FactoredAdvantageConfig
+
+The `K`-head critic that makes it an algorithm (needs the `causalrl[torch]` extra):
+
+::: causalrl.agents.cgfa_critic.FactoredCritic
+
+::: causalrl.agents.cgfa_critic.CGFACriticConfig
+
+::: causalrl.agents.cgfa_critic.CGFAAdvantages
+
+::: causalrl.agents.cgfa_critic.CGFALosses
+
+::: causalrl.agents.cgfa_critic.CGFAUpdateStats
 
 ## Gymnasium Env Registration
 

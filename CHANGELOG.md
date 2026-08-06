@@ -40,6 +40,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on the conformal layer: a candidate with the better *mean* but a heavier downside is refused.
   `as_certificate` now reports `downside-not-certified` rather than `not-robust-to-confounding`
   when the finite-sample gate is what refused.
+- **`FactoredCritic` + `CGFACriticConfig` / `CGFALosses` / `CGFAAdvantages` / `CGFAUpdateStats`**
+  (`causalrl.agents.cgfa_critic`, exported top-level, `causalrl[torch]` extra) and
+  **`factor_rewards` / `factor_gae` / `blend_advantages`** (`causalrl.agents.factored_advantage`,
+  pure NumPy) — the **`K`-head critic that makes `factored_advantage` an algorithm**. Until now
+  the module was named for CGFA-PPO (Cunha, Mian, French & Liu 2026, arXiv:2605.06066) but the
+  whole computation was `V_i - baseline`; `examples/cgfa_ppo_example.py` conceded *"in a full
+  CGFA-PPO, you'd have K value heads; here we use the same value"*. Implemented from the paper
+  (no code ported): one value head per SCM parent of the return on a trunk shared with the scalar
+  critic, each regressed on **its own** per-factor return `G_k = sum_i gamma^i (phi_k(s') - phi_k(s))`
+  (Eq. 8-9); learnable mixture logits `w = softmax(beta)`; a state-conditional residual gate
+  `g(s)` blending scalar and factored advantages (Eq. 11); and the **intervention-calibration
+  loss** `L_cal` aligning each factor advantage with the SCM-predicted effect `eps_k` (Eq. 12).
+  `objective()` assembles Eq. 13 and accepts the RL framework's surrogate so actor and critic can
+  be stepped jointly (Algorithm 1 line 22). Tests pin **head differentiation** — on data where
+  factors drive different observation coordinates, each head fits its own target >20x better than
+  its neighbour's, and swapping the target columns inflates the per-factor residual >10x (both
+  ratios collapse to 1 under a shared value head). `examples/cgfa_ppo_example.py` now trains real
+  `K` heads against SCM-derived per-factor traces. Documented deviations: `L_cal`'s advantages are
+  recomputed under the current parameters (stored ones carry no gradient, which would make the
+  paper's ablation a no-op), `factor_gae(lam=1.0)` reconciles Eq. 8/10 with the "GAE truncation"
+  prose, and `blend()` exists because Algorithm 1's line-12 ordering leaves `g` and `beta` — the
+  two parameters the paper calls learnable — with no gradient path.
 - **`cce_polytope` / `cce_bounds` / `cce_regret` / `certify_cce_do`** (`causalrl.magames`, exported
   top-level) — partial identification of a learning population's time-averaged behaviour by the
   coarse-correlated-equilibrium polytope of a (possibly `do()`-intervened) finite game. Both bound
