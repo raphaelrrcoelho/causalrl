@@ -449,6 +449,7 @@ API_TIERS: dict[str, tuple[str, ...]] = {
     "modelling": (
         "ANMFit",
         "AmortizedGaussianAbduction",
+        "BayesianLinearFit",
         "CausalEnvProtocol",
         "ConditionalFlowMechanism",
         "ConfoundedTrajectoryDataset",
@@ -468,6 +469,7 @@ API_TIERS: dict[str, tuple[str, ...]] = {
         "NoiseLedger",
         "NoisePosterior",
         "PinnedMechanism",
+        "PoissonGLMFit",
         "Regime",
         "SCMCausalEnv",
         "TabularCPT",

@@ -19,22 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   actions in range). `FittedQIteration` and `BoundedFittedQIteration` had hand-written copies with
   paraphrased error messages, which is worse than duplication that reads identically: the two could
   drift and no reader could tell whether a wording difference was meaningful.
-- **`API_TIERS`** (exported top-level) — the 253-name public surface partitioned by what a reader is
+- **`API_TIERS`** (exported top-level) — the 255-name public surface partitioned by what a reader is
   trying to do (`core`, `identification`, `modelling`, `decision`, `inference`, `integration`), with
   a 14-name core as the entry point. Tested to be a true partition of `__all__`, so a new export
   cannot be added without being placed.
-
-### Fixed
-- **Every exported name now has an API-reference entry.** 127 of 253 were missing, including `Agent`,
-  `CausalMBRLAgent` and `CausalThompsonSampling` — the README's own headline example.
-  `mkdocs --strict` never caught it because mkdocstrings validates the references that exist, not
-  the ones that are absent; `test_every_export_appears_in_the_api_reference` now does, resolving
-  through the lazy export map so a renamed export is checked against the attribute it points at.
-- **`BoundedFittedQIteration` no longer redefines `TransitionAssumption` as `str`.** It now imports
-  `causalrl.agents.dovi.TransitionAssumption`, which is the `Literal["unknown", "unconfounded"]` the
-  codebase already had — the sibling definition silently discarded that narrowing.
-- **`FunctionalManskiBounds.fit` annotates `actions` as an integer array**, which is what it has
-  always required and coerced.
 - **`FunctionalManskiBounds`** (`causalrl.bounds.functional`, exported top-level) — the per-cell
   Manski bound generalised to a function of state features. `causal_q_bounds` bounds
   `E[R | do(a), s]` for a discrete `s` from the cell's propensity and mean; here both become fitted
@@ -140,6 +128,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   persistent `set_intervention` levers run against learned mechanisms
   (`examples/learned_scm_policy.py` learns from confounded logs, plans inside the model with
   Thompson sampling, and scores the resulting policy in the true world).
+
+### Fixed
+- **Every exported name now has an API-reference entry.** 129 of 255 were missing, including `Agent`,
+  `CausalMBRLAgent` and `CausalThompsonSampling` — the README's own headline example.
+  `mkdocs --strict` never caught it because mkdocstrings validates the references that exist, not
+  the ones that are absent; `test_every_export_appears_in_the_api_reference` now does, resolving
+  through the lazy export map so a renamed export is checked against the attribute it points at.
+- **`BoundedFittedQIteration` no longer redefines `TransitionAssumption` as `str`.** It now imports
+  `causalrl.agents.dovi.TransitionAssumption`, which is the `Literal["unknown", "unconfounded"]` the
+  codebase already had — the sibling definition silently discarded that narrowing.
+- **`FunctionalManskiBounds.fit` annotates `actions` as an integer array**, which is what it has
+  always required and coerced.
 
 ### Added (experimental)
 - **`LinearCyclicSCM.stability_margin` / `spectral_abscissa` / `max_stable_learning_rate`** —

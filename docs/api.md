@@ -382,6 +382,8 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.scm.continuous.abduction.AmortizedGaussianAbduction
 
+::: causalrl.scm.continuous.bayesian_fit.BayesianLinearFit
+
 ::: causalrl.protocols.CausalEnvProtocol
 
 ::: causalrl.scm.continuous.mechanisms.ConditionalFlowMechanism
@@ -417,6 +419,8 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 ::: causalrl.protocols.NoiseLedger
 
 ::: causalrl.protocols.NoisePosterior
+
+::: causalrl.scm.fitters.PoissonGLMFit
 
 ::: causalrl.regime.Regime
 
