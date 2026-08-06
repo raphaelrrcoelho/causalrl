@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, NamedTuple, Protocol, runtime_checkable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -37,7 +37,9 @@ __all__ = [
     "OneHotEncoder",
     "RBFEncoder",
     "StateEncoder",
+    "TransitionBatch",
     "encode_batch",
+    "unpack_transitions",
 ]
 
 
@@ -174,3 +176,56 @@ class FeatureTransition:
             )
         object.__setattr__(self, "state", state)
         object.__setattr__(self, "next_state", next_state)
+
+
+class TransitionBatch(NamedTuple):
+    """A sequence of :class:`FeatureTransition` unpacked into aligned column arrays.
+
+    ``not_done`` is ``1.0`` for a transition that continues and ``0.0`` for one that ends the
+    episode, so a backup can multiply a continuation value by it instead of branching.
+    """
+
+    states: FloatArray
+    next_states: FloatArray
+    actions: NDArray[np.int_]
+    rewards: FloatArray
+    not_done: FloatArray
+
+
+def unpack_transitions(
+    transitions: Sequence[FeatureTransition], *, encoder: StateEncoder, n_actions: int
+) -> TransitionBatch:
+    """Validate a batch of feature transitions against ``encoder`` / ``n_actions`` and columnise it.
+
+    Every feature-space agent needs the same three checks before it can do anything — non-empty,
+    features that came from *this* encoder, and actions inside the declared range — and the same
+    five columns afterwards. Sharing them keeps the error messages identical across agents, which
+    matters more than the lines saved: two hand-written copies drift apart silently, and the reader
+    cannot tell whether a wording difference is meaningful.
+    """
+    if not transitions:
+        raise ValueError(
+            "no transitions supplied: a feature-space backup has nothing to fit, and would "
+            "otherwise return its uninformative prior everywhere while looking as though it had "
+            "learned something."
+        )
+    states = np.stack([t.state for t in transitions])
+    next_states = np.stack([t.next_state for t in transitions])
+    if states.shape[1] != encoder.dim:
+        raise ValueError(
+            f"transitions carry {states.shape[1]}-dimensional features but the encoder produces "
+            f"{encoder.dim}: they were built with a different encoder."
+        )
+    actions = np.array([t.action for t in transitions], dtype=int)
+    if int(actions.min()) < 0 or int(actions.max()) >= n_actions:
+        raise ValueError(
+            f"transitions contain action(s) outside [0, {n_actions}): observed range "
+            f"[{int(actions.min())}, {int(actions.max())}]"
+        )
+    return TransitionBatch(
+        states=states,
+        next_states=next_states,
+        actions=actions,
+        rewards=np.array([t.reward for t in transitions], dtype=np.float64),
+        not_done=np.array([not t.done for t in transitions], dtype=np.float64),
+    )

@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-from causalrl.agents.base import Agent
+from causalrl.agents.base import BatchAgent
 from causalrl.identification.counterfactual import regret_decision_table
 
 if TYPE_CHECKING:
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 __all__ = ["CounterfactualOptimalPolicy"]
 
 
-class CounterfactualOptimalPolicy(Agent):
+class CounterfactualOptimalPolicy(BatchAgent):
     """Plays ``argmax_a E[Y_{do(action_node=a)} | intent]`` from a known SCM.
 
     The Layer-3 oracle: it precomputes the Regret Decision Criterion table once at construction and
@@ -59,6 +59,3 @@ class CounterfactualOptimalPolicy(Agent):
 
     def act(self, observation: dict[str, Any]) -> int:
         return self._best_arm[int(observation[self._intent_key])]
-
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """No-op: the SCM is known, so there is nothing to learn online."""

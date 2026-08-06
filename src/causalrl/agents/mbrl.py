@@ -16,7 +16,7 @@ from typing import Any
 
 import numpy as np
 
-from causalrl.agents.base import Agent
+from causalrl.agents.base import BatchAgent
 from causalrl.data.dataset import ConfoundedTrajectoryDataset
 from causalrl.discovery import discover
 from causalrl.identification.criteria import backdoor_adjustment_set
@@ -101,7 +101,7 @@ def _transport_value(
     return total
 
 
-class CertifiedPolicyAgent(Agent):
+class CertifiedPolicyAgent(BatchAgent):
     """Ship the best deterministic policy whose improvement over behavior certifies robust to hidden
     confounding; abstain to the empirical behavior policy otherwise."""
 
@@ -139,11 +139,8 @@ class CertifiedPolicyAgent(Agent):
     def act(self, observation: dict[str, Any]) -> int:
         return int(self.policy[int(observation["state"])])
 
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Fixed policy from the logs; no online update."""
 
-
-class BackdoorAdjustedAgent(Agent):
+class BackdoorAdjustedAgent(BatchAgent):
     """Active deconfounded optimizer: pick the action with the highest back-door-adjusted value
     ``E[Y | do(A=a)] = Σ_z P(z) · E[Y | A=a, Z=z]``, with the adjustment set read from the graph via
     :func:`~causalrl.backdoor_adjustment_set`.
@@ -181,11 +178,8 @@ class BackdoorAdjustedAgent(Agent):
     def act(self, observation: dict[str, Any]) -> int:
         return int(self._best_action)
 
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Fixed action from the fitted adjustment; no online update."""
 
-
-class TransportBackdoorAgent(Agent):
+class TransportBackdoorAgent(BatchAgent):
     """Deconfound + transport: back-door-adjust for the confounders (source weighting) and reweight
     the selection variables by the target distribution, then ship the argmax of the transported
     interventional value ``E_target[Y | do(A=a)]``. The M2 upgrade of :class:`BackdoorAdjustedAgent`
@@ -246,11 +240,8 @@ class TransportBackdoorAgent(Agent):
     def act(self, observation: dict[str, Any]) -> int:
         return int(self._best_action)
 
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Fixed action from the fitted transport estimate; no online update."""
 
-
-class DiscoveryBackdoorAgent(Agent):
+class DiscoveryBackdoorAgent(BatchAgent):
     """Learns the structure: discovers the causal skeleton from data, orients it with the known
     temporal tier order (covariates precede treatment precede outcome — standard in DTR/medicine),
     takes the treatment's earlier-tier neighbours as the back-door set, then adjusts. The M1 upgrade
@@ -305,9 +296,6 @@ class DiscoveryBackdoorAgent(Agent):
     def act(self, observation: dict[str, Any]) -> int:
         return int(self._best_action)
 
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Fixed action from the fitted adjustment; no online update."""
-
 
 def _rbf_features(z: np.ndarray, centers: np.ndarray, bandwidth: float) -> np.ndarray:
     """Design matrix ``[1, exp(-(z - c_k)^2 / (2 bandwidth^2))]`` for RBF ridge regression."""
@@ -316,7 +304,7 @@ def _rbf_features(z: np.ndarray, centers: np.ndarray, bandwidth: float) -> np.nd
     return np.hstack([np.ones((z.shape[0], 1)), phi])
 
 
-class FunctionApproxBackdoorAgent(Agent):
+class FunctionApproxBackdoorAgent(BatchAgent):
     """Function-approximation back-door: fit ``qhat(a, z)`` by ridge regression on RBF features of a
     CONTINUOUS confounder, then back-door-adjust by Monte-Carlo integrating ``qhat(a, .)`` over the
     observed confounder sample, and ship the argmax. The M3 upgrade that carries the deconfounding
@@ -388,9 +376,6 @@ class FunctionApproxBackdoorAgent(Agent):
     def act(self, observation: dict[str, Any]) -> int:
         return int(self._best_action)
 
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Fixed action from the fitted function approximator; no online update."""
-
 
 def _standardize(fit_x: np.ndarray, apply_x: np.ndarray) -> np.ndarray:
     """Z-score ``apply_x`` by the column mean/std of ``fit_x`` (ridge conditioning)."""
@@ -399,7 +384,7 @@ def _standardize(fit_x: np.ndarray, apply_x: np.ndarray) -> np.ndarray:
     return (apply_x - mean) / std
 
 
-class GFormulaBackdoorAgent(Agent):
+class GFormulaBackdoorAgent(BatchAgent):
     """Multivariate g-formula (standardization) back-door for many, mixed-type covariates.
 
     Fits a per-action outcome model ``Ehat_a[Y | X]`` over ALL covariates X (a T-learner), then
@@ -494,6 +479,3 @@ class GFormulaBackdoorAgent(Agent):
 
     def act(self, observation: dict[str, Any]) -> int:
         return int(self._best_action)
-
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Fixed action from the fitted g-formula; no online update."""

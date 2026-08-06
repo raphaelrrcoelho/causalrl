@@ -36,7 +36,8 @@ from typing import Any
 
 import numpy as np
 
-from causalrl.agents.base import Agent
+from causalrl.agents.base import BatchAgent
+from causalrl.agents.dovi import TransitionAssumption
 from causalrl.bounds.functional import FunctionalManskiBounds
 from causalrl.certify.certificate import (
     Assumption,
@@ -49,15 +50,12 @@ from causalrl.certify.certificate import (
 from causalrl.estimate.nuisance import Regressor, RidgeRegressor
 from causalrl.exceptions import UnverifiedAssumptionError
 from causalrl.identification.bounds import Interval
-from causalrl.state import FeatureTransition, FloatArray, StateEncoder
+from causalrl.state import FeatureTransition, FloatArray, StateEncoder, unpack_transitions
 
 __all__ = ["BoundedFittedQIteration"]
 
-TransitionAssumption = str
-"""Either ``"unknown"`` or ``"unconfounded"`` — see :class:`causalrl.agents.dovi.DOVI`."""
 
-
-class BoundedFittedQIteration(Agent):
+class BoundedFittedQIteration(BatchAgent):
     """Finite-horizon envelope propagation over encoded features, under Manski reward bounds.
 
     ``encoder`` decides what a state is; ``bounds_model`` supplies the immediate-reward interval at
@@ -138,24 +136,9 @@ class BoundedFittedQIteration(Agent):
                 "propagated interval bounds nothing. Set allow_heuristic=True to run it anyway as "
                 "value propagation (the certificate then reports EMPIRICAL, not BOUNDED)."
             )
-        if not transitions:
-            raise ValueError("no transitions to fit")
-
-        states = np.stack([t.state for t in transitions])
-        next_states = np.stack([t.next_state for t in transitions])
-        if states.shape[1] != self.encoder.dim:
-            raise ValueError(
-                f"transitions carry {states.shape[1]}-dimensional features but the encoder "
-                f"produces {self.encoder.dim}: they were built with a different encoder."
-            )
-        actions = np.array([t.action for t in transitions], dtype=int)
-        rewards = np.array([t.reward for t in transitions], dtype=np.float64)
-        not_done = np.array([not t.done for t in transitions], dtype=np.float64)
-        if actions.min() < 0 or actions.max() >= self.n_actions:
-            raise ValueError(
-                f"transitions contain action(s) outside [0, {self.n_actions}): "
-                f"observed range [{actions.min()}, {actions.max()}]"
-            )
+        batch = unpack_transitions(transitions, encoder=self.encoder, n_actions=self.n_actions)
+        states, next_states = batch.states, batch.next_states
+        actions, rewards, not_done = batch.actions, batch.rewards, batch.not_done
 
         self._bounds_model.fit(states, actions, rewards)
         reward_low_next, reward_high_next = self._bounds_model.bounds(next_states)
@@ -249,9 +232,6 @@ class BoundedFittedQIteration(Agent):
         best = float(high.max())
         winners = [a for a in range(self.n_actions) if float(high[a]) >= best - 1e-12]
         return int(self._rng.choice(winners))
-
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """No-op: a batch method, as with :class:`~causalrl.agents.fitted.FittedQIteration`."""
 
     def observe_transition(self, state: int, action: int, next_state: int, done: bool) -> None:
         """Refused: states here are feature vectors, not indices."""

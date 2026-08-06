@@ -29,7 +29,7 @@ from typing import Any
 
 import numpy as np
 
-from causalrl.agents.base import Agent
+from causalrl.agents.base import BatchAgent
 from causalrl.certify.certificate import (
     Assumption,
     Certificate,
@@ -39,12 +39,12 @@ from causalrl.certify.certificate import (
     Provenance,
 )
 from causalrl.estimate.nuisance import Regressor, RidgeRegressor
-from causalrl.state import FeatureTransition, FloatArray, StateEncoder
+from causalrl.state import FeatureTransition, FloatArray, StateEncoder, unpack_transitions
 
 __all__ = ["FittedQIteration"]
 
 
-class FittedQIteration(Agent):
+class FittedQIteration(BatchAgent):
     """Finite-horizon fitted Q iteration over encoded state features.
 
     Backward induction, identical in shape to :class:`causalrl.DOVI`'s but with the table replaced
@@ -142,29 +142,10 @@ class FittedQIteration(Agent):
         """
         if transitions is not None:
             self._buffer = list(transitions)
-        if not self._buffer:
-            raise ValueError(
-                "no transitions to fit: pass a non-empty sequence to fit(), or call observe() "
-                "before fitting. A fitted backup with no data would return the optimism cap "
-                "everywhere, which is a vacuous plan rather than a learned one."
-            )
 
-        dim = self.encoder.dim
-        states = np.stack([t.state for t in self._buffer])
-        next_states = np.stack([t.next_state for t in self._buffer])
-        if states.shape[1] != dim:
-            raise ValueError(
-                f"transitions carry {states.shape[1]}-dimensional features but the encoder "
-                f"produces {dim}: they were built with a different encoder."
-            )
-        actions = np.array([t.action for t in self._buffer], dtype=int)
-        rewards = np.array([t.reward for t in self._buffer], dtype=np.float64)
-        not_done = np.array([not t.done for t in self._buffer], dtype=np.float64)
-        if actions.min() < 0 or actions.max() >= self.n_actions:
-            raise ValueError(
-                f"transitions contain action(s) outside [0, {self.n_actions}): "
-                f"observed range [{actions.min()}, {actions.max()}]"
-            )
+        batch = unpack_transitions(self._buffer, encoder=self.encoder, n_actions=self.n_actions)
+        states, next_states = batch.states, batch.next_states
+        actions, rewards, not_done = batch.actions, batch.rewards, batch.not_done
 
         self._models = {}
         value_at_next = np.zeros(len(self._buffer), dtype=np.float64)
@@ -215,14 +196,6 @@ class FittedQIteration(Agent):
         best = float(scores.max())
         winners = [a for a in range(self.n_actions) if scores[a] >= best - 1e-12]
         return int(self._rng.choice(winners))
-
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """No-op: this is a batch method, and a reward alone cannot update a fitted backup.
-
-        The backup needs the successor state, which this signature does not carry. Record the whole
-        transition with :meth:`observe` and call :meth:`fit` to replan; silently accepting the
-        reward here would suggest the plan had moved when it had not.
-        """
 
     def _require_fit(self) -> None:
         if not self._fitted:

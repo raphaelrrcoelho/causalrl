@@ -38,6 +38,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import NDArray
 
 from causalrl.estimate.nuisance import (
     Classifier,
@@ -135,7 +136,7 @@ class FunctionalManskiBounds:
         self._diagnostic: OverlapDiagnostic | None = None
 
     def fit(
-        self, features: FloatArray, actions: FloatArray, rewards: FloatArray
+        self, features: FloatArray, actions: NDArray[np.int_], rewards: FloatArray
     ) -> FunctionalManskiBounds:
         """Cross-fit the outcome and propensity models and record the out-of-fold bounds."""
         x = np.asarray(features, dtype=np.float64)
