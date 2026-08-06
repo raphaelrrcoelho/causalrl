@@ -94,6 +94,7 @@ class OnlineCausalMBRL:
         max_members: int = 32,
         refit_every: int = 8,
         n_rollout: int = 512,
+        min_interventional_samples: int = 20,
         seed: int = 0,
     ) -> None:
         self.variables = tuple(variables)
@@ -112,6 +113,7 @@ class OnlineCausalMBRL:
         self.max_members = max_members
         self.refit_every = refit_every
         self.n_rollout = n_rollout
+        self.min_interventional_samples = min_interventional_samples
         self.seed = seed
 
         # Columnar buffers: one list per variable, appended to in place. Rebuilding columns from
@@ -221,10 +223,13 @@ class OnlineCausalMBRL:
         own mechanism is fitted from rows where it was overridden, which biases *its* marginal --
         harmless here, since planning replaces that mechanism with ``do(treatment=a)`` anyway.
 
-        A target whose buffer is still empty is dropped rather than passed on: the invariance test
-        compares marginals, and an empty marginal differs maximally from any observational one, so
-        an empty do-sample would be read as a shift and orient every edge incident to that target
-        from no data at all.
+        A target holding fewer than ``min_interventional_samples`` rows is dropped rather than
+        passed on. The invariance test compares empirical marginals, so a small do-sample clears
+        any shift threshold by chance and an empty one clears it unconditionally — orienting every
+        edge incident to that target from evidence the agent does not have.
+        :func:`~causalrl.discovery.discover_interventional` refuses such a sample outright; the
+        agent filters first so that an early round, when a target has been probed once or twice, is
+        an ordinary under-informed refit rather than a raise.
 
         Raises ``ValueError`` if no observational rows have been buffered (PC needs them for the
         base CPDAG), and lets :func:`~causalrl.scm.fit.fit_scm_mec`'s over-size refusal propagate.
@@ -240,9 +245,14 @@ class OnlineCausalMBRL:
         interventions = {
             target: _columns(buffer)
             for target, buffer in sorted(self._interventional.items())
-            if self._rows(buffer)
+            if self._rows(buffer) >= self.min_interventional_samples
         }
-        cpdag = discover_interventional(observational, interventions, self.variables)
+        cpdag = discover_interventional(
+            observational,
+            interventions,
+            self.variables,
+            min_interventional_samples=self.min_interventional_samples,
+        )
         pooled = {
             variable: np.concatenate(
                 [observational[variable], *(data[variable] for data in interventions.values())]

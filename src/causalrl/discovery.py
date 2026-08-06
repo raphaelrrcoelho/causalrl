@@ -388,6 +388,7 @@ def discover_interventional(
     threshold: float = 0.01,
     shift_threshold: float = 0.05,
     max_conditioning_size: int = 3,
+    min_interventional_samples: int = 20,
 ) -> CPDAG:
     """Discover the interventional essential graph from observational and experimental data.
 
@@ -401,6 +402,12 @@ def discover_interventional(
     ``interventions`` maps each intervened target ``T`` to a dataset drawn from ``do(T)`` (a perfect
     intervention covering every variable in ``variables``). ``shift_threshold`` is the
     total-variation cutoff above which an endpoint's marginal is judged to have shifted.
+
+    ``min_interventional_samples`` is the smallest per-target sample this will orient from; below it
+    the call raises rather than guessing. The shift test is an empirical total variation, so a tiny
+    sample clears any threshold by chance and an empty one clears it *unconditionally* — orienting
+    every incident edge from no evidence at all. Lower it only if you accept orientations backed by
+    that little data.
     """
     nodes = list(variables)
     cpdag = discover(
@@ -412,6 +419,26 @@ def discover_interventional(
     for target, idata in interventions.items():
         if target not in nodes:
             raise CausalGraphError(f"intervention target not in variables: {target!r}")
+        # Refuse to orient from a sample too small to carry the invariance signal. The marginal
+        # shift test is an empirical total variation, and on an empty column the pmf is {} so the
+        # distance to ANY observational marginal is 0.5 -- ten times the default threshold. An
+        # empty do-sample would therefore orient every edge incident to `target` from zero data,
+        # and Meek's rules would propagate outward from those fabricated orientations. A single
+        # sample is barely better: its pmf is a point mass, so the distance is 1 - p_obs(v), which
+        # clears the threshold for almost any value. Orienting an edge is a causal claim; it needs
+        # evidence, and silently manufacturing one from no data is the failure this library exists
+        # to prevent.
+        observed = min((len(column) for column in idata.values()), default=0)
+        if observed < min_interventional_samples:
+            raise CausalGraphError(
+                f"intervention target {target!r} has only {observed} sample(s), below "
+                f"min_interventional_samples={min_interventional_samples}. The marginal-shift "
+                f"test cannot distinguish a real interventional shift from sampling noise at "
+                f"this size, and on an empty sample it reports a maximal shift regardless of "
+                f"the data. Collect more samples under do({target}), drop the target, or lower "
+                f"min_interventional_samples if you accept orientations backed by this little "
+                f"evidence."
+            )
         for edge in list(undirected):
             if target not in edge:
                 continue
