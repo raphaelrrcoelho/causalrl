@@ -287,6 +287,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   half-initialised `causalrl.estimate`), and `causalrl.ope` itself resolves lazily through module
   `__getattr__` — eager binding there would close `ope.certify` → `identification.decision` →
   `ope.bounds` into an import cycle.
+- **Task guide 6, `examples/guides/06_learn_the_scm_while_acting.py`** — the first guide that
+  *trains* an agent rather than scoring one someone else trained. `OnlineCausalMBRL` starts from an
+  off-policy log whose observational contrast reverses the causal one, finds six DAGs it cannot
+  choose between (five of which deploy the wrong action), runs its own randomized `do(A)`
+  experiments through `observe(..., intervention=...)`, and watches the I-MEC collapse to one
+  member as exact regret falls to zero. Documented in `docs/guides.md`; run in CI by the existing
+  `examples/guides/*.py` glob.
 ### Changed
 - **`act()` on the back-door planners is now a policy, not a constant.**
   `BackdoorAdjustedAgent`, `DiscoveryBackdoorAgent`, `TransportBackdoorAgent`,
@@ -304,6 +311,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   *none* of them — including the `{"state": 0}` a 2.1.0 caller passes — still returns the marginal
   `argmax_a E[Y|do(a)]` unchanged. A *partial* set of conditioning variables now raises `KeyError`
   rather than silently answering a different query.
+- **One description, everywhere.** `pyproject.toml`, `README.md`, `mkdocs.yml`, `docs/index.md`,
+  `CITATION.cff` and `causalrl/__init__.py` gave two different answers to "what is this?" across six
+  places — the package metadata said *"Causal reinforcement learning: the 9-task causal RL taxonomy, made
+  runnable."* while the README PyPI renders directly beneath it said *"Causal intervention-selection
+  and causal-RL research tools."* All now carry the first sentence. The README's scope caveat is
+  sharpened rather than dropped: the **planners and environments** are the demo-scale half, the
+  **decision, certificate and OPE layers** are the half that runs on real data, and the recorded
+  real-data finding stays a negative (`docs/causal_mbrl_agent/REAL_DATA.md`). "How it compares" now
+  maps the RL side too (`d3rlpy` trains, `causalrl.scale.d3rlpy` bridges, `certify_policy` decides),
+  and `docs/api.md` leads with agents and environments instead of putting them behind graph algebra.
+  Added `Topic :: Scientific/Engineering :: Information Analysis` and the `offline-rl` /
+  `off-policy-evaluation` keywords; PyPI's trove list has no reinforcement-learning classifier, so
+  none was invented.
 ### Removed
 - **`causalrl.interference`** — `ExposureMapping`, `ExposureContrast`, `adjacency_from_matrix`,
   `neighbourhood_count`, `neighbourhood_fraction`, `any_neighbour_treated`, `population_share`,

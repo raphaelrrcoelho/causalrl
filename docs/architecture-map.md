@@ -266,9 +266,9 @@ any external stack can drive the certificate layer. All additive pieces are nump
 - **`scale/d3rlpy.py` (§10)** — both-direction `TrajectoryLog` ↔ `MDPDataset` bridges,
   `policy_actions`, `certify_fqe` (`EMPIRICAL`), and the `as_certificate` retarget of
   `certify_policy`. d3rlpy stays lazy; `certify_fqe` / `policy_actions` never import it.
-- **Docs (§10)** — five CI-executed task guides (`examples/guides/`), `docs/migration-2.0.md`,
+- **Docs (§10)** — six CI-executed task guides (`examples/guides/`), `docs/migration-2.0.md`,
   `docs/assumptions.md`, `docs/guides.md`, an expanded `api.md`, and `paper/paper.md`.
-- **CI** — the `notebooks` lane runs the five guides + the columnar-sim example; new `scale` and
+- **CI** — the `notebooks` lane runs the six guides + the columnar-sim example; new `scale` and
   `interop` py3.11 lanes prove the fresh install of those extras resolves and imports (the adapters
   are also mock-tested on the main matrix). d3rlpy/dowhy/econml resolve in the universal lock
   alongside numpy 2.x, so a locked `uv sync --extra scale/interop` installs without re-resolving.

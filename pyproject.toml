@@ -9,6 +9,10 @@ authors = [{ name = "Raphael Coelho", email = "raphaelrrcoelho@gmail.com" }]
 keywords = [
     "causal-inference",
     "reinforcement-learning",
+    # PyPI's trove list has no reinforcement-learning classifier (checked against
+    # pypa/trove-classifiers), so keywords carry the RL half of the description.
+    "offline-rl",
+    "off-policy-evaluation",
     "structural-causal-models",
     "causal-bandits",
     "transportability",
@@ -31,6 +35,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
     "Typing :: Typed",
 ]
 

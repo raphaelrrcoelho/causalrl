@@ -7,14 +7,10 @@ design and faithful to its primary source (cited inline). The MABUC quickstart i
 
 ## Certify a decision under confounding
 
-Beyond the taxonomy, causalrl's decision layer answers a question the ecosystem's estimators do
-not: **does a ship / abstain decision survive hidden confounding?** `certify_decision` (and the
-general `certify_estimate`) returns a certificate, not just a point estimate.
-
-| Library | Answers | Output |
-|---|---|---|
-| DoWhy / EconML | *What is the effect?* | point estimate / CATE |
-| **causalrl** | *Does the decision survive hidden confounding?* | ship / abstain **certificate** (tipping-Γ) |
+Beyond the taxonomy, causalrl's decision layer answers the question that decides whether an action
+ships: **does the ship / abstain call survive hidden confounding?** `certify_decision` (and the
+general `certify_estimate`) returns a certificate — a verdict, the **tipping Γ** at which the call
+would flip, and the assumptions it rests on — rather than a point estimate you then have to judge.
 
 ```python
 from causalrl import certify_decision
@@ -24,8 +20,9 @@ print(cert.recommendation)   # "act" or "abstain" — read the verdict, not cert
 print(cert)                  # human-readable summary with the tipping-Γ
 ```
 
-Already have a DoWhy or EconML estimate? Hand it straight to the certificate — see the
-[interop guide](interop.md).
+`certify_policy` is the same layer for a whole policy's off-policy value (see the
+[Scale guide](scale.md)), and `certify_estimate` takes an effect you computed elsewhere — including
+a DoWhy or EconML estimate, see the [interop guide](interop.md).
 
 ## Causal offline-to-online (Task 1)
 

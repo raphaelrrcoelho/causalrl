@@ -1,18 +1,17 @@
 # API Reference
 
+Ordered the way the library is used: the two objects everything is built on (a causal graph and an
+SCM), then the **agents and environments** that act in them, then the causal machinery those agents
+call — intervention sets, identification, transport, discovery — and finally the decision, bounds
+and certificate layer that scores a policy. The `— Complete Reference` sections at the end carry an
+entry for every name in `causalrl.__all__`, grouped by `causalrl.API_TIERS`.
+
+The full-lifecycle agent front doors are `CausalMBRLAgent` (fit → act on confounded logs) and
+`OnlineCausalMBRL` (learn the SCM while acting); both are in the complete-reference sections below.
+
 ## Graphs
 
 ::: causalrl.scm.graph.CausalGraph
-
-## Intervention Sets
-
-::: causalrl.identification.intervention_sets.pomis
-
-::: causalrl.identification.intervention_sets.minimal_intervention_sets
-
-::: causalrl.identification.intervention_sets.requires_experiment
-
-::: causalrl.identification.intervention_sets.AdmissibleInterventions
 
 ## Structural Causal Models
 
@@ -23,6 +22,50 @@
 ::: causalrl.agents.dovi.DOVI
 
 ::: causalrl.agents.scbandit.POMISThompsonSampling
+
+## Causal Gymnasium Wrapper
+
+::: causalrl.envs.wrapper.CausalEnvWrapper
+
+## Gymnasium Env Registration
+
+::: causalrl.envs.registration.register_envs
+
+## Causal Graph-Factored Advantage (CGFA-PPO)
+
+The pure-NumPy rollout arithmetic (no framework dependency):
+
+::: causalrl.agents.factored_advantage.factor_rewards
+
+::: causalrl.agents.factored_advantage.factor_gae
+
+::: causalrl.agents.factored_advantage.blend_advantages
+
+::: causalrl.agents.factored_advantage.factored_advantage
+
+::: causalrl.agents.factored_advantage.FactoredAdvantageConfig
+
+The `K`-head critic that makes it an algorithm (needs the `causalrl[torch]` extra):
+
+::: causalrl.agents.cgfa_critic.FactoredCritic
+
+::: causalrl.agents.cgfa_critic.CGFACriticConfig
+
+::: causalrl.agents.cgfa_critic.CGFAAdvantages
+
+::: causalrl.agents.cgfa_critic.CGFALosses
+
+::: causalrl.agents.cgfa_critic.CGFAUpdateStats
+
+## Intervention Sets
+
+::: causalrl.identification.intervention_sets.pomis
+
+::: causalrl.identification.intervention_sets.minimal_intervention_sets
+
+::: causalrl.identification.intervention_sets.requires_experiment
+
+::: causalrl.identification.intervention_sets.AdmissibleInterventions
 
 ## Benchmark Reports
 
@@ -147,40 +190,6 @@
 ::: causalrl.games.best_response
 
 ::: causalrl.games.is_nash_equilibrium
-
-## Causal Gymnasium Wrapper
-
-::: causalrl.envs.wrapper.CausalEnvWrapper
-
-## Causal Graph-Factored Advantage (CGFA-PPO)
-
-The pure-NumPy rollout arithmetic (no framework dependency):
-
-::: causalrl.agents.factored_advantage.factor_rewards
-
-::: causalrl.agents.factored_advantage.factor_gae
-
-::: causalrl.agents.factored_advantage.blend_advantages
-
-::: causalrl.agents.factored_advantage.factored_advantage
-
-::: causalrl.agents.factored_advantage.FactoredAdvantageConfig
-
-The `K`-head critic that makes it an algorithm (needs the `causalrl[torch]` extra):
-
-::: causalrl.agents.cgfa_critic.FactoredCritic
-
-::: causalrl.agents.cgfa_critic.CGFACriticConfig
-
-::: causalrl.agents.cgfa_critic.CGFAAdvantages
-
-::: causalrl.agents.cgfa_critic.CGFALosses
-
-::: causalrl.agents.cgfa_critic.CGFAUpdateStats
-
-## Gymnasium Env Registration
-
-::: causalrl.envs.registration.register_envs
 
 ## Exceptions
 

@@ -1,5 +1,5 @@
 # pyright: reportUnsupportedDunderAll=false
-"""causalrl: causal intervention-selection and causal-RL research tools.
+"""causalrl: causal reinforcement learning -- the 9-task causal RL taxonomy, made runnable.
 
 The stable public API is loaded lazily so graph algorithms and tabular components can be used
 without installing the optional PyTorch-backed SCM and neural functionality.

@@ -1,5 +1,5 @@
 site_name: causalrl
-site_description: Causal intervention-selection and causal-RL research tools
+site_description: "Causal reinforcement learning: the 9-task causal RL taxonomy, made runnable."
 site_url: https://raphaelrrcoelho.github.io/causalrl/
 repo_url: https://github.com/raphaelrrcoelho/causalrl
 repo_name: raphaelrrcoelho/causalrl

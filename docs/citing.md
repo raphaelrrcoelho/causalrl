@@ -7,7 +7,7 @@ entry:
 ```bibtex
 @software{coelho_causalrl,
   author  = {Coelho, Raphael},
-  title   = {{causalrl}: Causal intervention-selection and causal-RL research tools},
+  title   = {{causalrl}: Causal Reinforcement Learning -- the 9-Task Causal RL Taxonomy, Made Runnable},
   year    = {2026},
   version = {0.99.0},
   license = {MIT},

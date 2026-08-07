@@ -56,7 +56,7 @@ jobs:
         run: uv run pytest --nbmake --no-cov examples/
       - name: Smoke-test CGFA-PPO example
         run: uv run python examples/cgfa_ppo_example.py
-      - name: Run the five 2.0 task guides (§10 acceptance)
+      - name: Run the task guides (five that certify a policy, one that trains one)
         run: |
           for guide in examples/guides/*.py; do
             echo "== $guide =="
