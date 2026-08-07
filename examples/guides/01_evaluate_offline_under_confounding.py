@@ -40,6 +40,14 @@ def main() -> None:
 
     # One-sided-honest: 'certified' means no confounding up to gamma_max flips the decision.
     assert isinstance(cert.certified, bool)
+
+    # Safe policy improvement: also require a calibrated downside at least as good as behaviour's.
+    # `alpha` runs conformal_action_value, which feeds the propensity ratio pi/pi_behaviour into
+    # the weighted conformal path. The bound is on ONE decision's return, not on V(pi).
+    gated = certify_policy(dataset, target_actions, gamma_max=5.0, alpha=0.1)
+    print(f"conformal LCB   : {gated.conformal_lcb}")
+    print(f"recommendation  : {gated.recommendation}")
+    assert gated.conformal_lcb is not None
     print("OK — offline value certified under a marginal-sensitivity budget")
 
 

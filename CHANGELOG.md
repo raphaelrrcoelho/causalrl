@@ -7,7 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (BREAKING)
+- **`certify_conformal_interval` no longer takes `query`, and emits `EstimandSpec(query="see")`.**
+  It previously defaulted to `query="counterfactual"` — a string label with no counterfactual
+  mathematics behind it: split conformal around a fitted prediction consumes no causal assumption,
+  and `weights` only move the observational law to a shifted one. *Migration:* delete the argument.
+  A caller who passed `query="counterfactual"` was labelling an observational prediction interval
+  and should move to `conformal_action_value` (below), which computes the propensity ratio and
+  records the assumptions that license an interventional claim; a caller who passed anything else
+  was relabelling the same interval and loses nothing.
+
 ### Added
+- **`conformal_action_value(dataset, target_actions, *, alpha)`** (`causalrl.conformal`, exported
+  top-level) — the off-policy caller of the weighted conformal path, and the RL entry point to
+  `conformal/`. The calibration likelihood ratio `dP_test/dP_cal` that `conformal_quantile` already
+  accepted *is* the propensity ratio `pi_target(a|s) / pi_behavior(a|s)` for off-policy evaluation;
+  this computes it from a `ConfoundedTrajectoryDataset` and the same per-transition
+  `target_actions` `certify_policy` takes (`None` scores the logging policy itself). Returns an
+  `EMPIRICAL` certificate whose `ci` is a distribution-free band for **the return of one decision**
+  under the policy — `value` is `None` and the claim says so; it is not a confidence interval for
+  `V(pi) = E[return]`. Each end is a one-sided bound at `alpha/2`; the test point's own ratio is
+  bounded by the largest the policy can produce (conservative rather than average); a positivity
+  gap gives a vacuous band plus a `Hedge`, and too little effective weight gives an infinite end
+  rather than a false finite one. Assumptions recorded: weighted exchangeability, no unmeasured
+  confounding, positivity (with the effective sample size and the unsupported pairs as diagnostics).
+- **`certify_policy(..., alpha=...)` — the lower-confidence-bound gate for safe policy improvement.**
+  With `alpha` set, `certified` requires the confounding verdict *and* that the target policy's
+  calibrated downside beat the logging policy's, and the bound is reported in the new
+  `DecisionCertificate.conformal_lcb` field (`None` when the gate did not run; the default keeps
+  the previous behaviour exactly). An uninformative (`-inf`) bound refuses rather than passes.
+  `CertifiedPolicyAgent(..., alpha=...)` threads it through, so an agent gates its shipped policy
+  on the conformal layer: a candidate with the better *mean* but a heavier downside is refused.
+  `as_certificate` now reports `downside-not-certified` rather than `not-robust-to-confounding`
+  when the finite-sample gate is what refused.
+- **`FactoredCritic` + `CGFACriticConfig` / `CGFALosses` / `CGFAAdvantages` / `CGFAUpdateStats`**
+  (`causalrl.agents.cgfa_critic`, exported top-level, `causalrl[torch]` extra) and
+  **`factor_rewards` / `factor_gae` / `blend_advantages`** (`causalrl.agents.factored_advantage`,
+  pure NumPy) — the **`K`-head critic that makes `factored_advantage` an algorithm**. Until now
+  the module was named for CGFA-PPO (Cunha, Mian, French & Liu 2026, arXiv:2605.06066) but the
+  whole computation was `V_i - baseline`; `examples/cgfa_ppo_example.py` conceded *"in a full
+  CGFA-PPO, you'd have K value heads; here we use the same value"*. Implemented from the paper
+  (no code ported): one value head per SCM parent of the return on a trunk shared with the scalar
+  critic, each regressed on **its own** per-factor return `G_k = sum_i gamma^i (phi_k(s') - phi_k(s))`
+  (Eq. 8-9); learnable mixture logits `w = softmax(beta)`; a state-conditional residual gate
+  `g(s)` blending scalar and factored advantages (Eq. 11); and the **intervention-calibration
+  loss** `L_cal` aligning each factor advantage with the SCM-predicted effect `eps_k` (Eq. 12).
+  `objective()` assembles Eq. 13 and accepts the RL framework's surrogate so actor and critic can
+  be stepped jointly (Algorithm 1 line 22). Tests pin **head differentiation** — on data where
+  factors drive different observation coordinates, each head fits its own target >20x better than
+  its neighbour's, and swapping the target columns inflates the per-factor residual >10x (both
+  ratios collapse to 1 under a shared value head). `examples/cgfa_ppo_example.py` now trains real
+  `K` heads against SCM-derived per-factor traces. Documented deviations: `L_cal`'s advantages are
+  recomputed under the current parameters (stored ones carry no gradient, which would make the
+  paper's ablation a no-op), `factor_gae(lam=1.0)` reconciles Eq. 8/10 with the "GAE truncation"
+  prose, and `blend()` exists because Algorithm 1's line-12 ordering leaves `g` and `beta` — the
+  two parameters the paper calls learnable — with no gradient path.
+- **`run_no_regret` / `NoRegretRun`** (`causalrl.magames`, exported top-level) — the learning
+  population that `cce_regret` / `certify_cce_do` were always written for. `magames` computed the
+  quantity *"a no-regret population drives to 0"* and shipped no such population; `run_no_regret`
+  plays a finite `CausalGame` (or a `Population`) for `rounds` rounds with one no-regret learner per
+  agent free under `do`, and returns the realized empirical joint in exactly the form the
+  certificate layer already accepts — `run.empirical_joint` (mapping) and `run.weights` (aligned
+  with `cce_polytope(...).profiles`) both feed `cce_regret` unchanged, and `run.regret` is the
+  measured `epsilon` for the finite-time route `certify_cce_do(..., no_regret=False,
+  epsilon=run.regret)`. `run.regret_trace` records the measured regret at log-spaced horizons, so
+  the convergence is evidence rather than assertion.
+- **`NoRegretLearner` / `RegretMatching` / `MultiplicativeWeights`** (`causalrl.agents.no_regret`,
+  exported top-level) — `causalrl.agents.base.Agent` implementations of two published no-regret
+  algorithms: regret matching (Hart & Mas-Colell, *Econometrica* 2000, on external regrets, via
+  Blackwell approachability; parameter-free) and Hedge / multiplicative weights (Freund & Schapire,
+  *JCSS* 1997; anytime or horizon-tuned theory rate by default). `observe(payoffs)` is the
+  full-information update on the counterfactual payoff vector; `Agent.update(obs, action, reward)`
+  is the bandit case, expanding the one realized payoff by inverse-propensity weighting (EXP3, Auer
+  et al., *SICOMP* 2002, with `explore` supplying the uniform mixing). This is the first import edge
+  between `magames/` and `agents/`.
 - **`OnlineCausalMBRL`** (`causalrl.agents.online_causal_mbrl`, exported top-level and from
   `causalrl.agents`) — an agent that learns its SCM *while acting* instead of from a fixed table.
   It keeps an observational buffer alongside one interventional buffer per intervention target;
@@ -141,6 +214,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`examples/learned_scm_policy.py` learns from confounded logs, plans inside the model with
   Thompson sampling, and scores the resulting policy in the true world).
 
+### Changed (breaking)
+- **`PopulationAgentView` → `LinearGaussianPopulationEnv`** and **`agent_causal_env_view` →
+  `linear_gaussian_population_env`** (`causalrl.magames.views`, both also renamed in the top-level
+  export list). The class never was an agent: it is a hand-written linear-Gaussian data-generating
+  process that never updates from experience, exposed as a `CausalEnvProtocol` — "agent" was the
+  name of a variable inside it, and the old name promised a learner the module does not contain
+  (for a learner, see `run_no_regret` above). No deprecation shim: this is a 3.0.0 breaking rename.
+  **Migration:** `from causalrl import agent_causal_env_view` →
+  `from causalrl import linear_gaussian_population_env`; `PopulationAgentView(...)` →
+  `LinearGaussianPopulationEnv(...)`. Constructor arguments, fields and the `sample` / `do` /
+  `noise_ledger` behaviour are unchanged, so only the two names need editing.
+### Changed
+- **`act()` on the back-door planners is now a policy, not a constant.**
+  `BackdoorAdjustedAgent`, `DiscoveryBackdoorAgent`, `TransportBackdoorAgent`,
+  `FunctionApproxBackdoorAgent` and `GFormulaBackdoorAgent` used to return `argmax_a E[Y|do(a)]`
+  from `fit` time and discard the `observation` argument entirely. Each now caches its fitted
+  interventional outcome model and **reads it at the observation**: the tabular agents look the
+  action values up in the observed back-door stratum, `FunctionApproxBackdoorAgent` evaluates
+  `qhat(a, z)` at the observed confounder, and `GFormulaBackdoorAgent` evaluates its per-action
+  T-learner at the observed covariate row — so its `act` is exactly the sign of the `cate` it
+  already computed, the same CATE-to-policy conversion `from_econml_cate` performs for a
+  third-party estimator. The arm that wins on average need not win in any given stratum, so this
+  changes the action returned for a unit whose conditional contrast disagrees with the marginal
+  one. **Migration:** pass the conditioning variables by name (`agent.act({"Z": 1})`,
+  `agent.act({"age": 42, "smoke": 1})`) to get the contextual decision. An observation carrying
+  *none* of them — including the `{"state": 0}` a 2.1.0 caller passes — still returns the marginal
+  `argmax_a E[Y|do(a)]` unchanged. A *partial* set of conditioning variables now raises `KeyError`
+  rather than silently answering a different query.
 ### Removed
 - **`causalrl.interference`** — `ExposureMapping`, `ExposureContrast`, `adjacency_from_matrix`,
   `neighbourhood_count`, `neighbourhood_fraction`, `any_neighbour_treated`, `population_share`,

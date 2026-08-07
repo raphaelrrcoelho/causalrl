@@ -5,14 +5,23 @@ the highest-contrast deterministic policy whose improvement over the behavior po
 robust to hidden confounding by :func:`causalrl.certify_policy` (Tan's marginal sensitivity model),
 and abstains to the empirical behavior policy when nothing certifies. The certificate is the
 decision rule — the honest robust planner, since a naive Manski-lower-bound greedy does not correct
-a backdoor ``A <- U -> Y``.
+a backdoor ``A <- U -> Y``. With ``alpha`` it also gates on the finite-sample conformal lower bound
+(:func:`causalrl.conformal_action_value`), the agent-side entry point into the conformal layer.
+
+Every planner here fits an interventional outcome model and every ``act`` **reads that model at the
+observation**: the tabular agents look the action values up in the observed back-door stratum, the
+function-approximation agent evaluates ``qhat(a, z)`` at the observed confounder, and the g-formula
+agent evaluates its per-action T-learner at the observed covariate row. The marginal
+``argmax_a E[Y | do(a)]`` is the answer only when the observation supplies no context — the arm that
+wins on average need not win in any particular stratum, which is the whole point of a policy.
 """
 
 from __future__ import annotations
 
 import itertools
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Protocol
 
 import numpy as np
 
@@ -101,14 +110,109 @@ def _transport_value(
     return total
 
 
+def _scalar(value: Any) -> Any:
+    """Unwrap a 0-d numpy value to a plain Python scalar, so it hashes with a stratum key."""
+    item = getattr(value, "item", None)
+    return item() if callable(item) else value
+
+
+def _context_key(
+    observation: Mapping[str, Any], variables: tuple[str, ...]
+) -> tuple[Any, ...] | None:
+    """``observation``'s values for ``variables``, or ``None`` when it carries none of them.
+
+    ``None`` means "no context observed", for which the marginal ``argmax_a E[Y | do(a)]`` is the
+    right decision. A PARTIAL context raises instead: quietly marginalizing away a covariate the
+    outcome model conditions on would answer a different query than the caller asked.
+    """
+    if not variables:
+        return None
+    present = tuple(v for v in variables if v in observation)
+    if not present:
+        return None
+    if len(present) != len(variables):
+        missing = sorted(set(variables) - set(present))
+        raise KeyError(
+            f"observation is missing {missing}: supply every conditioning variable "
+            f"{list(variables)} for the contextual decision, or none of them for the marginal one"
+        )
+    return tuple(_scalar(observation[v]) for v in variables)
+
+
+def _stratum_action_values(
+    data: Mapping[str, np.ndarray],
+    treatment: str,
+    outcome: str,
+    variables: tuple[str, ...],
+    n_actions: int,
+) -> dict[tuple[Any, ...], tuple[float, ...]]:
+    """Cache ``Ehat[Y | A=a, Z=z]`` per action, for every stratum ``z`` of ``variables`` in
+    ``data``.
+
+    These are the same conditional means the back-door formula averages over — kept per stratum
+    instead of summed away, which is what lets ``act`` condition on an observation. On a positivity
+    gap (an action never played in a stratum) the stratum's marginal mean stands in, matching
+    :func:`_backdoor_value`.
+    """
+    if not variables:
+        return {}
+    actions = np.asarray(data[treatment])
+    y = np.asarray(data[outcome], dtype=float)
+    strata = np.stack([np.asarray(data[v]) for v in variables], axis=1)
+    table: dict[tuple[Any, ...], tuple[float, ...]] = {}
+    for stratum in np.unique(strata, axis=0):
+        in_z = np.all(strata == stratum, axis=1)
+        marginal = float(y[in_z].mean())
+        cells = [in_z & (actions == a) for a in range(n_actions)]
+        table[tuple(_scalar(v) for v in stratum)] = tuple(
+            float(y[cell].mean()) if cell.any() else marginal for cell in cells
+        )
+    return table
+
+
+def _stratum_action(
+    table: Mapping[tuple[Any, ...], tuple[float, ...]],
+    observation: Mapping[str, Any],
+    variables: tuple[str, ...],
+    marginal_action: int,
+) -> int:
+    """``argmax_a Ehat[Y | A=a, Z=z]`` at the observed stratum.
+
+    Falls back to ``marginal_action`` when there is no context to condition on: no ``variables``
+    at all, none of them supplied, or a stratum that never appears in the logs.
+    """
+    key = _context_key(observation, variables)
+    row = table.get(key) if key is not None else None
+    if row is None:
+        return int(marginal_action)
+    return int(np.argmax(np.asarray(row)))
+
+
 class CertifiedPolicyAgent(BatchAgent):
     """Ship the best deterministic policy whose improvement over behavior certifies robust to hidden
-    confounding; abstain to the empirical behavior policy otherwise."""
+    confounding; abstain to the empirical behavior policy otherwise.
 
-    def __init__(self, n_states: int, n_actions: int, *, gamma_max: float = 5.0) -> None:
+    Setting ``alpha`` adds the finite-sample layer: a candidate must also clear
+    :func:`causalrl.certify_policy`'s conformal lower-confidence-bound gate, i.e. its calibrated
+    worst-case return (:func:`causalrl.conformal_action_value`, weights = the propensity ratio
+    ``pi/pi_behavior``) must be at least the behavior policy's. This is the safe-policy-improvement
+    reading of the agent: a candidate that improves the *mean* but degrades the downside, or that
+    has too little effective support to calibrate a bound at all, is refused. ``None`` (the
+    default) runs the confounding layer alone.
+    """
+
+    def __init__(
+        self,
+        n_states: int,
+        n_actions: int,
+        *,
+        gamma_max: float = 5.0,
+        alpha: float | None = None,
+    ) -> None:
         self.n_states = n_states
         self.n_actions = n_actions
         self.gamma_max = gamma_max
+        self.alpha = alpha
         self.policy: list[int] = [0] * n_states
 
     def _behavior_policy(self, dataset: ConfoundedTrajectoryDataset) -> list[int]:
@@ -130,7 +234,9 @@ class CertifiedPolicyAgent(BatchAgent):
             ):
                 continue
             target_actions = [candidate[tr.state] for tr in transitions]
-            cert = certify_policy(dataset, target_actions, gamma_max=self.gamma_max)
+            cert = certify_policy(
+                dataset, target_actions, gamma_max=self.gamma_max, alpha=self.alpha
+            )
             if cert.certified and cert.naive_contrast > best_contrast:
                 best_contrast = cert.naive_contrast
                 best_policy = list(candidate)
@@ -148,6 +254,9 @@ class BackdoorAdjustedAgent(BatchAgent):
     Unlike the certify-gated agent (whose ceiling is the behavior policy), this *recovers* the
     interventional optimum from confounded logs, given an observed admissible adjustment set. It is
     fitted on columnar data ``{treatment, outcome, *adjustment}`` (equal-length arrays).
+
+    :meth:`fit` keeps the per-stratum conditional means, so :meth:`act` is a *policy* over the
+    adjustment set — ``argmax_a Ehat[Y | do(a), Z=z]`` — not the one action that wins on average.
     """
 
     def __init__(
@@ -166,17 +275,33 @@ class BackdoorAdjustedAgent(BatchAgent):
         )
         self._best_action = 0
         self.values: list[float] = [0.0] * n_actions
+        self._stratum_values: dict[tuple[Any, ...], tuple[float, ...]] = {}
 
     def fit(self, data: Mapping[str, np.ndarray]) -> None:
-        """Estimate each action's back-door-adjusted value and select the argmax."""
+        """Estimate each action's back-door-adjusted value, cache the per-stratum action values
+        :meth:`act` conditions on, and record the marginal argmax."""
         self.values = [self._adjusted_value(a, data) for a in range(self.n_actions)]
         self._best_action = int(np.argmax(np.asarray(self.values)))
+        self._stratum_values = _stratum_action_values(
+            data, self.treatment, self.outcome, self.adjustment, self.n_actions
+        )
 
     def _adjusted_value(self, action: int, data: Mapping[str, np.ndarray]) -> float:
         return _backdoor_value(action, data, self.treatment, self.outcome, self.adjustment)
 
     def act(self, observation: dict[str, Any]) -> int:
-        return int(self._best_action)
+        """Contextual policy ``argmax_a Ehat[Y | do(A=a), Z=z]`` at the adjustment values in
+        ``observation`` (supplied by name, e.g. ``{"Z": 1}``).
+
+        Conditioning on the back-door set is what makes this a policy rather than a single action:
+        the arm that wins *after* averaging over Z need not win *inside* a stratum. With none of
+        the adjustment variables supplied — or an empty adjustment set, or a stratum never logged —
+        the marginal decision ``argmax_a E[Y | do(a)]`` is returned, which is the right call when
+        there is no context to condition on. A partial adjustment set raises.
+        """
+        return _stratum_action(
+            self._stratum_values, observation, self.adjustment, self._best_action
+        )
 
 
 class TransportBackdoorAgent(BatchAgent):
@@ -189,6 +314,9 @@ class TransportBackdoorAgent(BatchAgent):
     declared ``transport`` variables); the estimand's transportability is confirmed up front with
     :func:`~causalrl.is_transportable_effect` (dogfooding the identification layer). Fitted on
     columnar source logs plus unlabeled target draws of the transport variables via :meth:`fit`.
+
+    :meth:`act` is a *policy* over ``adjustment + transport``: the transported marginal can say
+    "never play arm 1" while arm 1 still wins in a particular cell.
     """
 
     def __init__(
@@ -209,8 +337,10 @@ class TransportBackdoorAgent(BatchAgent):
         self.transportable = is_transportable_effect(
             graph, {treatment}, {outcome}, set(self.transport)
         )
+        self._context: tuple[str, ...] = self.adjustment + self.transport
         self._best_action = 0
         self.values: list[float] = [0.0] * n_actions
+        self._stratum_values: dict[tuple[Any, ...], tuple[float, ...]] = {}
 
     def fit(
         self,
@@ -218,11 +348,15 @@ class TransportBackdoorAgent(BatchAgent):
         *,
         target_covariates: Mapping[str, np.ndarray],
     ) -> None:
-        """Estimate each action's transported interventional value and select the argmax.
+        """Estimate each action's transported interventional value, cache the per-cell action
+        values :meth:`act` conditions on, and record the marginal argmax.
 
         ``source`` is columnar ``{treatment, outcome, *adjustment, *transport}``;
         ``target_covariates`` supplies unlabeled target draws of the ``transport`` variables.
         """
+        self._stratum_values = _stratum_action_values(
+            source, self.treatment, self.outcome, self._context, self.n_actions
+        )
         self.values = [
             _transport_value(
                 a,
@@ -238,14 +372,27 @@ class TransportBackdoorAgent(BatchAgent):
         self._best_action = int(np.argmax(np.asarray(self.values)))
 
     def act(self, observation: dict[str, Any]) -> int:
-        return int(self._best_action)
+        """Contextual policy ``argmax_a E_target[Y | do(A=a), Z=z, W=w]`` at the adjustment and
+        transport values in ``observation`` (supplied by name, e.g. ``{"Z": 1, "W": 0}``).
+
+        The target reweighting that :meth:`fit` applies is a statement about *P(W)*, not about the
+        outcome mechanism: under the S-admissibility this agent checks up front,
+        ``E_target[Y | do(a), z, w] = E_source[Y | a, z, w]``, so the per-unit decision carries
+        across the shift with no reweighting at all — only the marginal needs one. With none of the
+        conditioning variables supplied, or a cell never logged in the source, the transported
+        marginal decision is returned; a partial context raises.
+        """
+        return _stratum_action(self._stratum_values, observation, self._context, self._best_action)
 
 
 class DiscoveryBackdoorAgent(BatchAgent):
     """Learns the structure: discovers the causal skeleton from data, orients it with the known
     temporal tier order (covariates precede treatment precede outcome — standard in DTR/medicine),
     takes the treatment's earlier-tier neighbours as the back-door set, then adjusts. The M1 upgrade
-    of the handed-the-graph :class:`BackdoorAdjustedAgent`. Fitted with :meth:`discover_and_fit`."""
+    of the handed-the-graph :class:`BackdoorAdjustedAgent`. Fitted with :meth:`discover_and_fit`.
+
+    The *discovered* adjustment set is also the policy's context: :meth:`act` returns
+    ``argmax_a Ehat[Y | do(a), Z=z]`` over the variables discovery selected."""
 
     def __init__(
         self,
@@ -262,6 +409,7 @@ class DiscoveryBackdoorAgent(BatchAgent):
         self.adjustment: tuple[str, ...] = ()
         self._best_action = 0
         self.values: list[float] = [0.0] * n_actions
+        self._stratum_values: dict[tuple[Any, ...], tuple[float, ...]] = {}
 
     def discover_and_fit(
         self,
@@ -292,9 +440,21 @@ class DiscoveryBackdoorAgent(BatchAgent):
             for a in range(self.n_actions)
         ]
         self._best_action = int(np.argmax(np.asarray(self.values)))
+        self._stratum_values = _stratum_action_values(
+            data, self.treatment, self.outcome, self.adjustment, self.n_actions
+        )
 
     def act(self, observation: dict[str, Any]) -> int:
-        return int(self._best_action)
+        """Contextual policy ``argmax_a Ehat[Y | do(A=a), Z=z]`` over the *discovered* adjustment
+        set, at the values in ``observation`` (supplied by name, e.g. ``{"Z": 1}``).
+
+        With none of the discovered variables supplied — or an empty discovered set, or a stratum
+        never logged — the marginal decision ``argmax_a E[Y | do(a)]`` is returned; a partial
+        context raises.
+        """
+        return _stratum_action(
+            self._stratum_values, observation, self.adjustment, self._best_action
+        )
 
 
 def _rbf_features(z: np.ndarray, centers: np.ndarray, bandwidth: float) -> np.ndarray:
@@ -313,6 +473,11 @@ class FunctionApproxBackdoorAgent(BatchAgent):
     The single continuous confounder is read from ``graph`` via
     :func:`~causalrl.backdoor_adjustment_set`. Fit on columnar
     ``{confounder, treatment, outcome}`` via :meth:`fit`.
+
+    The fitted ``qhat(a, .)`` is kept, so :meth:`act` evaluates it at the observed ``z`` and returns
+    ``argmax_a qhat(a, z)`` — the same model the back-door integral averages, read per unit instead
+    of summed away. A thin reward bump can make an arm interventionally *worse* on average and still
+    optimal inside the bump; only a contextual policy can play it there.
     """
 
     def __init__(
@@ -341,47 +506,102 @@ class FunctionApproxBackdoorAgent(BatchAgent):
         self.ridge = ridge
         self._best_action = 0
         self.values: list[float] = [0.0] * n_actions
+        self._centers: np.ndarray = np.zeros(0)
+        self._weights: list[np.ndarray | None] = [None] * n_actions
 
     def fit(self, data: Mapping[str, np.ndarray]) -> None:
-        """Fit the per-action RBF-ridge outcome model and select the back-door-adjusted argmax."""
+        """Fit the per-action RBF-ridge outcome model, cache it for :meth:`act`, and select the
+        back-door-adjusted (marginal) argmax."""
         z = np.asarray(data[self.confounder], dtype=float)
         a = np.asarray(data[self.treatment])
         y = np.asarray(data[self.outcome], dtype=float)
-        centers = np.linspace(float(z.min()), float(z.max()), self.n_centers)
-        phi_all = _rbf_features(z, centers, self.bandwidth)
-        self.values = [
-            self._adjusted_value(action, z, a, y, centers, phi_all)
-            for action in range(self.n_actions)
+        self._centers = np.linspace(float(z.min()), float(z.max()), self.n_centers)
+        self._weights = [
+            self._fit_action_weights(action, z, a, y) for action in range(self.n_actions)
         ]
+        # The back-door value is qhat(a, .) Monte-Carlo integrated over the observed confounder.
+        self.values = list(self._action_values(_rbf_features(z, self._centers, self.bandwidth)))
         self._best_action = int(np.argmax(np.asarray(self.values)))
 
-    def _adjusted_value(
-        self,
-        action: int,
-        z: np.ndarray,
-        a: np.ndarray,
-        y: np.ndarray,
-        centers: np.ndarray,
-        phi_all: np.ndarray,
-    ) -> float:
-        """Back-door value: mean over Z of ``qhat(action, .)`` fit on that action's rows."""
+    def _fit_action_weights(
+        self, action: int, z: np.ndarray, a: np.ndarray, y: np.ndarray
+    ) -> np.ndarray | None:
+        """Ridge weights of ``qhat(action, .)`` over the RBF design, fit on that action's rows
+        (``None`` when the action is never played)."""
         mask = a == action
         if not mask.any():
-            return 0.0
-        phi = _rbf_features(z[mask], centers, self.bandwidth)
+            return None
+        phi = _rbf_features(z[mask], self._centers, self.bandwidth)
         gram = phi.T @ phi + self.ridge * np.eye(phi.shape[1])
-        weights = np.linalg.solve(gram, phi.T @ y[mask])
-        return float((phi_all @ weights).mean())
+        return np.linalg.solve(gram, phi.T @ y[mask])
+
+    def _action_values(self, phi: np.ndarray) -> list[float]:
+        """Each action's mean ``qhat(a, .)`` over the design rows ``phi``.
+
+        Over the whole confounder sample this is the back-door-adjusted value ``E[Y | do(a)]``;
+        over a single row it is the per-unit ``qhat(a, z)``. A never-played action scores 0.0, as
+        in the back-door formula.
+        """
+        return [0.0 if w is None else float((phi @ w).mean()) for w in self._weights]
 
     def act(self, observation: dict[str, Any]) -> int:
-        return int(self._best_action)
+        """Contextual policy ``argmax_a qhat(a, z)`` at the confounder value in ``observation``
+        (supplied by name, e.g. ``{"Z": 0.85}``).
+
+        This is the fitted outcome model read at one point rather than integrated over the sample,
+        so the arm an interventional *average* rejects can still be played where it wins. Without
+        the confounder in ``observation`` (or before :meth:`fit`) the marginal decision
+        ``argmax_a E[Y | do(a)]`` is returned.
+        """
+        if self._centers.size == 0 or self.confounder not in observation:
+            return int(self._best_action)
+        z = np.asarray([float(observation[self.confounder])], dtype=float)
+        at_z = self._action_values(_rbf_features(z, self._centers, self.bandwidth))
+        return int(np.argmax(np.asarray(at_z)))
 
 
-def _standardize(fit_x: np.ndarray, apply_x: np.ndarray) -> np.ndarray:
-    """Z-score ``apply_x`` by the column mean/std of ``fit_x`` (ridge conditioning)."""
-    mean = fit_x.mean(axis=0)
-    std = fit_x.std(axis=0) + 1e-8
-    return (apply_x - mean) / std
+def _standardization(fit_x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Column mean and (floored) std of ``fit_x`` — the ridge conditioning, returned as statistics
+    rather than applied in place, so a fitted model can rescale a NEW row exactly as it was fit."""
+    return np.asarray(fit_x.mean(axis=0)), np.asarray(fit_x.std(axis=0)) + 1e-8
+
+
+class _OutcomeModel(Protocol):
+    """Duck type of a fitted per-action outcome model: sklearn-style ``predict(X) -> yhat``."""
+
+    def predict(self, x: np.ndarray, /) -> Any: ...
+
+
+@dataclass(frozen=True)
+class _RidgeOutcomeModel:
+    """One action's ridge fit over ``[1, standardized X]``, with the standardization it was fit
+    under. Carrying the statistics is what makes the fit reusable at prediction time — the reason
+    the g-formula agent can score an unseen covariate row instead of only its training sample."""
+
+    weights: np.ndarray
+    mean: np.ndarray
+    std: np.ndarray
+
+    def predict(self, x: np.ndarray, /) -> np.ndarray:
+        return _ridge_design(x, self.mean, self.std) @ self.weights
+
+
+def _ridge_design(x: np.ndarray, mean: np.ndarray, std: np.ndarray) -> np.ndarray:
+    """Design matrix ``[1, (x - mean) / std]`` for the standardized ridge outcome model."""
+    standardized = (np.asarray(x, dtype=float) - mean) / std
+    return np.hstack([np.ones((standardized.shape[0], 1)), standardized])
+
+
+def _predict(model: _OutcomeModel | None, x: np.ndarray) -> np.ndarray | None:
+    """``Ehat_a(x)`` for a fitted action model; ``None`` propagates (action never played)."""
+    return None if model is None else np.asarray(model.predict(x), dtype=float)
+
+
+def _mean_prediction(model: _OutcomeModel | None, x: np.ndarray) -> float:
+    """``mean_i Ehat_a(x_i)`` — the g-formula standardization over a covariate sample, or the
+    single-unit prediction when ``x`` is one row. 0.0 for a never-played action."""
+    predictions = _predict(model, x)
+    return float(predictions.mean()) if predictions is not None else 0.0
 
 
 class GFormulaBackdoorAgent(BatchAgent):
@@ -393,6 +613,11 @@ class GFormulaBackdoorAgent(BatchAgent):
     stratum has ~1 row) and a single-confounder RBF is too narrow. The default outcome model is a
     numpy ridge over ``[1, standardized X]`` (dependency-free); pass ``outcome_model`` — a factory
     returning a fresh sklearn-style estimator (``fit``/``predict``) — for a flexible offline model.
+
+    :meth:`fit` keeps the per-action models, so :meth:`act` is the *policy the T-learner already
+    implies*: ``argmax_a Ehat_a(x)``, whose sign for a binary treatment is exactly the sign of
+    :meth:`cate`. That is the same CATE-to-policy conversion
+    :func:`~causalrl.interop.econml.from_econml_cate` performs for a third-party estimator.
     """
 
     def __init__(
@@ -413,25 +638,31 @@ class GFormulaBackdoorAgent(BatchAgent):
         self.ridge = ridge
         self._best_action = 0
         self.values: list[float] = [0.0] * n_actions
+        self._models: list[_OutcomeModel | None] = [None] * n_actions
 
     def fit(self, data: Mapping[str, np.ndarray]) -> GFormulaBackdoorAgent:
-        """Fit the per-action outcome model, standardize to ``E[Y|do(a)]``, select the argmax."""
-        covariate_matrix = np.column_stack(
-            [np.asarray(data[c], dtype=float) for c in self.covariates]
-        )
+        """Fit the per-action outcome models, keep them for the contextual :meth:`act`, standardize
+        to ``E[Y|do(a)]``, and select the marginal argmax."""
+        covariate_matrix = self._covariate_matrix(data)
         treatment = np.asarray(data[self.treatment])
         outcome = np.asarray(data[self.outcome], dtype=float)
-        self.values = [
-            self._standardized_value(action, covariate_matrix, treatment, outcome)
-            for action in range(self.n_actions)
-        ]
+        self._models = self._fit_action_models(covariate_matrix, treatment, outcome)
+        self.values = [_mean_prediction(model, covariate_matrix) for model in self._models]
         self._best_action = int(np.argmax(np.asarray(self.values)))
         return self
 
-    def _action_predictions(
+    def _covariate_matrix(self, data: Mapping[str, np.ndarray]) -> np.ndarray:
+        return np.column_stack([np.asarray(data[c], dtype=float) for c in self.covariates])
+
+    def _fit_action_models(
+        self, x: np.ndarray, treatment: np.ndarray, outcome: np.ndarray
+    ) -> list[_OutcomeModel | None]:
+        """Fit one outcome model per action on that action's rows (``None`` if never played)."""
+        return [self._fit_action_model(a, x, treatment, outcome) for a in range(self.n_actions)]
+
+    def _fit_action_model(
         self, action: int, x: np.ndarray, treatment: np.ndarray, outcome: np.ndarray
-    ) -> np.ndarray | None:
-        """Fit action's outcome model on its rows; predict on all rows (None if never played)."""
+    ) -> _OutcomeModel | None:
         mask = treatment == action
         if not mask.any():
             return None
@@ -439,21 +670,12 @@ class GFormulaBackdoorAgent(BatchAgent):
         if self._outcome_model is not None:
             model = self._outcome_model()
             model.fit(x_a, y_a)
-            return np.asarray(model.predict(x), dtype=float)
-        phi_a = self._design(x_a, x_a)
+            return model
+        mean, std = _standardization(x_a)
+        phi_a = _ridge_design(x_a, mean, std)
         gram = phi_a.T @ phi_a + self.ridge * np.eye(phi_a.shape[1])
         weights = np.linalg.solve(gram, phi_a.T @ y_a)
-        return self._design(x_a, x) @ weights
-
-    def _standardized_value(
-        self, action: int, x: np.ndarray, treatment: np.ndarray, outcome: np.ndarray
-    ) -> float:
-        predictions = self._action_predictions(action, x, treatment, outcome)
-        return float(predictions.mean()) if predictions is not None else 0.0
-
-    def _design(self, fit_x: np.ndarray, apply_x: np.ndarray) -> np.ndarray:
-        standardized = _standardize(fit_x, apply_x)
-        return np.hstack([np.ones((standardized.shape[0], 1)), standardized])
+        return _RidgeOutcomeModel(weights=weights, mean=mean, std=std)
 
     def cate(self, data: Mapping[str, np.ndarray]) -> np.ndarray:
         """Per-unit CATE ``Ehat_1(X_i) - Ehat_0(X_i)`` for each row of ``data`` (the T-learner
@@ -461,11 +683,11 @@ class GFormulaBackdoorAgent(BatchAgent):
         observed ``treatment``/``outcome`` the per-action models are fit on."""
         if self.n_actions != 2:
             raise ValueError("cate is defined only for a binary treatment")
-        x = np.column_stack([np.asarray(data[c], dtype=float) for c in self.covariates])
+        x = self._covariate_matrix(data)
         treatment = np.asarray(data[self.treatment])
         outcome = np.asarray(data[self.outcome], dtype=float)
-        mu0 = self._action_predictions(0, x, treatment, outcome)
-        mu1 = self._action_predictions(1, x, treatment, outcome)
+        models = self._fit_action_models(x, treatment, outcome)
+        mu0, mu1 = _predict(models[0], x), _predict(models[1], x)
         if mu0 is None or mu1 is None:
             raise ValueError("both treatment arms must appear in the data to estimate CATE")
         return mu1 - mu0
@@ -478,4 +700,17 @@ class GFormulaBackdoorAgent(BatchAgent):
         return self.values[1] - self.values[0]
 
     def act(self, observation: dict[str, Any]) -> int:
-        return int(self._best_action)
+        """Contextual policy ``argmax_a Ehat_a(x)`` at the covariates in ``observation`` (supplied
+        by name, e.g. ``{"age": 42, "smoke": 1}``).
+
+        For a binary treatment this is exactly the sign of :meth:`cate` at that row — the per-unit
+        decision the T-learner already estimates, shipped instead of discarded. With none of
+        :attr:`covariates` in ``observation`` (or before :meth:`fit`) the marginal decision
+        ``argmax_a E[Y | do(a)]`` is returned; a partial covariate vector raises rather than
+        silently answering a different query.
+        """
+        key = _context_key(observation, self.covariates)
+        if key is None or all(model is None for model in self._models):
+            return int(self._best_action)
+        x = np.asarray([[float(value) for value in key]], dtype=float)
+        return int(np.argmax(np.asarray([_mean_prediction(m, x) for m in self._models])))

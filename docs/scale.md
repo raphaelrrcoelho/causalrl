@@ -31,6 +31,11 @@ target_actions = algo.predict(obs).tolist()
 cert = certify_policy(dataset, target_actions)
 print(cert.recommendation)   # "act" (ship the learned policy) or "abstain"
 print(cert)                  # tipping-Γ: how much hidden confounding would erase the improvement
+
+# Safe policy improvement: also gate on a calibrated downside (finite-sample, distribution-free).
+gated = certify_policy(dataset, target_actions, alpha=0.1)
+print(gated.conformal_lcb)   # one decision under π returns at least this, w.p. ≥ 0.95
+print(gated.recommendation)  # "abstain" unless that beats the logging policy's own downside
 ```
 
 ## Honest scope
@@ -41,5 +46,11 @@ sensitivity model, with the nominal logging propensities taken from the dataset'
 behaviour policy, hence unconfounded). This is the one-step / terminal-return contrast; the per-step
 cumulative-reward extension uses `causalrl.msm_per_step_bounds`. d3rlpy owns training; causalrl adds
 only the bridge and the certificate.
+
+`alpha` adds an orthogonal, finite-sample layer: `causalrl.conformal_action_value` calibrates the
+band of **one decision's return** under π by feeding the propensity ratio `π/π_behaviour` into the
+weighted conformal path. It is not a confidence interval for `V(π)` — a policy with the better mean
+and a heavier downside fails this gate on purpose — and it refuses (rather than passes) when the
+effectively-weighted sample is too small to calibrate the level at all.
 
 Runnable end-to-end: [`examples/scale_d3rlpy_certify.py`](https://github.com/raphaelrrcoelho/causalrl/blob/main/examples/scale_d3rlpy_certify.py).

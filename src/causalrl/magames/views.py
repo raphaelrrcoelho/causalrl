@@ -1,12 +1,15 @@
-"""Per-agent CausalEnv views into a population (plan §8.1).
+"""A synthetic per-agent environment for one ego inside a fixed population (plan §8.1).
 
-A :class:`PopulationAgentView` exposes one *ego* agent embedded in a fixed population as a
-:class:`~causalrl.protocols.CausalEnvProtocol` (``sample`` / ``do`` producing a
+:class:`LinearGaussianPopulationEnv` is a hand-written data-generating process — *not* a learner —
+exposed as a :class:`~causalrl.protocols.CausalEnvProtocol` (``sample`` / ``do`` producing a
 :class:`~causalrl.data.trajectory.TrajectoryLog`), so the Phase-1 estimation machinery applies to it
 directly. The co-players are (context-dependent) mechanisms; an observed context confounds the ego's
 logging action, so this is the *single-learner-in-a-fixed-population* topology in which the ego's
 action effect is back-door identified — and a Phase-1 DR estimate matches the Monte-Carlo ground
-truth (``do``). numpy linear-Gaussian world; no torch.
+truth (``do``). numpy only, no torch: Gaussian context and reward noise, Bernoulli actions.
+
+For the learning side of a population — agents that actually update from payoffs — see
+:func:`~causalrl.magames.learning.run_no_regret`.
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ from causalrl.data.trajectory import TrajectoryLog
 from causalrl.protocols import NoiseLedger
 from causalrl.regime import Regime
 
-__all__ = ["PopulationAgentView", "agent_causal_env_view"]
+__all__ = ["LinearGaussianPopulationEnv", "linear_gaussian_population_env"]
 
 FloatArray = NDArray[np.float64]
 
@@ -32,13 +35,14 @@ def _sigmoid(x: FloatArray) -> FloatArray:
 
 
 @dataclass(frozen=True)
-class PopulationAgentView:
-    """The ego agent inside a fixed population, as a per-agent ``CausalEnvProtocol``.
+class LinearGaussianPopulationEnv:
+    """The environment one ego faces inside a fixed population: a synthetic DGP, not a learner.
 
-    Linear-Gaussian world: an observed context ``Z`` confounds the ego's logging action and drives
-    a co-player's action; the reward depends on the ego action, the co-player action, and ``Z``. The
+    An observed context ``Z`` confounds the ego's logging action and drives a co-player's action;
+    the reward is linear in the ego action, the co-player action and ``Z``, with Gaussian noise. The
     ego's causal action effect ``E[Y | do(ego=1)] - E[Y | do(ego=0)] = ego_effect`` (the co-player
     and context are unaffected by the ego's action) is back-door identified by adjusting for ``Z``.
+    Nothing here updates from experience: the fields below are fixed structural coefficients.
     """
 
     ego: str = "ego"
@@ -107,8 +111,8 @@ class PopulationAgentView:
         return None
 
 
-def agent_causal_env_view(
+def linear_gaussian_population_env(
     ego: str = "ego", coplayer: str = "co", **kwargs: float
-) -> PopulationAgentView:
-    """Construct a :class:`PopulationAgentView` for the ``ego`` agent (see it for the DGP knobs)."""
-    return PopulationAgentView(ego=ego, coplayer=coplayer, **kwargs)
+) -> LinearGaussianPopulationEnv:
+    """Construct a :class:`LinearGaussianPopulationEnv` (see it for the DGP coefficients)."""
+    return LinearGaussianPopulationEnv(ego=ego, coplayer=coplayer, **kwargs)

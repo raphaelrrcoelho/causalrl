@@ -63,6 +63,18 @@ def _decision_to_certificate(c: DecisionCertificate) -> Certificate:
             "mi_measured": c.pivotality.mi_measured,
         }
         assumptions.append(Assumption("mi-cap", mi, checkable=c.pivotality.mi_measured is not None))
+    if c.conformal_lcb is not None:
+        assumptions.append(
+            Assumption(
+                "weighted-exchangeability",
+                {"conformal_lcb": c.conformal_lcb},
+                checkable=False,
+            )
+        )
+    # Which layer refused? The confounding layer's own verdict, exactly as certify_estimate
+    # computes it — so a decision refused only by the finite-sample gate is not mislabelled
+    # "not robust to confounding".
+    confounding_ok = c.pivotality.certified if c.pivotality is not None else bool(c.msm_certified)
     return Certificate(
         claim=c.summary,
         estimand=EstimandSpec(query="policy_value", target="mean"),
@@ -77,8 +89,12 @@ def _decision_to_certificate(c: DecisionCertificate) -> Certificate:
             None
             if c.certified
             else Hedge(
-                "not-robust-to-confounding",
-                {"decision": c.decision, "tipping_gamma": c.tipping_gamma},
+                "not-robust-to-confounding" if not confounding_ok else "downside-not-certified",
+                {
+                    "decision": c.decision,
+                    "tipping_gamma": c.tipping_gamma,
+                    "conformal_lcb": c.conformal_lcb,
+                },
             )
         ),
         provenance=Provenance.create(),

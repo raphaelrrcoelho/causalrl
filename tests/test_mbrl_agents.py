@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from causalrl.agents.baselines import NaiveOffline
@@ -57,6 +58,25 @@ def test_never_logged_action_is_skipped_not_crashed() -> None:
     agent.ingest_offline(ds)
     assert len(agent.policy) == 2
     assert all(a in (0, 1) for a in agent.policy)
+
+
+def test_downside_gate_changes_the_policy_the_agent_ships() -> None:
+    """The agent-side path into the conformal layer: with ``alpha`` the agent gates candidates on
+    a calibrated worst-case return, so a mean-improving but heavy-tailed action is no longer
+    shipped and the agent abstains to behavior. Without it the same agent ships that action."""
+    trs = [Transition(0, 0, 0.5, 0, True) for _ in range(1000)]
+    trs += [Transition(0, 1, 1.5, 0, True) for _ in range(950)]
+    trs += [Transition(0, 1, -5.0, 0, True) for _ in range(50)]
+    ds = ConfoundedTrajectoryDataset(trs, n_states=1, n_actions=2)
+
+    ungated = CertifiedPolicyAgent(n_states=1, n_actions=2, gamma_max=1.02)
+    ungated.ingest_offline(ds)
+    assert ungated.policy == [1]
+
+    gated = CertifiedPolicyAgent(n_states=1, n_actions=2, gamma_max=1.02, alpha=0.1)
+    gated.ingest_offline(ds)
+    assert gated.policy == [0]
+    assert gated.act({"state": 0}) == 0
 
 
 def test_policy_has_one_action_per_state() -> None:
@@ -155,3 +175,88 @@ def test_function_approx_agent_requires_a_single_confounder() -> None:
     )
     with pytest.raises(ValueError):
         FunctionApproxBackdoorAgent(2, graph=graph)
+
+
+# --- act() is a policy over the observation, not a constant fixed at fit time -------------------
+#
+# Each test below asserts that TWO observations whose within-stratum contrast has opposite SIGNS
+# get DIFFERENT actions. Mutating any of these `act` bodies back to `return int(self._best_action)`
+# fails them: one of the two observations always disagrees with the marginal argmax.
+
+_FLIP_GRAPH = CausalGraph(directed_edges=[("Z", "A"), ("Z", "Y"), ("A", "Y")])
+
+
+def _stratum_flip_data(seed: int = 0, n: int = 4000) -> dict[str, np.ndarray]:
+    """Confounded logs whose WITHIN-stratum optimum flips: action 1 wins at ``Z=0`` (0.8 vs 0.2),
+    action 0 wins at ``Z=1`` (0.9 vs 0.5). Back-door adjustment still leaves one marginal winner
+    (``E[Y|do(1)]=0.68 > E[Y|do(0)]=0.48``), so a constant policy must get the ``Z=1`` 40% wrong.
+    """
+    rng = np.random.default_rng(seed)
+    z = (rng.random(n) < 0.4).astype(int)
+    a = (rng.random(n) < np.where(z == 1, 0.3, 0.7)).astype(int)  # confounded assignment
+    mean = np.where(z == 1, np.where(a == 1, 0.5, 0.9), np.where(a == 1, 0.8, 0.2))
+    return {"Z": z, "A": a, "Y": mean + rng.normal(0.0, 0.1, n)}
+
+
+def test_backdoor_agent_act_conditions_on_the_adjustment_stratum() -> None:
+    agent = BackdoorAdjustedAgent(2, graph=_FLIP_GRAPH)
+    agent.fit(_stratum_flip_data())
+    assert agent.adjustment == ("Z",)
+    assert agent.values[1] > agent.values[0]  # the marginal (constant) decision is action 1
+    assert agent.act({"Z": 0}) == 1
+    assert agent.act({"Z": 1}) == 0  # ... yet action 0 wins inside Z=1
+    assert agent.act({}) == 1  # no context supplied -> the marginal decision
+    assert agent.act({"Z": 7}) == 1  # stratum never logged -> the marginal decision
+
+
+def test_discovery_agent_act_conditions_on_the_discovered_adjustment_set() -> None:
+    agent = DiscoveryBackdoorAgent(2, variables=("Z", "A", "Y"))
+    agent.discover_and_fit(_stratum_flip_data(), tiers=(("Z",), ("A",), ("Y",)))
+    assert agent.adjustment == ("Z",)
+    assert agent.act({"Z": 0}) == 1
+    assert agent.act({"Z": 1}) == 0
+    assert agent.act({}) == 1
+
+
+def test_transport_agent_act_conditions_on_the_source_cell() -> None:
+    # E[Y | A=1, Z=z, W=w] - 0.5 = (+0.25 if z else -0.25) - 0.20*[w=1]: arm 1 wins wherever Z=1,
+    # while the TRANSPORTED MARGINAL says arm 0 in every cell of the phase diagram.
+    env = TransportableConfoundedBandit(gamma=1.0, shift=0.6, seed=0)
+    source = env.sample(20_000, domain="source", seed=0)
+    target_w = env.sample(20_000, domain="target", seed=1)["W"]
+    agent = TransportBackdoorAgent(env.n_actions, graph=env.graph, transport=("W",))
+    agent.fit(source, target_covariates={"W": target_w})
+
+    assert agent.act({}) == env.optimal_action(domain="target") == 0  # marginal: never arm 1
+    assert agent.act({"Z": 1, "W": 0}) == 1  # ... but arm 1 is better for a Z=1 unit
+    assert agent.act({"Z": 0, "W": 0}) == 0
+    with pytest.raises(KeyError):
+        agent.act({"Z": 1})  # a partial context would silently answer a different query
+
+
+def test_function_approx_agent_act_plays_the_arm_the_average_rejects() -> None:
+    # E[Y|do(1)] ~ 0.38 < 0.5 so the best CONSTANT action is arm 0 -- but arm 1's reward bump peaks
+    # at z ~ 0.85, where q(1, z) ~ 1.3. Only a contextual act() can collect it.
+    env = ContinuousConfoundedBandit(gamma=1.0, seed=0)
+    agent = FunctionApproxBackdoorAgent(env.n_actions, graph=env.graph)
+    agent.fit(env.sample(6000, seed=0))
+    assert env.optimal_action() == 0
+    assert agent.act({}) == 0  # no context -> the marginal decision
+    assert agent.act({"Z": 0.85}) == 1  # inside the bump arm 1 is far better
+    assert agent.act({"Z": 0.20}) == 0  # outside it arm 0 wins
+
+
+def test_function_approx_agent_act_before_fit_is_the_default_not_a_crash() -> None:
+    env = ContinuousConfoundedBandit(gamma=1.0, seed=0)
+    assert FunctionApproxBackdoorAgent(env.n_actions, graph=env.graph).act({"Z": 0.85}) == 0
+
+
+def test_an_empty_adjustment_set_is_an_honest_constant() -> None:
+    # A -> Y with no observed parent of A: the model holds NO context, so the decision is
+    # necessarily constant. That is what the act() docstring says, and it must not silently
+    # condition on an unrelated key the observation happens to carry.
+    agent = BackdoorAdjustedAgent(2, graph=CausalGraph(directed_edges=[("A", "Y")]))
+    data = _stratum_flip_data()
+    agent.fit(data)
+    assert agent.adjustment == ()
+    assert agent.act({"Z": 0}) == agent.act({"Z": 1}) == agent.act({}) == 1

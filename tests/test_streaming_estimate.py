@@ -190,11 +190,11 @@ def test_stream_msm_bounds_treatment_filter() -> None:
 
 def test_end_to_end_parquet_streamed_ope(tmp_path: Any) -> None:
     pytest.importorskip("pyarrow")
-    from causalrl.magames.views import agent_causal_env_view
+    from causalrl.magames.views import linear_gaussian_population_env
 
     ego_effect, coplayer_effect, context_effect = 1.5, 0.8, 1.0
     confound, coplayer_bias, target_slope = 1.0, 0.7, 0.5
-    view = agent_causal_env_view(
+    view = linear_gaussian_population_env(
         ego="ego",
         ego_effect=ego_effect,
         coplayer_effect=coplayer_effect,

@@ -133,7 +133,12 @@ shipped code, per plan §4):
   `moment_diagnostic` / `tail_index_hill`, `certify_mean` (heavy-tail → median downgrade),
   `certify_quantile` / `weighted_quantile` (percentile-bootstrap CIs).
 - `conformal/` (§7.4) — `conformal_quantile` (weighted), `split_conformal_interval`, `cqr_interval`,
-  `certify_conformal_interval` (`EMPIRICAL`). Marginal coverage ≥ 1 − α.
+  `certify_conformal_interval` (`EMPIRICAL`, `query="see"` — no causal label is earned by residuals
+  of a fitted prediction). Marginal coverage ≥ 1 − α. `conformal_action_value` is the off-policy
+  caller: the calibration likelihood ratio is `pi_target / pi_behavior` read off a
+  `ConfoundedTrajectoryDataset`, giving a distribution-free band for the return of one decision
+  under a target policy. Reached from the agent half via `CertifiedPolicyAgent(alpha=…)` →
+  `certify_policy(alpha=…)`, which gates `certified` on it (safe policy improvement).
 - `transport/` (§7.5) — shim over `identification.transport` + `transport/estimate.py`:
   `certify_transported_effect` (torch-free `transport_formula` decision + numpy g-computation),
   `transport_gcomp`.
@@ -182,9 +187,12 @@ numpy / pure-Python; no new dependencies.
   (I2, via `topology_max_kind`). `equilibrium.py`: `certify_equilibrium` (exact best-response check
   for a robust (tol-)Nash equilibrium, optionally under an intervention `do`; hedges on deviation;
   `KindNotLicensedError` when a topology can't license the requested `Kind` — acceptance c, d).
-  `views.py`: `PopulationAgentView` / `agent_causal_env_view` — a per-agent `CausalEnvProtocol`
-  (`sample`/`do` → `TrajectoryLog`) so Phase-1 DR estimates the ego's action effect and matches the
-  MC ground truth (acceptance b).
+  `views.py`: `LinearGaussianPopulationEnv` / `linear_gaussian_population_env` — a synthetic
+  per-agent `CausalEnvProtocol` (`sample`/`do` → `TrajectoryLog`, a DGP rather than a learner) so
+  Phase-1 DR estimates the ego's action effect and matches the MC ground truth (acceptance b).
+  `learning.py`: `run_no_regret` — the learning population itself (regret matching / multiplicative
+  weights over `agents/no_regret.py`), returning the empirical joint `cce_regret` /
+  `certify_cce_do` consume.
 - **`interop/pettingzoo.py` (§8.3)** — `pettingzoo_to_trajectory_log`: duck-typed adapter (PettingZoo
   never imported) rolling any `ParallelEnv`-shaped object into a `TrajectoryLog` with `entity_id` =
   agent (acceptance a). Tested with a mock `ParallelEnv`. A file-level pyright directive silences the

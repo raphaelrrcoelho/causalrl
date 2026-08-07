@@ -152,11 +152,31 @@
 
 ::: causalrl.envs.wrapper.CausalEnvWrapper
 
-## Causal Graph-Factored Advantage (CGFA)
+## Causal Graph-Factored Advantage (CGFA-PPO)
+
+The pure-NumPy rollout arithmetic (no framework dependency):
+
+::: causalrl.agents.factored_advantage.factor_rewards
+
+::: causalrl.agents.factored_advantage.factor_gae
+
+::: causalrl.agents.factored_advantage.blend_advantages
 
 ::: causalrl.agents.factored_advantage.factored_advantage
 
 ::: causalrl.agents.factored_advantage.FactoredAdvantageConfig
+
+The `K`-head critic that makes it an algorithm (needs the `causalrl[torch]` extra):
+
+::: causalrl.agents.cgfa_critic.FactoredCritic
+
+::: causalrl.agents.cgfa_critic.CGFACriticConfig
+
+::: causalrl.agents.cgfa_critic.CGFAAdvantages
+
+::: causalrl.agents.cgfa_critic.CGFALosses
+
+::: causalrl.agents.cgfa_critic.CGFAUpdateStats
 
 ## Gymnasium Env Registration
 
@@ -191,6 +211,8 @@
 ::: causalrl.identification.bounds.msm_per_step_bounds
 
 ::: causalrl.identification.bounds.msm_stratified_bounds
+
+::: causalrl.conformal.core.conformal_action_value
 
 ## Decision Certificates
 
@@ -230,9 +252,21 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.magames.population.Population
 
+::: causalrl.magames.learning.run_no_regret
+
+::: causalrl.magames.learning.NoRegretRun
+
+::: causalrl.agents.no_regret.NoRegretLearner
+
 ::: causalrl.magames.equilibrium.certify_equilibrium
 
-::: causalrl.magames.views.agent_causal_env_view
+::: causalrl.magames.views.linear_gaussian_population_env
+
+::: causalrl.magames.views.LinearGaussianPopulationEnv
+
+::: causalrl.agents.no_regret.RegretMatching
+
+::: causalrl.agents.no_regret.MultiplicativeWeights
 
 ## Scale & Streaming (Phase 3)
 
@@ -490,8 +524,6 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 ::: causalrl.agents.online_causal_mbrl.OnlineCausalMBRL
 
 ::: causalrl.agents.baselines.OnlineOnlyUCB
-
-::: causalrl.magames.PopulationAgentView
 
 ::: causalrl.envs.suite.seq_dtr.SequentialDTREnv
 
