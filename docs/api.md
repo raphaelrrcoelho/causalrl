@@ -657,3 +657,7 @@ one-call front door over the layers below.
 ::: causalrl.ope.sequential_test.sequential_policy_comparison
 
 ::: causalrl.ope.sequential_test.SequentialVerdict
+
+::: causalrl.scm.fidelity.certify_fitted_query
+
+::: causalrl.scm.fidelity.FidelityReport

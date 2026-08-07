@@ -47,6 +47,12 @@ if TYPE_CHECKING:  # for type checkers / IDEs only; not executed at runtime
         estimate_sequential_value,
         sequential_ice_values,
     )
+    from causalrl.ope.sequential_test import (
+        ConfidenceSequence,
+        SequentialVerdict,
+        confidence_sequence,
+        sequential_policy_comparison,
+    )
 
 # name -> (submodule, attribute); resolved on first attribute access.
 _LAZY: dict[str, tuple[str, str]] = {
@@ -65,7 +71,10 @@ _LAZY: dict[str, tuple[str, str]] = {
     "ConfidenceSequence": ("causalrl.ope.sequential_test", "ConfidenceSequence"),
     "SequentialVerdict": ("causalrl.ope.sequential_test", "SequentialVerdict"),
     "confidence_sequence": ("causalrl.ope.sequential_test", "confidence_sequence"),
-    "sequential_policy_comparison": ("causalrl.ope.sequential_test", "sequential_policy_comparison"),
+    "sequential_policy_comparison": (
+        "causalrl.ope.sequential_test",
+        "sequential_policy_comparison",
+    ),
     "stream_policy_value": ("causalrl.ope.ipw", "stream_policy_value"),
 }
 

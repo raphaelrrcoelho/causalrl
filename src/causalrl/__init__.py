@@ -18,6 +18,8 @@ from causalrl.envs.registration import register_envs as _register_envs
 _register_envs()
 
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "FidelityReport": ("causalrl.scm.fidelity", "FidelityReport"),
+    "certify_fitted_query": ("causalrl.scm.fidelity", "certify_fitted_query"),
     "SequentialVerdict": ("causalrl.ope.sequential_test", "SequentialVerdict"),
     "sequential_policy_comparison": (
         "causalrl.ope.sequential_test",
@@ -485,6 +487,7 @@ API_TIERS: dict[str, tuple[str, ...]] = {
         "DictNoiseLedger",
         "ExogenousPosterior",
         "FeatureDecisionLog",
+        "FidelityReport",
         "FitReport",
         "FunctionalMechanism",
         "LinearGaussianFit",
@@ -514,6 +517,7 @@ API_TIERS: dict[str, tuple[str, ...]] = {
         "build_unrolled_scm",
         "certify_conformal_interval",
         "certify_counterfactual",
+        "certify_fitted_query",
         "certify_nuts_counterfactual",
         "conformal_quantile",
         "cqr_interval",
@@ -758,6 +762,7 @@ __all__ = [
     "FactoredCritic",
     "FeatureDecisionLog",
     "FeatureTransition",
+    "FidelityReport",
     "FitReport",
     "FittedQIteration",
     "FixedSetThompsonSampling",
@@ -864,6 +869,7 @@ __all__ = [
     "certify_effect",
     "certify_equilibrium",
     "certify_estimate",
+    "certify_fitted_query",
     "certify_fqe",
     "certify_nuts_counterfactual",
     "certify_policy",
