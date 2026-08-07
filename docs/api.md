@@ -244,8 +244,6 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.bounds.continuous.msm_sensitivity_bounds
 
-::: causalrl.bounds.continuous.certify_mean
-
 ::: causalrl.transport.estimate.certify_transported_effect
 
 ## Multi-Agent Core (Phase 2)
@@ -272,15 +270,11 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.estimate.streaming.stream_policy_value
 
-::: causalrl.estimate.streaming.stream_quantile_certificate
-
 ::: causalrl.bounds.streaming.stream_msm_bounds
 
 ::: causalrl.backends.streaming.StreamingMoments
 
 ::: causalrl.backends.streaming.WeightedStreamingRatio
-
-::: causalrl.backends.quantile_sketch.GKQuantileSketch
 
 ## Interop & Scale (Phase 4)
 
@@ -568,8 +562,6 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.certify.Witness
 
-::: causalrl.bounds.continuous.certify_quantile
-
 ::: causalrl.bounds.continuous.certify_sensitivity_bounds
 
 ::: causalrl.estimate.sequential.certify_sequential_value
@@ -587,8 +579,6 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 ::: causalrl.certify.ipw_sensitivity_bounds_certified
 
 ::: causalrl.eval.ope.ipw_value
-
-::: causalrl.bounds.continuous.moment_diagnostic
 
 ::: causalrl.certify.msm_policy_value_bounds_certified
 

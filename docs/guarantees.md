@@ -156,5 +156,3 @@ stated scope; conservative helpers return `None` or raise outside that scope rat
   point estimates).
 - Production-ready deep or offline-RL training integrations.
 - General statistical guarantees from the maintained toy benchmark environments.
-
-The experimental sensitivity helper lives under `causalrl.experimental.ope`.

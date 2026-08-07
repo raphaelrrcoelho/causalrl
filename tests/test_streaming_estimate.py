@@ -12,7 +12,7 @@ from causalrl.bounds.streaming import stream_msm_bounds
 from causalrl.certify.certificate import Kind
 from causalrl.data.streaming_join import KeyJoiner
 from causalrl.data.trajectory import TrajectoryLog
-from causalrl.estimate.streaming import stream_policy_value, stream_quantile_certificate
+from causalrl.estimate.streaming import stream_policy_value
 from causalrl.identification.bounds import ipw_sensitivity_bounds
 
 
@@ -94,32 +94,6 @@ def test_stream_policy_value_hedges_on_low_ess() -> None:
 def test_stream_policy_value_hedges_when_empty() -> None:
     cert = stream_policy_value(_weight_reward_log(np.array([]), np.array([])))
     assert cert.value is None and cert.hedge is not None and cert.hedge.reason == "no-decisions"
-
-
-# --- stream_quantile_certificate ---------------------------------------------------------------
-
-
-def test_stream_quantile_certificate_records_epsilon() -> None:
-    rng = np.random.default_rng(2)
-    y = rng.standard_normal(40_000)
-    rows = [
-        {"entity_id": i, "episode_id": 0, "t": 0, "kind": "r", "name": "reward", "value": float(v)}
-        for i, v in enumerate(y.tolist())
-    ]
-    cert = stream_quantile_certificate(
-        TrajectoryLog.from_rows(rows), name="reward", q=0.9, epsilon=0.01, batch_size=1_000
-    )
-    assert cert.kind is Kind.IDENTIFIED and cert.estimand.target == "quantile"
-    assert isinstance(cert.value, float)
-    assert abs(cert.value - float(np.quantile(y, 0.9))) < 0.1
-    assert cert.assumptions[0].name == "quantile-sketch"
-    assert cert.assumptions[0].params["epsilon"] == 0.01
-
-
-def test_stream_quantile_certificate_hedges_on_missing_column() -> None:
-    rows = [{"entity_id": 0, "episode_id": 0, "t": 0, "kind": "r", "name": "reward", "value": 1.0}]
-    cert = stream_quantile_certificate(TrajectoryLog.from_rows(rows), name="absent", q=0.5)
-    assert cert.value is None and cert.hedge is not None
 
 
 # --- stream_msm_bounds -------------------------------------------------------------------------

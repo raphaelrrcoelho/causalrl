@@ -1,4 +1,4 @@
-"""Streaming certificate kernels over columnar logs (plan §9; invariants I3/I8).
+"""Streaming certificate kernels over columnar logs (plan §9; invariant I3).
 
 Single-pass estimators that consume a :class:`~causalrl.data.trajectory.TrajectoryLog` — or an
 on-disk Parquet log streamed batch-by-batch — and emit a unified
@@ -9,15 +9,12 @@ an identification-aware certificate.
 
 * :func:`stream_policy_value` — self-normalised (Hájek) importance-sampling off-policy value with a
   confidence interval and an effective-sample-size overlap hedge (I3).
-* :func:`stream_quantile_certificate` — a distributional quantile / tail functional via the GK
-  sketch, recording the ε rank-error budget in the certificate (I8).
 """
 
 from __future__ import annotations
 
 import hashlib
 
-from causalrl.backends.quantile_sketch import GKQuantileSketch
 from causalrl.backends.streaming import WeightedStreamingRatio
 from causalrl.certify.certificate import (
     Assumption,
@@ -31,7 +28,7 @@ from causalrl.certify.certificate import (
 from causalrl.data.streaming_join import KeyJoiner, LogSource, iter_log_batches
 from causalrl.estimate._stats import norm_ppf
 
-__all__ = ["stream_policy_value", "stream_quantile_certificate"]
+__all__ = ["stream_policy_value"]
 
 
 def _stream_fingerprint(*parts: float) -> str:
@@ -134,71 +131,4 @@ def stream_policy_value(
         hedge=None,
         provenance=Provenance.create(data_fingerprint=fingerprint),
         ci=ratio.ci(z),
-    )
-
-
-def stream_quantile_certificate(
-    source: LogSource,
-    *,
-    name: str,
-    q: float,
-    epsilon: float = 0.01,
-    batch_size: int = 100_000,
-    alpha: float | None = None,
-) -> Certificate:
-    """Certify a distributional ``q``-quantile of the ``name`` column via a streaming GK sketch.
-
-    Returns a ``kind=IDENTIFIED`` :class:`Certificate` whose ``value`` is the sketch's quantile
-    estimate; the ε rank-error budget is recorded as a checkable ``quantile-sketch`` assumption so
-    the guarantee (true rank within ``ε·n`` of ``q·n``) travels with the claim (I8). The quantile is
-    a distributional summary of the observed ``name`` column, not a causal effect, so the query is
-    observational (``see``). ``source`` streams in row batches without materialising the log.
-    """
-    sketch = GKQuantileSketch(epsilon)
-    n_rows = 0
-    for log in iter_log_batches(source, batch_size):
-        cells = log.values_by_name(name)
-        if cells.shape[0]:
-            values = [float(v) for v in cells.tolist()]
-            sketch.update(values)
-            n_rows += len(values)
-
-    fingerprint = _stream_fingerprint(float(n_rows), q, epsilon)
-    if sketch.count == 0:
-        return Certificate(
-            claim=f"quantile refused: column {name!r} absent",
-            estimand=EstimandSpec(query="see", target="quantile"),
-            kind=Kind.IDENTIFIED,
-            value=None,
-            alpha=alpha,
-            assumptions=(),
-            method="refused",
-            witness=None,
-            hedge=Hedge("no-observations", {"name": name}),
-            provenance=Provenance.create(data_fingerprint=fingerprint),
-            ci=None,
-        )
-
-    q_hat = sketch.quantile(q)
-    return Certificate(
-        claim=f"quantile_{q:g}({name}) = {q_hat:.4g}",
-        estimand=EstimandSpec(query="see", target="quantile"),
-        kind=Kind.IDENTIFIED,
-        value=q_hat,
-        alpha=alpha,
-        assumptions=(
-            Assumption(
-                name="quantile-sketch",
-                params={"epsilon": epsilon, "q": q},
-                checkable=True,
-                diagnostic={"rank_error_fraction": sketch.error_bound, "n": sketch.count},
-            ),
-        ),
-        method=f"GK streaming sketch (ε={epsilon:g})",
-        witness=Witness(
-            kind="empirical-quantile", detail={"name": name, "q": q, "n": sketch.count}
-        ),
-        hedge=None,
-        provenance=Provenance.create(data_fingerprint=fingerprint),
-        ci=None,
     )

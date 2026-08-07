@@ -255,9 +255,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nothing could. Every multi-agent surface the library actually has already knows the same
   decomposition *exactly* rather than by estimation — `magames`' `CCEPolytope.deviation_gains[k, j]`
   **is** the own-action (direct) effect at realized profile `j`, in closed form, and it is what
-  `cce_regret`, `cce_bounds` and `certify_cce_do` are built on; `meanfield`'s
-  `payoff(own_action, fraction)` **is** the `population_share` exposure mapping, as a known
-  function. Meanwhile every environment in `envs/suite/` is single-actor and
+  `cce_regret`, `cce_bounds` and `certify_cce_do` are built on; `meanfield` (removed below, for the
+  identical zero-consumer reason) had `payoff(own_action, fraction)` as **exactly** the
+  `population_share` exposure mapping, as a known function. Meanwhile every environment in
+  `envs/suite/` is single-actor and
   `ConfoundedTrajectoryDataset` carries no unit or peer index, so the library cannot produce the
   logged multi-unit data the estimators exist for. The module's entire coupling to the rest of
   `causalrl` was one import of `NotIdentifiableError`, and it returned a bare point estimate with no
@@ -266,11 +267,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **What to do instead.** For a population of interacting agents, build it as a `Population` of
   `AgentType`s and use `causalrl.magames`: `cce_polytope(...).deviation_gains` gives the exact
   own-action effect at every profile, `cce_regret` its population summary, and `certify_cce_do` a
-  certificate over the time-averaged behaviour; for the anonymous `N → ∞` case use
-  `causalrl.meanfield`. For cross-sectional SUTVA-failure analysis — which is out of scope for a
-  reinforcement-learning library — compute the exposure column directly with numpy and stratify,
-  then hand the resulting contrast to `certify_estimate` via `PolicyValueContrast` if you want the
-  sensitivity band. Full decision record: `.superpowers/sdd/PLAN/interference-decision.md`.
+  certificate over the time-averaged behaviour. The anonymous `N → ∞` case (`causalrl.meanfield`) is
+  removed below, for the same reason, and currently has no replacement. For cross-sectional
+  SUTVA-failure analysis — which is out of scope for a reinforcement-learning library — compute the
+  exposure column directly with numpy and stratify, then hand the resulting contrast to
+  `certify_estimate` via `PolicyValueContrast` if you want the sensitivity band. Full decision
+  record: `.superpowers/sdd/PLAN/interference-decision.md`.
+- **General statistics tooling with no RL referent** — a library-wide audit tested every remaining
+  symbol against one question: can anything under `agents/` or `envs/` reach it? These could not, so
+  they are gone:
+  - **`causalrl.bounds.continuous`: `certify_mean`, `certify_quantile`, `moment_diagnostic`,
+    `tail_index_hill`, `weighted_quantile`, `bootstrap_quantile_ci`, `MomentDiagnostic`** — a Hill
+    tail-index diagnostic, weighted/bootstrapped quantiles, and a heavy-tail-aware mean certificate,
+    with their top-level exports. `certify_mean` additionally emitted `EstimandSpec(query="do", …)`
+    for a computation containing no intervention at all — misleading provenance on a plain sample
+    statistic was part of why it goes. `msm_sensitivity_bounds` and `certify_sensitivity_bounds` —
+    the actual marginal-sensitivity-model kernels in the same module — are unaffected and remain
+    exported. No in-library replacement is offered; this was general-purpose statistics, not a
+    causal-RL primitive — reach for `numpy`/`scipy` directly.
+  - **`causalrl.estimate.streaming.stream_quantile_certificate`**, with its top-level export. Its own
+    docstring said it plainly: *"not a causal effect."* `stream_policy_value` — the self-normalised
+    off-policy value estimator in the same module — is unaffected.
+  - **`causalrl.backends.quantile_sketch`** — the module and `GKQuantileSketch` — is deleted. It
+    existed only to back `stream_quantile_certificate`; nothing else imported it.
+  - **`causalrl.experimental.ope`** — the module and `confounding_sensitivity_bounds` — is deleted.
+    Its own module docstring called its contents *exploratory utilities, not validated estimators*,
+    and its own test asserted it was not part of the public API. The published bound is
+    `causalrl.identification.bounds.msm_policy_value_bounds` (population OPE) or
+    `ipw_sensitivity_bounds` (per-unit).
+  - **`causalrl.meanfield`** — `MeanFieldGame`, `mean_field_equilibria`, `best_response_fraction`,
+    `certify_mean_field_equilibrium`, `UNSTABLE` — is deleted. It was already outside the frozen
+    top-level API (reachable only as `causalrl.meanfield`, per its own docstring: *"Evaluation-only
+    (no learning)"*) and had zero consumers outside its own test.
+  - **`causalrl.estimate.nuisance`'s `Classifier` / `LogisticRegressor` / `Regressor` /
+    `RidgeRegressor`** are no longer re-exported from `causalrl.estimate` (they were never in the
+    top-level `causalrl` API, so this is not a breaking change to anything documented). The module
+    remains fully importable directly — `from causalrl.estimate.nuisance import Classifier` — and
+    `agents/fitted.py`, `agents/bounded_fitted.py`, `bounds/continuous.py` and `bounds/functional.py`
+    all continue to depend on it internally; it is a hand-rolled mini-sklearn kept for their sake,
+    not a public estimation surface.
 
 ### Fixed
 - **Every exported name now has an API-reference entry.** 129 of 255 were missing, including `Agent`,

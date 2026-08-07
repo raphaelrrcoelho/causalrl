@@ -5,6 +5,10 @@ The continuous/DR counterpart to the shipped discrete estimand evaluator
 back-door adjustment plan and estimates it with plug-in, self-normalised IPW, AIPW, or cross-fitted
 DML, returning a unified :class:`~causalrl.certify.certificate.Certificate`. Non-identifiable or
 unsupported queries are hedged, never silently point-estimated.
+
+``Classifier`` / ``LogisticRegressor`` / ``Regressor`` / ``RidgeRegressor`` (:mod:`.nuisance`) back
+several of the estimators above but are internal: import them from ``causalrl.estimate.nuisance``
+directly rather than from this package.
 """
 
 from causalrl.estimate.compiler import (
@@ -14,25 +18,14 @@ from causalrl.estimate.compiler import (
     compile_estimand,
 )
 from causalrl.estimate.estimators import EffectEstimate, estimate_ate
-from causalrl.estimate.nuisance import (
-    Classifier,
-    LogisticRegressor,
-    Regressor,
-    RidgeRegressor,
-)
-from causalrl.estimate.streaming import stream_policy_value, stream_quantile_certificate
+from causalrl.estimate.streaming import stream_policy_value
 
 __all__ = [
-    "Classifier",
     "EffectEstimate",
     "EstimandNotSupportedError",
     "EstimatorPlan",
-    "LogisticRegressor",
-    "Regressor",
-    "RidgeRegressor",
     "certify_effect",
     "compile_estimand",
     "estimate_ate",
     "stream_policy_value",
-    "stream_quantile_certificate",
 ]
