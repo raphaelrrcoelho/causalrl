@@ -42,7 +42,7 @@ def test_decision_flip_under_confounding() -> None:
     agent = GFormulaBackdoorAgent(2, covariates=("X",))
     agent.fit(data)
     assert y[a == 1].mean() < y[a == 0].mean()  # naive is fooled into action 0
-    assert agent.act({"state": 0}) == 1  # g-formula recovers the truly-better action 1
+    assert agent.act({}) == 1  # g-formula's MARGINAL decision recovers the truly-better action 1
     assert agent.contrast > 0.0
 
 
@@ -84,6 +84,51 @@ def test_cate_recovers_heterogeneous_effect() -> None:
     assert cate.shape == (n,)
     assert np.corrcoef(cate, tau)[0, 1] > 0.9  # tracks the true heterogeneity
     assert abs(float(cate.mean()) - agent.contrast) < 1e-6  # averages to the ATE
+
+
+def _heterogeneous_confounded(seed: int = 0, n: int = 6000) -> dict[str, np.ndarray]:
+    """Confounded logs whose per-unit effect ``tau(x) = 1 + 3*x1`` flips sign at ``x1 = -1/3``.
+
+    The ATE is +1, so ONE action wins on average; the sign flip means a constant policy is wrong
+    for every unit below the threshold.
+    """
+    rng = np.random.default_rng(seed)
+    x = rng.normal(0.0, 1.0, (n, 2))
+    a = (rng.random(n) < 1.0 / (1.0 + np.exp(-x[:, 0]))).astype(int)  # confounded by x0
+    y = (1.0 + 3.0 * x[:, 1]) * a + 2.0 * x[:, 0] + rng.normal(0.0, 0.5, n)
+    return {"A": a, "Y": y, "X0": x[:, 0], "X1": x[:, 1]}
+
+
+def test_act_is_the_cate_sign_not_a_constant() -> None:
+    # The discriminating test for act(): two observations whose CATE signs differ must get
+    # DIFFERENT actions. Mutating act() to `return int(self._best_action)` fails this.
+    data = _heterogeneous_confounded()
+    agent = GFormulaBackdoorAgent(2, covariates=("X0", "X1")).fit(data)
+    assert agent.contrast > 0.0  # the ATE -- and so the best CONSTANT action -- is 1
+
+    assert agent.act({"X0": 0.0, "X1": 1.5}) == 1  # tau ~ +5.5
+    assert agent.act({"X0": 0.0, "X1": -1.5}) == 0  # tau ~ -3.5: the constant policy is wrong here
+    assert agent.act({}) == 1  # no covariates supplied -> the marginal decision
+
+    # act is exactly the sign of the per-unit CATE the T-learner already estimates -- the same
+    # CATE-to-policy conversion the library performs for a third-party EconML estimator.
+    cate = agent.cate(data)
+    rows = [
+        {"X0": float(x0), "X1": float(x1)}
+        for x0, x1 in zip(data["X0"][:300], data["X1"][:300], strict=True)
+    ]
+    assert [agent.act(row) for row in rows] == (cate[:300] > 0.0).astype(int).tolist()
+
+
+def test_act_rejects_a_partial_covariate_vector() -> None:
+    agent = GFormulaBackdoorAgent(2, covariates=("X0", "X1")).fit(_heterogeneous_confounded())
+    with pytest.raises(KeyError):
+        agent.act({"X0": 0.0})  # silently marginalizing X1 would answer a different query
+
+
+def test_act_before_fit_is_the_default_not_a_crash() -> None:
+    agent = GFormulaBackdoorAgent(2, covariates=("X0", "X1"))
+    assert agent.act({"X0": 0.0, "X1": 1.5}) == 0
 
 
 def test_cate_requires_binary_and_both_arms() -> None:

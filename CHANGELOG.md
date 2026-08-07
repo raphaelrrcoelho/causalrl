@@ -114,6 +114,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `from causalrl import linear_gaussian_population_env`; `PopulationAgentView(...)` →
   `LinearGaussianPopulationEnv(...)`. Constructor arguments, fields and the `sample` / `do` /
   `noise_ledger` behaviour are unchanged, so only the two names need editing.
+### Changed
+- **`act()` on the back-door planners is now a policy, not a constant.**
+  `BackdoorAdjustedAgent`, `DiscoveryBackdoorAgent`, `TransportBackdoorAgent`,
+  `FunctionApproxBackdoorAgent` and `GFormulaBackdoorAgent` used to return `argmax_a E[Y|do(a)]`
+  from `fit` time and discard the `observation` argument entirely. Each now caches its fitted
+  interventional outcome model and **reads it at the observation**: the tabular agents look the
+  action values up in the observed back-door stratum, `FunctionApproxBackdoorAgent` evaluates
+  `qhat(a, z)` at the observed confounder, and `GFormulaBackdoorAgent` evaluates its per-action
+  T-learner at the observed covariate row — so its `act` is exactly the sign of the `cate` it
+  already computed, the same CATE-to-policy conversion `from_econml_cate` performs for a
+  third-party estimator. The arm that wins on average need not win in any given stratum, so this
+  changes the action returned for a unit whose conditional contrast disagrees with the marginal
+  one. **Migration:** pass the conditioning variables by name (`agent.act({"Z": 1})`,
+  `agent.act({"age": 42, "smoke": 1})`) to get the contextual decision. An observation carrying
+  *none* of them — including the `{"state": 0}` a 2.1.0 caller passes — still returns the marginal
+  `argmax_a E[Y|do(a)]` unchanged. A *partial* set of conditioning variables now raises `KeyError`
+  rather than silently answering a different query.
 
 ### Added (experimental)
 - **`LinearCyclicSCM.stability_margin` / `spectral_abscissa` / `max_stable_learning_rate`** —

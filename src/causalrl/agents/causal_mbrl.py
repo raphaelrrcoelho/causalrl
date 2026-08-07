@@ -143,11 +143,21 @@ class CausalMBRLAgent:
         return self
 
     def act(self, observation: dict[str, Any]) -> int:
-        """Return the planner's chosen action for ``observation`` (e.g. ``{"state": 0}``)."""
+        """Return the planner's action for ``observation``.
+
+        Supply the variables the planner conditions on **by name** — the adjustment set for
+        ``"backdoor"``/``"discovery"``, those plus the transport variables for ``"transport"``, the
+        continuous confounder for ``"function_approx"``, the covariates for ``"g_formula"`` (e.g.
+        ``{"Z": 1}`` or ``{"age": 42, "smoke": 1}``) — and the decision is contextual. The
+        ``"sequential"`` planner takes ``{"state": s}`` instead. An observation carrying none of
+        them falls back to the marginal ``argmax_a E[Y | do(a)]``, which is the right answer only
+        when there is genuinely no context to condition on.
+        """
         return int(self._planner.act(observation))
 
     def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Offline agents hold a fixed policy after ``fit``; no online update."""
+        """The fitted outcome model is fixed after ``fit``; the policy varies with the observation,
+        not with online experience."""
 
     @property
     def planner(self) -> Any:
