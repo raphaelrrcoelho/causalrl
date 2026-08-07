@@ -276,28 +276,6 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.deadline.Deadline
 
-## Interference (Spillovers)
-
-::: causalrl.interference.ExposureMapping
-
-::: causalrl.interference.ExposureContrast
-
-::: causalrl.interference.neighbourhood_count
-
-::: causalrl.interference.neighbourhood_fraction
-
-::: causalrl.interference.any_neighbour_treated
-
-::: causalrl.interference.population_share
-
-::: causalrl.interference.adjacency_from_matrix
-
-::: causalrl.interference.direct_effect
-
-::: causalrl.interference.spillover_effect
-
-::: causalrl.interference.total_effect
-
 ## Known Mechanisms
 
 ::: causalrl.scm.fitters.PinnedMechanism

@@ -86,16 +86,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   filter of the unconstrained POMIS: projecting a variable away can introduce possibly-optimal sets
   the unconstrained enumeration never listed, so filtering loses optimality. `arms()` composes it
   with an `InterventionSpace` to give an agent its admissible interventions directly.
-- **`ExposureMapping` and the direct / spillover / total contrasts** (`causalrl.interference`,
-  exported top-level) — estimands for the case every other module rules out by assumption: units
-  whose outcomes are coupled through *other* units' treatments. Under an exposure mapping (Aronow &
-  Samii 2017) the outcome depends on the treatment vector only through a low-dimensional summary,
-  making `direct_effect`, `spillover_effect` and `total_effect` ordinary stratified contrasts.
-  Ships `neighbourhood_count`, `neighbourhood_fraction`, `any_neighbour_treated` and
-  `population_share`, plus `adjacency_from_matrix`. A required cell that no observation falls in
-  raises `NotIdentifiableError` (positivity) rather than extrapolating; no standard errors are
-  reported, because under interference the rows are dependent and the variance has to come from the
-  randomisation design.
 - **`PinnedMechanism`** (`causalrl.scm.fitters`, exported top-level) — deploy a **known**
   structural equation at a node while `fit_scm` still learns the rest, for the ordinary case where
   a documented rule sits beside behaviour with no closed form. Noise enters additively, so a pinned
@@ -128,6 +118,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   persistent `set_intervention` levers run against learned mechanisms
   (`examples/learned_scm_policy.py` learns from confounded logs, plans inside the model with
   Thompson sampling, and scores the resulting policy in the true world).
+
+### Removed
+- **`causalrl.interference`** — `ExposureMapping`, `ExposureContrast`, `adjacency_from_matrix`,
+  `neighbourhood_count`, `neighbourhood_fraction`, `any_neighbour_treated`, `population_share`,
+  `direct_effect`, `spillover_effect` and `total_effect` are gone, with the module and its
+  top-level exports. They were added earlier in this same unreleased cycle and never shipped in a
+  release, so no released API is affected.
+
+  **Why.** The module estimated the Aronow & Samii (2017) direct / spillover / total contrasts by
+  exposure-stratified cell means. That is correct causal inference, but it is not reinforcement
+  learning and it could not be made into any: nothing under `agents/` or `envs/` referenced it, and
+  nothing could. Every multi-agent surface the library actually has already knows the same
+  decomposition *exactly* rather than by estimation — `magames`' `CCEPolytope.deviation_gains[k, j]`
+  **is** the own-action (direct) effect at realized profile `j`, in closed form, and it is what
+  `cce_regret`, `cce_bounds` and `certify_cce_do` are built on; `meanfield`'s
+  `payoff(own_action, fraction)` **is** the `population_share` exposure mapping, as a known
+  function. Meanwhile every environment in `envs/suite/` is single-actor and
+  `ConfoundedTrajectoryDataset` carries no unit or peer index, so the library cannot produce the
+  logged multi-unit data the estimators exist for. The module's entire coupling to the rest of
+  `causalrl` was one import of `NotIdentifiableError`, and it returned a bare point estimate with no
+  `Certificate` — an island from the causal half as well as the RL half.
+
+  **What to do instead.** For a population of interacting agents, build it as a `Population` of
+  `AgentType`s and use `causalrl.magames`: `cce_polytope(...).deviation_gains` gives the exact
+  own-action effect at every profile, `cce_regret` its population summary, and `certify_cce_do` a
+  certificate over the time-averaged behaviour; for the anonymous `N → ∞` case use
+  `causalrl.meanfield`. For cross-sectional SUTVA-failure analysis — which is out of scope for a
+  reinforcement-learning library — compute the exposure column directly with numpy and stratify,
+  then hand the resulting contrast to `certify_estimate` via `PolicyValueContrast` if you want the
+  sensitivity band. Full decision record: `.superpowers/sdd/PLAN/interference-decision.md`.
 
 ### Fixed
 - **Every exported name now has an API-reference entry.** 129 of 255 were missing, including `Agent`,
