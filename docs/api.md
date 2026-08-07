@@ -637,3 +637,23 @@ one-call front door over the layers below.
 ::: causalrl.transport.localize.ShiftReport
 
 ::: causalrl.transport.localize.MechanismShift
+
+::: causalrl.agents.anytime.Anytime
+
+::: causalrl.agents.anytime.AnytimeInterventionSearch
+
+::: causalrl.agents.anytime.SearchReport
+
+::: causalrl.intervention.Continuous
+
+::: causalrl.intervention.Discrete
+
+::: causalrl.intervention.InterventionDomain
+
+::: causalrl.ope.sequential_test.confidence_sequence
+
+::: causalrl.ope.sequential_test.ConfidenceSequence
+
+::: causalrl.ope.sequential_test.sequential_policy_comparison
+
+::: causalrl.ope.sequential_test.SequentialVerdict

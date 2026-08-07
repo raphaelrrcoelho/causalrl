@@ -24,6 +24,8 @@ from dataclasses import dataclass
 from itertools import product
 from typing import Any
 
+import numpy as np
+
 Intervention = Mapping[str, Any]
 """An assignment ``{variable: value}`` — the argument ``StructuralCausalModel.do`` accepts.
 
@@ -53,6 +55,100 @@ def canonical(intervention: Intervention) -> tuple[tuple[str, Any], ...]:
 
 
 @dataclass(frozen=True)
+class Discrete:
+    """A finite set of admissible values -- the only domain kind before continuous ones existed."""
+
+    values: tuple[Any, ...]
+
+    def contains(self, value: Any) -> bool:
+        return value in self.values
+
+    def project(self, value: Any) -> Any:
+        """The admissible value closest to ``value``; ``value`` itself when already admissible.
+
+        Closeness is numeric where the values are numeric and identity otherwise, so a
+        non-admissible categorical projects to the first admissible value rather than raising --
+        :meth:`InterventionSpace.project` is the "make this admissible" path, and a caller who
+        wants a refusal should ask :meth:`InterventionSpace.permits` instead.
+        """
+        if self.contains(value):
+            return value
+        try:
+            return min(self.values, key=lambda v: abs(float(v) - float(value)))
+        except (TypeError, ValueError):
+            return self.values[0]
+
+    def sample(self, rng: np.random.Generator) -> Any:
+        return self.values[int(rng.integers(len(self.values)))]
+
+
+@dataclass(frozen=True)
+class Continuous:
+    """A closed real interval ``[low, high]`` of admissible values.
+
+    The action-side counterpart of :mod:`causalrl.state`'s feature vectors. The estimation core
+    never needed a discretisation -- cross-fitted DML, additive-noise mechanisms, the continuous
+    bounds and the RBF-encoded function approximators all take real-valued inputs -- so a
+    continuous *confounder* was always expressible while a continuous *treatment* was not. Dose,
+    price, budget and duration are the ordinary cases.
+
+    Deliberately NOT named ``Interval``: :class:`causalrl.Interval` is a bound on an estimand's
+    value, and reusing the name for an action domain would make every docstring mentioning one
+    ambiguous about which it meant.
+    """
+
+    low: float
+    high: float
+
+    def __post_init__(self) -> None:
+        low, high = float(self.low), float(self.high)
+        if not low <= high:
+            raise ValueError(
+                f"Continuous(low={self.low}, high={self.high}) must satisfy low <= high: an "
+                "inverted interval admits nothing, which makes every intervention on this "
+                "variable inadmissible while the variable still counts as manipulable."
+            )
+        object.__setattr__(self, "low", low)
+        object.__setattr__(self, "high", high)
+
+    def contains(self, value: Any) -> bool:
+        try:
+            return self.low <= float(value) <= self.high
+        except (TypeError, ValueError):
+            return False
+
+    def project(self, value: Any) -> float:
+        """``value`` clipped into ``[low, high]``."""
+        return min(self.high, max(self.low, float(value)))
+
+    def sample(self, rng: np.random.Generator) -> float:
+        return float(rng.uniform(self.low, self.high))
+
+
+InterventionDomain = Discrete | Continuous
+"""What a manipulable variable may be set to: a finite set, or a real interval.
+
+Named in full because :class:`causalrl.Domain` is already taken by the *transport* domain -- a
+source or target population in a selection diagram. The two are unrelated, and one of them had to
+say which it was.
+"""
+
+
+def _as_domain(spec: InterventionDomain | Iterable[Any]) -> InterventionDomain:
+    """Normalise a domain specification, so a raw value tuple still means :class:`Discrete`."""
+    if isinstance(spec, Discrete | Continuous):
+        return spec
+    values = tuple(spec)
+    if not values:
+        raise ValueError(
+            "a variable was given an empty domain: a variable that may be intervened on but has "
+            "no value it can take makes every intervention set containing it unsatisfiable while "
+            "still counting as admissible. Omit the variable to say it is not manipulable here."
+        )
+    return Discrete(values)
+
+
+@dataclass(frozen=True)
 class InterventionSpace:
     """Which variables may be intervened on right now, and the values each may take.
 
@@ -66,10 +162,15 @@ class InterventionSpace:
     stays fixed across decisions is the graph; what varies is this.
     """
 
-    domains: tuple[tuple[str, tuple[Any, ...]], ...] = ()
+    domains: tuple[tuple[str, InterventionDomain], ...] = ()
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "domains", tuple(sorted(self.domains, key=lambda kv: kv[0])))
+        # Raw value tuples are normalised to Discrete, so direct construction from the pre-3.1
+        # ``(name, values)`` shape keeps working unchanged.
+        normalised = tuple(
+            sorted(((n, _as_domain(d)) for n, d in self.domains), key=lambda kv: kv[0])
+        )
+        object.__setattr__(self, "domains", normalised)
 
     @classmethod
     def create(cls, domains: Mapping[str, Iterable[Any]]) -> InterventionSpace:
@@ -80,17 +181,12 @@ class InterventionSpace:
         every intervention set containing it unsatisfiable while still counting as admissible.
         Drop the variable instead -- that is what "not manipulable here" means.
         """
-        pairs: list[tuple[str, tuple[Any, ...]]] = []
+        pairs: list[tuple[str, InterventionDomain]] = []
         for name in sorted(domains):
-            values = tuple(domains[name])
-            if not values:
-                raise ValueError(
-                    f"variable {name!r} was given an empty domain: a variable that may be "
-                    "intervened on but has no value it can take makes every intervention set "
-                    "containing it unsatisfiable while still counting as admissible. Omit the "
-                    "variable to say it is not manipulable in this context."
-                )
-            pairs.append((name, values))
+            try:
+                pairs.append((name, _as_domain(domains[name])))
+            except ValueError as exc:
+                raise ValueError(f"variable {name!r}: {exc}") from exc
         return cls(tuple(pairs))
 
     @property
@@ -98,20 +194,59 @@ class InterventionSpace:
         """The manipulable variables — what :func:`causalrl.pomis` takes as ``manipulable``."""
         return frozenset(name for name, _ in self.domains)
 
-    def values(self, variable: str) -> tuple[Any, ...]:
-        """The admissible values of ``variable``; raises ``KeyError`` if it is not manipulable."""
-        for name, values in self.domains:
+    def domain(self, variable: str) -> InterventionDomain:
+        """The :data:`InterventionDomain` of ``variable``.
+
+        Raises ``KeyError`` if it is not manipulable here.
+        """
+        for name, domain in self.domains:
             if name == variable:
-                return values
+                return domain
         raise KeyError(
             f"{variable!r} is not manipulable in this InterventionSpace "
             f"(manipulable: {sorted(self.variables)})"
         )
 
+    def values(self, variable: str) -> tuple[Any, ...]:
+        """The admissible values of a DISCRETE ``variable``.
+
+        Raises ``KeyError`` if ``variable`` is not manipulable, and ``TypeError`` if its domain is
+        continuous -- an interval has no value list, and returning a sampled or gridded stand-in
+        would quietly turn an exact domain into an approximation of one.
+        """
+        domain = self.domain(variable)
+        if isinstance(domain, Continuous):
+            raise TypeError(
+                f"{variable!r} has the continuous domain [{domain.low}, {domain.high}], which has "
+                "no enumerable value list. Use permits/project/sample to work with it, or pass a "
+                "Discrete domain if you want arms."
+            )
+        return domain.values
+
     def permits(self, intervention: Intervention) -> bool:
         """Whether every variable in ``intervention`` is manipulable and set to an allowed value."""
         lookup = dict(self.domains)
-        return all(name in lookup and value in lookup[name] for name, value in intervention.items())
+        return all(
+            name in lookup and lookup[name].contains(value) for name, value in intervention.items()
+        )
+
+    def project(self, intervention: Intervention) -> Intervention:
+        """``intervention`` moved into this space: each value clipped or snapped to its domain.
+
+        The counterpart of :meth:`permits` for a search that proposes freely and needs its
+        proposals made admissible -- clipping a dose to its safe range rather than discarding the
+        candidate. Raises ``KeyError`` naming any variable that is not manipulable here, since no
+        amount of clipping makes an unavailable lever available.
+        """
+        return {name: self.domain(name).project(value) for name, value in intervention.items()}
+
+    def sample(self, variables: Iterable[str], rng: np.random.Generator) -> Intervention:
+        """One admissible assignment of ``variables``, drawn uniformly from each domain.
+
+        The continuous counterpart of :meth:`assignments`: where a finite space can be enumerated,
+        an interval must be searched, and a search needs proposals.
+        """
+        return {name: self.domain(name).sample(rng) for name in sorted(variables)}
 
     def restrict(self, variables: Iterable[str]) -> InterventionSpace:
         """The sub-space over ``variables``, ignoring any that are not manipulable here."""
@@ -125,13 +260,13 @@ class InterventionSpace:
         empty domain is exactly what :meth:`create` refuses.
         """
         theirs = dict(other.domains)
-        pairs: list[tuple[str, tuple[Any, ...]]] = []
-        for name, values in self.domains:
+        pairs: list[tuple[str, InterventionDomain]] = []
+        for name, mine in self.domains:
             if name not in theirs:
                 continue
-            allowed = tuple(v for v in values if v in theirs[name])
-            if allowed:
-                pairs.append((name, allowed))
+            merged = _intersect(mine, theirs[name])
+            if merged is not None:
+                pairs.append((name, merged))
         return InterventionSpace(tuple(pairs))
 
     def assignments(self, variables: Iterable[str]) -> Iterator[Intervention]:
@@ -145,7 +280,9 @@ class InterventionSpace:
         when the product exceeds :data:`_MAX_ASSIGNMENTS`.
         """
         names = sorted(variables)
-        domains = [self.values(name) for name in names]  # KeyError names the offending variable
+        # KeyError names a non-manipulable variable; TypeError names a continuous one, which has
+        # no arms to enumerate -- the case that needs a search rather than an arm list.
+        domains = [self.values(name) for name in names]
         total = 1
         for values in domains:
             total *= len(values)
@@ -159,3 +296,22 @@ class InterventionSpace:
             )
         for combination in product(*domains):
             yield dict(zip(names, combination, strict=True))
+
+
+def _intersect(a: InterventionDomain, b: InterventionDomain) -> InterventionDomain | None:
+    """The domain admitting exactly what both admit, or ``None`` when nothing is left.
+
+    ``None`` rather than an empty domain because :meth:`InterventionSpace.__and__` drops such a
+    variable entirely -- retaining it with nothing it can be set to is what :meth:`create` refuses.
+    """
+    match a, b:
+        case Discrete(), _:
+            kept = tuple(v for v in a.values if b.contains(v))
+            return Discrete(kept) if kept else None
+        case Continuous(), Discrete():
+            kept = tuple(v for v in b.values if a.contains(v))
+            return Discrete(kept) if kept else None
+        case Continuous(), Continuous():
+            low, high = max(a.low, b.low), min(a.high, b.high)
+            return Continuous(low, high) if low <= high else None
+    return None
