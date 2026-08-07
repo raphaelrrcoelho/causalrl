@@ -3,7 +3,9 @@ from pathlib import Path
 
 
 def test_core_install_does_not_require_torch_and_supports_python_311():
-    config = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
+    config = tomllib.loads(
+        (Path(__file__).parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+    )
     project = config["project"]
 
     assert project["requires-python"] == ">=3.11"
@@ -14,7 +16,7 @@ def test_core_install_does_not_require_torch_and_supports_python_311():
 
 def test_public_library_metadata_and_documentation_surface_exist():
     root = Path(__file__).parents[1]
-    project = tomllib.loads((root / "pyproject.toml").read_text())["project"]
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     assert "Documentation" in project["urls"]
     assert "Source" in project["urls"]
     assert "docs" in project["optional-dependencies"]
