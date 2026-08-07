@@ -69,7 +69,7 @@ class BoundedNodeFit:
     ``identified`` is the field to branch on. When ``True`` the node was fitted exactly as
     :func:`causalrl.fit_scm` would have, and ``confounded_parents`` is empty. When ``False`` the
     node has at least one parent it shares a latent cause with, and every query about it comes back
-    as an :class:`~causalrl.Interval` whose width is the price of that confounding.
+    as an :class:`~causalrl.Interval` whose width is what that confounding costs.
     """
 
     node: str

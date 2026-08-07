@@ -89,8 +89,8 @@ class Continuous:
     The action-side counterpart of :mod:`causalrl.state`'s feature vectors. The estimation core
     never needed a discretisation -- cross-fitted DML, additive-noise mechanisms, the continuous
     bounds and the RBF-encoded function approximators all take real-valued inputs -- so a
-    continuous *confounder* was always expressible while a continuous *treatment* was not. Dose,
-    price, budget and duration are the ordinary cases.
+    continuous *confounder* was always expressible while a continuous *treatment* was not. A dose, a
+    budget, a duration or any other quantity chosen on a scale is the ordinary case.
 
     Deliberately NOT named ``Interval``: :class:`causalrl.Interval` is a bound on an estimand's
     value, and reusing the name for an action domain would make every docstring mentioning one
