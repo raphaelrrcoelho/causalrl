@@ -5,17 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Changed (BREAKING)
-- **`certify_conformal_interval` no longer takes `query`, and emits `EstimandSpec(query="see")`.**
-  It previously defaulted to `query="counterfactual"` — a string label with no counterfactual
-  mathematics behind it: split conformal around a fitted prediction consumes no causal assumption,
-  and `weights` only move the observational law to a shifted one. *Migration:* delete the argument.
-  A caller who passed `query="counterfactual"` was labelling an observational prediction interval
-  and should move to `conformal_action_value` (below), which computes the propensity ratio and
-  records the assumptions that license an interventional claim; a caller who passed anything else
-  was relabelling the same interval and loses nothing.
+## [3.0.0] - 2026-08-07
 
 ### Added
 - **`conformal_action_value(dataset, target_actions, *, alpha)`** (`causalrl.conformal`, exported
@@ -214,7 +204,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`examples/learned_scm_policy.py` learns from confounded logs, plans inside the model with
   Thompson sampling, and scores the resulting policy in the true world).
 
-### Changed (breaking)
+### Changed (BREAKING)
+- **`certify_conformal_interval` no longer takes `query`, and emits `EstimandSpec(query="see")`.**
+  It previously defaulted to `query="counterfactual"` — a string label with no counterfactual
+  mathematics behind it: split conformal around a fitted prediction consumes no causal assumption,
+  and `weights` only move the observational law to a shifted one. *Migration:* delete the argument.
+  A caller who passed `query="counterfactual"` was labelling an observational prediction interval
+  and should move to `conformal_action_value` (below), which computes the propensity ratio and
+  records the assumptions that license an interventional claim; a caller who passed anything else
+  was relabelling the same interval and loses nothing.
 - **`PopulationAgentView` → `LinearGaussianPopulationEnv`** and **`agent_causal_env_view` →
   `linear_gaussian_population_env`** (`causalrl.magames.views`, both also renamed in the top-level
   export list). The class never was an agent: it is a hand-written linear-Gaussian data-generating
