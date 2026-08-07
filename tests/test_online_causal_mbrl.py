@@ -409,3 +409,20 @@ def test_n_rollout_below_one_is_refused() -> None:
     # action having compared nothing. Discriminating: removing the guard makes this not raise.
     with pytest.raises(ValueError, match="n_rollout"):
         OnlineCausalMBRL(["A", "Y"], treatment="A", outcome="Y", actions=(0.0, 1.0), n_rollout=0)
+
+
+def test_fit_scm_mec_refuses_a_cyclic_cpdag_instead_of_an_empty_belief() -> None:
+    # discover_interventional orients edges incident to each target independently, so two or more
+    # buffered targets can produce a cyclic directed set. Enumeration then yields zero members and
+    # the old code returned [] -- an empty belief indistinguishable from "not refit yet", so the
+    # NEXT act() failed with a message about calling refit(), blaming the caller for an
+    # inconsistent graph. Discriminating: without the guard this returns [] and does not raise.
+    from causalrl.discovery import CPDAG
+    from causalrl.exceptions import NotIdentifiableError
+    from causalrl.scm.fit import fit_scm_mec
+
+    rng = np.random.default_rng(0)
+    data = {v: rng.integers(0, 2, 400).astype(float) for v in ("X", "Y", "Z")}
+    cyclic = CPDAG(("X", "Y", "Z"), frozenset({("X", "Y"), ("Y", "Z"), ("Z", "X")}), frozenset())
+    with pytest.raises(NotIdentifiableError, match="no acyclic orientation"):
+        fit_scm_mec(data, cpdag=cyclic, max_members=32)
