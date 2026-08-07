@@ -254,11 +254,19 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.magames.learning.run_no_regret
 
+::: causalrl.magames.learning.NoRegretRun
+
 ::: causalrl.agents.no_regret.NoRegretLearner
 
 ::: causalrl.magames.equilibrium.certify_equilibrium
 
 ::: causalrl.magames.views.linear_gaussian_population_env
+
+::: causalrl.magames.views.LinearGaussianPopulationEnv
+
+::: causalrl.agents.no_regret.RegretMatching
+
+::: causalrl.agents.no_regret.MultiplicativeWeights
 
 ## Scale & Streaming (Phase 3)
 
@@ -516,8 +524,6 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 ::: causalrl.agents.online_causal_mbrl.OnlineCausalMBRL
 
 ::: causalrl.agents.baselines.OnlineOnlyUCB
-
-::: causalrl.magames.PopulationAgentView
 
 ::: causalrl.envs.suite.seq_dtr.SequentialDTREnv
 

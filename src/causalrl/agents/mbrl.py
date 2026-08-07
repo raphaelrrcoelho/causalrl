@@ -714,4 +714,3 @@ class GFormulaBackdoorAgent(BatchAgent):
             return int(self._best_action)
         x = np.asarray([[float(value) for value in key]], dtype=float)
         return int(np.argmax(np.asarray([_mean_prediction(m, x) for m in self._models])))
-
