@@ -225,6 +225,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `from causalrl import linear_gaussian_population_env`; `PopulationAgentView(...)` →
   `LinearGaussianPopulationEnv(...)`. Constructor arguments, fields and the `sample` / `do` /
   `noise_ledger` behaviour are unchanged, so only the two names need editing.
+- **The decision front door drops its clinical-trial parameter names for the RL ones its own
+  docstrings already used.** No deprecation shims — this is a 3.0.0 breaking rename cycle — and no
+  numerics, defaults or control flow changed; most call sites pass these positionally and are
+  unaffected.
+  - **`certify_decision(outcomes=, treated=)` → `certify_decision(rewards=, actions=)`**
+    (`causalrl.identification.decision`). The docstring already said *"`outcomes` are logged
+    rewards"* and *"the off-policy (IPS) value contrast"* — only the parameter names disagreed.
+    **Migration:** a keyword call site renames `outcomes=` → `rewards=` and `treated=` → `actions=`.
+  - **`DecisionCertificate.decision` now reads `"prefer action 1"` / `"prefer action 0"`**, not
+    `"prefer treated"` / `"prefer control"` — the action labels `certify_decision` passes into
+    `certify_estimate`'s general `labels=` are no longer `("treated", "control")`. An 80-arm bandit
+    log no longer comes back with a "treated" verdict. **Migration:** a caller asserting on the
+    exact string updates it; `.recommendation` (`"act"` / `"abstain"`) was already the intended
+    read and is unaffected.
+  - **`estimate_sequential_value(treatments=, outcome=)` and `certify_sequential_value(treatments=,
+    outcome=)` → `(actions=, reward=)`** (`causalrl.estimate.sequential`), threaded through every
+    internal helper (`_fingerprint`, `_check_shapes`, `_dr_fold`, `_stage`, `_gcomp`) and through
+    `sequential_ice_values`, so the module has no `treatments` left underneath the public rename.
+    The nuisance-model parameters (`outcome_model`, `propensity_model`) are a different concept —
+    a pluggable regression model, not the reward array — and are unchanged. **Migration:** rename
+    the two keyword arguments at any keyword call site.
+  - **`causalrl.transport.estimate.certify_sequential_transport` →
+    `certify_transported_policy_value`.** It already emits `EstimandSpec(query="policy_value")`;
+    the new name is the true one. **Migration:** rename the import / call; its own `outcome=` /
+    `target_actions=` parameters (the outcome *column name* and the per-stage target action) are
+    unchanged.
+  - **`causalrl.interop.dowhy.from_dowhy_estimate` → `policy_contrast_from_dowhy`** and
+    **`causalrl.interop.econml.from_econml_cate` → `policy_from_econml_cate`.** Neither was
+    exported top-level. **Migration:** rename the import; both adapters' own `outcomes=` /
+    `treated=` keyword arguments are unchanged.
 ### Changed
 - **`act()` on the back-door planners is now a policy, not a constant.**
   `BackdoorAdjustedAgent`, `DiscoveryBackdoorAgent`, `TransportBackdoorAgent`,

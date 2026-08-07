@@ -27,7 +27,7 @@ def test_one_hot_contrast_matches_certify_decision_msm():
     e0 = np.full(n, 0.5)
     ref = certify_decision(y, f, propensities=e0, gamma_max=20.0)
     c = PolicyValueContrast.from_binary(y, f, propensities=e0)
-    got = certify_estimate(c, gamma_max=20.0, labels=("treated", "control"))
+    got = certify_estimate(c, gamma_max=20.0, labels=("action 1", "action 0"))
     assert isinstance(got, DecisionCertificate)
     assert got.tipping_gamma == ref.tipping_gamma
     assert got.naive_contrast == pytest.approx(ref.naive_contrast)

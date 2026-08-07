@@ -20,7 +20,7 @@ from _causal_baselines import _propensity
 
 from causalrl import certify_decision
 
-RCT_BENCHMARK = 1794.0  # NSW randomized experiment: the truth is "prefer treated" (+$1,794).
+RCT_BENCHMARK = 1794.0  # NSW randomized experiment: the truth is "prefer action 1" (+$1,794).
 URL = "https://raw.githubusercontent.com/robjellis/lalonde/master/lalonde_data.csv"
 COVARIATES = ["age", "educ", "black", "hispan", "married", "nodegree", "re74", "re75"]
 
@@ -31,8 +31,8 @@ def main() -> None:
     propensities = _propensity(df[COVARIATES].to_numpy(dtype=float), a)
 
     cert = certify_decision(
-        outcomes=y.tolist(),
-        treated=a.tolist(),
+        rewards=y.tolist(),
+        actions=a.tolist(),
         propensities=propensities.tolist(),
         gamma_max=5.0,
     )
@@ -43,7 +43,8 @@ def main() -> None:
     print(f"certified robust: {cert.certified}")
     print(f"tips at         : {tip_str}  (unmeasured confounding this strong overturns it)\n")
     print(
-        f"randomized-experiment truth: {RCT_BENCHMARK:+,.0f}  (prefer treated -- the OPPOSITE sign)"
+        f"randomized-experiment truth: {RCT_BENCHMARK:+,.0f}  "
+        "(prefer action 1 -- the OPPOSITE sign)"
     )
     print(
         "=> The certificate refused to trust the naive decision, and the RCT shows it was right to."

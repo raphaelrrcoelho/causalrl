@@ -617,7 +617,7 @@ class GFormulaBackdoorAgent(BatchAgent):
     :meth:`fit` keeps the per-action models, so :meth:`act` is the *policy the T-learner already
     implies*: ``argmax_a Ehat_a(x)``, whose sign for a binary treatment is exactly the sign of
     :meth:`cate`. That is the same CATE-to-policy conversion
-    :func:`~causalrl.interop.econml.from_econml_cate` performs for a third-party estimator.
+    :func:`~causalrl.interop.econml.policy_from_econml_cate` performs for a third-party estimator.
     """
 
     def __init__(

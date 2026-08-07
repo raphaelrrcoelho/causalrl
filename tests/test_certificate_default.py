@@ -105,7 +105,7 @@ def test_byte_pin_certify_decision_unchanged() -> None:
     bins = [0, 1, 0, 1, 0, 1]  # confounder bins -> the pivotality layer runs
     cert = certify_decision(outcomes, treated, confounder_bins=bins)
     assert isinstance(cert, DecisionCertificate)
-    assert cert.decision == "prefer treated"
+    assert cert.decision == "prefer action 1"
     # naive contrast E[Y|F=1] - E[Y|F=0] = 2/3 - 1/3, exactly (independent of the flip).
     assert cert.naive_contrast == pytest.approx(2.0 / 3.0 - 1.0 / 3.0, abs=1e-12)
 

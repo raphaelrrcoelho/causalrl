@@ -40,8 +40,8 @@ from causalrl.identification.criteria import backdoor_adjustment_set
 from causalrl.identification.transport import SelectionDiagram, transport_formula
 
 __all__ = [
-    "certify_sequential_transport",
     "certify_transported_effect",
+    "certify_transported_policy_value",
     "transport_gcomp",
     "transport_sequential_gcomp",
 ]
@@ -249,7 +249,7 @@ def _hedged_sequential(
     )
 
 
-def certify_sequential_transport(
+def certify_transported_policy_value(
     diagram: SelectionDiagram,
     source_data: Mapping[str, Any],
     target_data: Mapping[str, Any],

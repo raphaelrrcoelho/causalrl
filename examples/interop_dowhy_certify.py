@@ -22,7 +22,7 @@ def main() -> None:
         return
 
     from causalrl import certify_estimate
-    from causalrl.interop.dowhy import from_dowhy_estimate
+    from causalrl.interop.dowhy import policy_contrast_from_dowhy
 
     rng = np.random.default_rng(0)
     n = 4000
@@ -37,7 +37,7 @@ def main() -> None:
     print(f"DoWhy point estimate (ATE): {estimate.value:+.3f}")
 
     try:
-        contrast = from_dowhy_estimate(estimate, outcomes=y, treated=f, confounder_bins=z)
+        contrast = policy_contrast_from_dowhy(estimate, outcomes=y, treated=f, confounder_bins=z)
         source = "from the DoWhy estimate"
     except TypeError:
         # This DoWhy build does not surface propensity_scores on the estimate; fit them explicitly.
@@ -50,7 +50,7 @@ def main() -> None:
         contrast = PolicyValueContrast.from_binary(y, f, propensities=e0, confounder_bins=z)
         source = "propensities fit explicitly with sklearn"
 
-    cert = certify_estimate(contrast, labels=("treated", "control"))
+    cert = certify_estimate(contrast, labels=("action 1", "action 0"))
     print(f"causalrl decision certificate ({source}):")
     print(cert)
     print(f"recommendation: {cert.recommendation}")

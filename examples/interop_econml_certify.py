@@ -21,7 +21,7 @@ def main() -> None:
         return
 
     from causalrl import certify_estimate
-    from causalrl.interop.econml import from_econml_cate
+    from causalrl.interop.econml import policy_from_econml_cate
 
     rng = np.random.default_rng(0)
     n = 4000
@@ -34,7 +34,7 @@ def main() -> None:
     cate = LinearDML(discrete_treatment=True)
     cate.fit(y, f, X=x)
 
-    contrast = from_econml_cate(cate, x, outcomes=y, treated=f, logging_propensities=e0)
+    contrast = policy_from_econml_cate(cate, x, outcomes=y, treated=f, logging_propensities=e0)
     cert = certify_estimate(contrast)
     print("causalrl decision certificate for the EconML CATE-induced policy:")
     print(cert)

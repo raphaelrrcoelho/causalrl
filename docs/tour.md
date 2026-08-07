@@ -19,7 +19,7 @@ general `certify_estimate`) returns a certificate, not just a point estimate.
 ```python
 from causalrl import certify_decision
 
-cert = certify_decision(outcomes, treated, confounder_bins=z, propensities=e0)
+cert = certify_decision(rewards, actions, confounder_bins=z, propensities=e0)
 print(cert.recommendation)   # "act" or "abstain" — read the verdict, not cert.decision
 print(cert)                  # human-readable summary with the tipping-Γ
 ```

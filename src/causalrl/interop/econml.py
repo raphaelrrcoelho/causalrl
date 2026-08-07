@@ -14,7 +14,7 @@ import numpy as np
 from causalrl.identification.estimate import PolicyValueContrast
 
 
-def from_econml_cate(
+def policy_from_econml_cate(
     cate_estimator: Any,
     X: Any,
     *,

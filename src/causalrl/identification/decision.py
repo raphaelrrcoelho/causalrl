@@ -1,8 +1,8 @@
 """certify_decision: a one-call decision-certificate front door over the decision stack.
 
-Given confounded / off-policy logs of a binary decision — "is the treated arm better than the
-control arm?" — report whether that decision is robust to hidden confounding. It is an ergonomic
-orchestrator, not new theory: it composes the documented decision stack from
+Given confounded / off-policy logs of a binary decision — "does action 1 outperform action 0?" —
+report whether that decision is robust to hidden confounding. It is an ergonomic orchestrator,
+not new theory: it composes the documented decision stack from
 :mod:`causalrl.identification.bounds` — the cheap sign-robustness certificate
 (:func:`pivotality_certificate`) and, when logging propensities are supplied, the
 marginal-sensitivity-model tipping point (:func:`tipping_gamma` over
@@ -38,7 +38,7 @@ class DecisionCertificate(NamedTuple):
     The component fields and ``summary`` make the exact guarantee explicit.
     """
 
-    decision: str  # "prefer treated" | "prefer control" | "indifferent" (sign of naive_contrast)
+    decision: str  # "prefer action 1" | "prefer action 0" | "indifferent" (sign of naive_contrast)
     naive_contrast: float  # E[Y | F=1] - E[Y | F=0]
     certified: bool
     pivotality: PivotalityCertificate | None  # structural/measured sign-robustness layer, if run
@@ -138,8 +138,8 @@ def certify_estimate(
 
 
 def certify_decision(
-    outcomes: Sequence[float] | None = None,
-    treated: Sequence[int] | None = None,
+    rewards: Sequence[float] | None = None,
+    actions: Sequence[int] | None = None,
     *,
     confounder_bins: Sequence[int] | None = None,
     mi_cap: float | None = None,
@@ -149,7 +149,7 @@ def certify_decision(
 ) -> DecisionCertificate:
     """Certify whether a binary decision from confounded logs is robust to hidden confounding.
 
-    ``outcomes`` are logged rewards ``Y_i``; ``treated`` is the binary arm indicator (1 = the
+    ``rewards`` are the logged rewards ``Y_i``; ``actions`` is the binary arm indicator (1 = the
     arm under test, 0 = baseline). The naive decision is the sign of the logged contrast
     ``E[Y | F=1] - E[Y | F=0]``. Supply at least one evidence source — they compose:
 
@@ -168,23 +168,23 @@ def certify_decision(
     off-policy contrast, which coincides with the raw logged contrast only under uniform logging.
 
     Alternatively pass a pre-built ``estimate`` (a :class:`PolicyValueContrast`, e.g. from an
-    interop adapter) instead of raw ``outcomes`` / ``treated``; the two forms are mutually
+    interop adapter) instead of raw ``rewards`` / ``actions``; the two forms are mutually
     exclusive and ``certify_decision(estimate=c)`` is exactly ``certify_estimate(c)``.
     """
     if estimate is not None:
-        if outcomes is not None or treated is not None:
-            raise ValueError("pass either raw logs (outcomes, treated) or estimate, not both")
+        if rewards is not None or actions is not None:
+            raise ValueError("pass either raw logs (rewards, actions) or estimate, not both")
         return certify_estimate(estimate, gamma_max=gamma_max)
-    if outcomes is None or treated is None:
-        raise ValueError("pass outcomes and treated (or a pre-built estimate)")
+    if rewards is None or actions is None:
+        raise ValueError("pass rewards and actions (or a pre-built estimate)")
     contrast = PolicyValueContrast.from_binary(
-        outcomes,
-        treated,
+        rewards,
+        actions,
         propensities=propensities,
         confounder_bins=confounder_bins,
         mi_cap=mi_cap,
     )
-    return certify_estimate(contrast, gamma_max=gamma_max, labels=("treated", "control"))
+    return certify_estimate(contrast, gamma_max=gamma_max, labels=("action 1", "action 0"))
 
 
 def _summarise(

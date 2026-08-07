@@ -18,12 +18,12 @@ Install the optional dependencies with `pip install causalrl[interop]`.
 
 ```python
 from causalrl import certify_estimate
-from causalrl.interop.dowhy import from_dowhy_estimate
+from causalrl.interop.dowhy import policy_contrast_from_dowhy
 
 # `estimate` is a fitted DoWhy propensity-based CausalEstimate; y / f / z are the logged
 # outcome, binary treatment, and (optionally) a measured confounder.
-contrast = from_dowhy_estimate(estimate, outcomes=y, treated=f, confounder_bins=z)
-cert = certify_estimate(contrast, labels=("treated", "control"))
+contrast = policy_contrast_from_dowhy(estimate, outcomes=y, treated=f, confounder_bins=z)
+cert = certify_estimate(contrast, labels=("action 1", "action 0"))
 print(cert.recommendation)   # "act" or "abstain" — read the verdict, not cert.decision
 print(cert)                  # human-readable summary with the tipping-Γ
 ```
@@ -37,10 +37,10 @@ estimator.
 
 ```python
 from causalrl import certify_estimate
-from causalrl.interop.econml import from_econml_cate
+from causalrl.interop.econml import policy_from_econml_cate
 
 # `cate` is a fitted EconML CATE estimator; e0 are the logging/behaviour propensities.
-contrast = from_econml_cate(cate, X, outcomes=y, treated=f, logging_propensities=e0)
+contrast = policy_from_econml_cate(cate, X, outcomes=y, treated=f, logging_propensities=e0)
 print(certify_estimate(contrast))
 ```
 

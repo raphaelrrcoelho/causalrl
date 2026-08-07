@@ -216,9 +216,9 @@ The `K`-head critic that makes it an algorithm (needs the `causalrl[torch]` extr
 
 ## Decision Certificates
 
-The decision stack — certify whether a confounded / off-policy decision ("is the treated arm
-better than the control arm?") is robust to hidden confounding, cheapest layer first.
-`certify_decision` is the one-call front door over the layers below.
+The decision stack — certify whether a confounded / off-policy decision ("is action 1 better than
+action 0?") is robust to hidden confounding, cheapest layer first. `certify_decision` is the
+one-call front door over the layers below.
 
 ::: causalrl.identification.decision.certify_decision
 
@@ -365,7 +365,7 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.identification.decision.certify_estimate
 
-::: causalrl.transport.estimate.certify_sequential_transport
+::: causalrl.transport.estimate.certify_transported_policy_value
 
 ::: causalrl.identification.bounds.confounding_bias_per_step_bounds
 

@@ -11,7 +11,7 @@ import pytest
 
 from causalrl import certify_estimate
 from causalrl.identification.estimate import PolicyValueContrast
-from causalrl.interop.dowhy import from_dowhy_estimate
+from causalrl.interop.dowhy import policy_contrast_from_dowhy
 
 
 class _FakeEstimator:
@@ -33,23 +33,25 @@ class _FakeEstimateDirect:
         self.propensity_scores = np.asarray(scores)
 
 
-def test_from_dowhy_estimate_reduces_to_from_binary():
+def test_policy_contrast_from_dowhy_reduces_to_from_binary():
     y = [0.0, 1.0, 0.0, 1.0]
     f = [1, 0, 1, 0]
     e0 = [0.6, 0.4, 0.5, 0.5]
-    got = from_dowhy_estimate(_FakeEstimate(e0), outcomes=y, treated=f)
+    got = policy_contrast_from_dowhy(_FakeEstimate(e0), outcomes=y, treated=f)
     want = PolicyValueContrast.from_binary(y, f, propensities=e0)
     assert certify_estimate(got) == certify_estimate(want)
 
 
 def test_extract_propensities_from_estimate_directly():
-    got = from_dowhy_estimate(_FakeEstimateDirect([0.5, 0.5]), outcomes=[0.0, 1.0], treated=[1, 0])
+    got = policy_contrast_from_dowhy(
+        _FakeEstimateDirect([0.5, 0.5]), outcomes=[0.0, 1.0], treated=[1, 0]
+    )
     assert list(got.logging_propensities) == [0.5, 0.5]
     assert got.has_msm
 
 
 def test_pivotality_evidence_passes_through():
-    got = from_dowhy_estimate(
+    got = policy_contrast_from_dowhy(
         _FakeEstimate([0.5, 0.5]), outcomes=[0.0, 1.0], treated=[1, 0], confounder_bins=[0, 1]
     )
     assert got.has_msm and got.has_pivotality
@@ -57,4 +59,4 @@ def test_pivotality_evidence_passes_through():
 
 def test_non_propensity_estimate_raises():
     with pytest.raises(TypeError, match="propensity"):
-        from_dowhy_estimate(object(), outcomes=[0.0, 1.0], treated=[1, 0])
+        policy_contrast_from_dowhy(object(), outcomes=[0.0, 1.0], treated=[1, 0])
