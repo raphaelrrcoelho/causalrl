@@ -661,3 +661,5 @@ one-call front door over the layers below.
 ::: causalrl.scm.fidelity.certify_fitted_query
 
 ::: causalrl.scm.fidelity.FidelityReport
+
+::: causalrl.data.builder.TrajectoryLogBuilder

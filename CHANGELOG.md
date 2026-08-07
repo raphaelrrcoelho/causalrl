@@ -5,6 +5,130 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`LoggedDecisions` + `FeatureDecisionLog` + `PositivityReport`** (`causalrl.data.logged`,
+  exported top-level) — **the certificate layer no longer speaks only in arm indices.** 3.0 gave the
+  *planning* half of the library richer types (`Intervention`, `FeatureTransition`) and stopped
+  there: `certify_policy` and `conformal_action_value` still took `Sequence[int]`, so an
+  `InterventionalAgent`'s output could not reach the functions the README points it at without
+  round-tripping through an arm codebook. That inverted the headline claim, and it inverted the
+  stated maturity split, since the certificate layer is the half meant for real data.
+  `LoggedDecisions` states what off-policy certification actually needs from a log — outcomes,
+  logging propensities, target matches, target-action propensities — and both certificate functions
+  are now generic in the action type rather than carrying a `Sequence[int] | Sequence[Intervention]`
+  union that would push the representation question out to every call site.
+  `ConfoundedTrajectoryDataset` satisfies it unchanged. `PositivityReport` keeps "checked, no gaps"
+  and "could not check" distinguishable: a tabular log can report the propensity of an action nobody
+  took in a state, a feature-space log cannot, and the second now hedges and forces an infinite
+  test-point bound rather than passing quietly.
+- **`Agent.observe_step`** — the representation-neutral driver hook. `observe_transition` takes
+  state indices, so a driver had to discretise before the agent saw anything and a feature-space
+  agent could not receive a transition at all. The default forwards to `observe_transition`, so
+  every existing agent and driver is unchanged. Also `buffered_transitions()` on both fitted agents
+  (the online buffer was write-only) and `BoundedFittedQIteration.fit(transitions=None)` refitting
+  from it, matching `FittedQIteration`.
+- **`fit_scm_bounded` + `BoundedSCMFit` / `BoundedNodeFit`** (`causalrl.scm.bounded_fit`) — **bound
+  the confounded mechanisms instead of refusing the graph.** `fit_scm` raised on any bidirected
+  edge, which is the one move this library tells everyone else not to make. The split is per node
+  and finer than "the graph is confounded": a mechanism is recoverable by regression on its parents
+  exactly when the noise at that node is independent of them, so what breaks identification is a
+  bidirected edge between a node and its OWN parent — a graph with `A <-> B` where `B` is not a
+  parent of `A` still has every mechanism identified. The rest get `FunctionalManskiBounds`, reused
+  rather than reimplemented, with `value_ranges` required rather than defaulted. Returns
+  `BoundedSCMFit`, not an SCM: a confounded fit has no single mechanism at the bounded nodes, and a
+  type promising point answers would reintroduce the problem.
+- **`CausalGraph.assert_complete_parents(*nodes, reason=...)` + `complete_parents` /
+  `has_complete_parents`** — assert that a node's observed parents are ALL its parents.
+  `PinnedMechanism` asserts a node's *equation*; nothing asserted the *absence of unobserved
+  parents*, which is the part that converts a bound into a point estimate. No observational test
+  supplies it; a design does (randomised assignment, a feature flag, an experimenter's schedule, a
+  rule-based policy). It drops the bidirected edges at those nodes, since a latent common cause of
+  `A` and `Y` IS an unobserved parent of `A`, and declaring both at once now raises. The `reason` is
+  mandatory and travels into the identification certificate as a `checkable=False` assumption, so a
+  claim resting on it never looks like one the graph earned alone.
+- **`localize_mechanism_shift` + `ShiftReport` / `MechanismShift`** (`causalrl.transport.localize`)
+  — **find which mechanisms shifted, instead of being told.** `Regime`, selection diagrams,
+  `identify_transport` and `transported_effect` all took the selection set as an input; nothing
+  helped you find it. The test is exact: the mechanism at `V` is invariant across regimes precisely
+  when `V` is independent of the regime label given `Pa(V)`, so this is the library's own CI test
+  with the regime indicator as one argument, once per node. `ShiftReport.selection` is in the form
+  `identify_transport` consumes, which closes the loop. Certificate is `EMPIRICAL` (failing to
+  reject invariance is not proof of it), every node's p-value is reported rather than only the
+  rejections, and the supplied graph's correctness is recorded as the unfalsifiable assumption it is.
+  Related to Invariant Causal Prediction (Peters, Buhlmann & Meinshausen, JRSS-B 2016); no code ported.
+- **`Anytime` + `AnytimeInterventionSearch` / `SearchReport`** (`causalrl.agents.anytime`) —
+  **`Deadline` is load-bearing.** It shipped in 3.0 as a type nothing consumed: it appeared in
+  `InterventionalAgent`'s signature, whose docstring said a deadline-honouring agent "should keep a
+  usable incumbent answer at all times", and nothing typed that or met it. `Anytime` states the
+  contract; `AnytimeInterventionSearch` implements it, checking the deadline between candidates
+  rather than only between rounds. A search stopped by its budget examined a subset of what it was
+  asked to, so `SearchReport`'s certificate carries a budget-truncated `Hedge` with
+  `downgraded_from="exhaustive-search"` — search completeness reported like identification status,
+  never silently assumed.
+- **`Continuous` / `Discrete` / `InterventionDomain`** (`causalrl.intervention`) — **continuous
+  action domains.** `InterventionSpace.domains` was finite value tuples only, and `assignments()`
+  refused above 100k arms with a docstring diagnosing exactly this: at that size the problem needs
+  a search, not an arm list. `state.py` had already argued the tabular *state* interface was the odd
+  one out because the estimation core never needed a discretisation — which applies verbatim to
+  actions. A dose, a budget, a duration or any other quantity chosen on a scale is now expressible,
+  with `permits` / `project` /
+  `sample` alongside the existing `assignments` (which raises on a continuous domain rather than
+  gridding one). Named `Continuous` not `Interval` (`causalrl.Interval` bounds an estimand) and
+  `InterventionDomain` not `Domain` (`causalrl.Domain` is the transport domain).
+- **`confidence_sequence` + `sequential_policy_comparison` / `ConfidenceSequence` /
+  `SequentialVerdict`** (`causalrl.ope.sequential_test`) — **anytime-valid policy comparison.**
+  Every other claim in `causalrl.ope` is fixed-sample, and a fixed-sample interval is valid at the
+  sample size you declared *before* looking. Nobody works that way, and "stop when it looks
+  decisive" inflates the error rate without limit. A confidence sequence is valid at every sample
+  size simultaneously, so that becomes a legitimate stopping rule. Normal-mixture boundary of
+  Howard, Ramdas, McAuliffe & Sekhon (Annals of Statistics, 2021); formula-level, no code ported.
+  Deliberately not routed through `Certificate.ci`, which means fixed-sample. Honest scope, in the
+  certificate's assumptions: the guarantee is about sampling error under repeated looking, not
+  confounding, and it does not compose with the MSM bounds into one joint guarantee.
+- **`certify_fitted_query` + `FidelityReport`** (`causalrl.scm.fidelity`) — **gate a fitted model's
+  query on its fidelity in that regime.** A fitted SCM answers any `do()` put to it and nothing says
+  whether its mechanism was any good in that part of the world. A fidelity gate, NOT a calibrated
+  counterfactual interval: conformal coverage is for factual predictions drawn exchangeably with a
+  calibration set, and a counterfactual query is not, so a "conformal counterfactual interval" would
+  carry a claim it has not earned. This runs the outcome's own mechanism forward at the observed
+  parent values in the matching rows and compares with the recorded outcomes — no back-door
+  reasoning, so a large error means only that the mechanism does not describe this regime. A regime
+  with no matching rows is flagged separately as extrapolation. The answer is always reported;
+  gating changes what it is claimed to be.
+
+- **`TrajectoryLogBuilder` + `EpisodeWriter`** (`causalrl.data.builder`) — build a `TrajectoryLog`
+  while the producer is still running. `TrajectoryLog` was build-once: `__init__` and `from_rows`
+  want every row up front and `scan` only slices a log that already exists, so a live producer (an
+  online controller, a running experiment, a control loop at some sampling rate) had to accumulate
+  its own list and construct the log only after the run stopped — which meant `stream_policy_value`,
+  written for exactly that streaming shape, could not be fed by one until there was nothing left to
+  stream. Rows land through `push` or through the `episode(...)` context manager that fixes
+  `episode_id` for the block; a log built incrementally is indistinguishable from one built by
+  `from_rows` on the same rows, down to the fingerprint. `freeze()` is a repeatable snapshot rather
+  than a terminal operation, so a producer can take a mid-run certificate without stopping, and an
+  earlier snapshot is never mutated by later pushes.
+
+### Changed
+- **`conditional_mutual_information` is 5-10x faster** and bit-identical (max deviation 1.1e-16 over
+  160 randomised cases, pinned against the textbook definition in the suite). It is the inner loop
+  of PC, FCI and the interventional and invariance variants, so its constant factor decides how
+  large a problem `discover` can take.
+- **The PC/FCI skeleton is now PC-stable** (Colombo & Maathuis, JMLR 2014). The old loop read the
+  live adjacency sets while removing from them, so **the discovered graph could depend on the order
+  the variables arrived in**. Each conditioning-set size now tests against a snapshot taken before
+  any removal at that level. This is a correctness fix, and it can change the graph `discover`
+  returns on data where the old order-dependence was active.
+- **BREAKING (diagnostic):** the conformal positivity hedge's detail key is `"unsupported"` (a list
+  of strings) rather than `"unsupported_state_action_pairs"` (a list of `[state, action]` pairs).
+  The key had to stop naming a tabular representation once the function accepted feature-space logs.
+- `InterventionSpace.values(variable)` raises `TypeError` on a continuous domain instead of
+  returning a value list, and `assignments()` propagates it. New `InterventionSpace.domain(variable)`
+  returns the domain object itself. Raw value tuples still mean `Discrete`, so existing construction
+  is unchanged.
+- `fit_scm`'s refusal on a confounded graph now names `fit_scm_bounded`, which takes that graph.
+
 ## [3.0.0] - 2026-08-07
 
 ### Added

@@ -18,6 +18,7 @@ from causalrl.envs.registration import register_envs as _register_envs
 _register_envs()
 
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "TrajectoryLogBuilder": ("causalrl.data.builder", "TrajectoryLogBuilder"),
     "FidelityReport": ("causalrl.scm.fidelity", "FidelityReport"),
     "certify_fitted_query": ("causalrl.scm.fidelity", "certify_fitted_query"),
     "SequentialVerdict": ("causalrl.ope.sequential_test", "SequentialVerdict"),
@@ -510,6 +511,7 @@ API_TIERS: dict[str, tuple[str, ...]] = {
         "SCMCausalEnv",
         "TabularCPT",
         "TrajectoryLog",
+        "TrajectoryLogBuilder",
         "Transition",
         "abduct_invertible",
         "abduct_location_scale",
@@ -837,6 +839,7 @@ __all__ = [
     "TabularCPT",
     "TabularMDP",
     "TrajectoryLog",
+    "TrajectoryLogBuilder",
     "Transition",
     "TransportBackdoorAgent",
     "TransportFormula",
