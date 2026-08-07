@@ -38,13 +38,28 @@ def identify_effect_certified(
     out = sorted(outcome)
     # raises NotIdentifiableError (witnessing hedge); return_certificate=False avoids the flip warn
     estimand = identify_effect(graph, treat, out, return_certificate=False)
+    # An identification claim that rests on an unfalsifiable assertion must say so: the graph's
+    # complete-parent declarations are not derivable from data, and dropping them silently would
+    # let a certificate look exactly like one earned by the graph alone.
+    declared = graph.complete_parents
+    assumptions = (
+        (
+            Assumption(
+                name="parents-complete-by-design",
+                params=dict(declared),
+                checkable=False,
+            ),
+        )
+        if declared
+        else ()
+    )
     return Certificate(
         claim=f"P({','.join(out)} | do({','.join(treat)})) is identified",
         estimand=EstimandSpec(query="do", target="mean", domains=tuple(out)),
         kind=Kind.IDENTIFIED,
         value=None,
         alpha=None,
-        assumptions=(),
+        assumptions=assumptions,
         method="identify_effect",
         witness=Witness(
             "id-formula", {"formula": estimand.render(), "treatment": treat, "outcome": out}
