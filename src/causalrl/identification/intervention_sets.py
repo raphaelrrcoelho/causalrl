@@ -25,6 +25,7 @@ Algorithms:
 from collections.abc import Iterable
 
 from causalrl.identification.id_algorithm import is_identifiable_effect
+from causalrl.intervention import Intervention, InterventionSpace, canonical
 from causalrl.scm.graph import CausalGraph
 
 
@@ -137,6 +138,87 @@ def minimal_intervention_sets(
         return result
     allowed = set(manipulable)
     return [s for s in result if s <= allowed]
+
+
+class AdmissibleInterventions:
+    """POMIS for a graph, recomputed for the variables each context actually permits.
+
+    :func:`pomis` answers "where could it be optimal to intervene" once, at design time. A live
+    agent needs the same answer per decision, because feasibility moves with the state: a lever
+    can be unavailable this step and available the next. This holds the graph fixed and takes the
+    manipulable set as the varying input.
+
+    **Restricting the manipulable set is not a filter of the unconstrained POMIS.** It is the
+    unconstrained POMIS of the *latent projection* onto the manipulable variables (Lee &
+    Bareinboim, AAAI 2019, Theorem 4 — the r40 result :func:`pomis` already implements). Projecting
+    away a variable turns paths through it into bidirected edges, which can change the territory
+    and border and so *introduce* possibly-optimal sets that the unconstrained enumeration never
+    listed. Dropping the sets that mention an infeasible variable would therefore lose optimality,
+    not merely prune; that is why :meth:`sets` re-enters :func:`pomis` rather than filtering a
+    cached list.
+
+    Because re-entering is not free and the manipulable set usually changes rarely, results are
+    memoised on it. ``cache_size`` bounds the memo; the oldest entry is evicted when it is
+    exceeded, which suits the common pattern of a feasible set that oscillates among a handful of
+    configurations.
+    """
+
+    def __init__(self, graph: CausalGraph, reward: str, *, cache_size: int = 32) -> None:
+        if reward not in graph.nodes:
+            raise ValueError(f"reward {reward!r} is not a node of the graph")
+        if cache_size < 1:
+            raise ValueError(
+                f"cache_size={cache_size} must be at least 1: the memo holds the result for the "
+                "manipulable set most recently asked about, and a zero-size cache would recompute "
+                "POMIS on every call while still paying for the bookkeeping."
+            )
+        self._graph = graph
+        self._reward = reward
+        self._cache_size = cache_size
+        self._memo: dict[frozenset[str], list[frozenset[str]]] = {}
+
+    @property
+    def reward(self) -> str:
+        """The reward variable these intervention sets target."""
+        return self._reward
+
+    def sets(self, manipulable: Iterable[str]) -> list[frozenset[str]]:
+        """The POMISs available when exactly ``manipulable`` may be intervened on.
+
+        The reward itself is never manipulable and is ignored if present, matching :func:`pomis`.
+        """
+        key = frozenset(manipulable) - {self._reward}
+        cached = self._memo.get(key)
+        if cached is not None:
+            return [frozenset(s) for s in cached]
+        result = pomis(self._graph, self._reward, manipulable=key)
+        if len(self._memo) >= self._cache_size:
+            del self._memo[next(iter(self._memo))]  # dicts preserve insertion order: oldest first
+        self._memo[key] = result
+        return [frozenset(s) for s in result]
+
+    def arms(self, space: InterventionSpace) -> list[Intervention]:
+        """Every admissible intervention worth considering in ``space``, deduplicated.
+
+        The two halves of the decision, composed: :meth:`sets` says which variables could be worth
+        setting given what ``space`` permits, and
+        :meth:`~causalrl.intervention.InterventionSpace.assignments` turns each of those sets into
+        the concrete assignments an agent chooses between. The observational regime appears as the
+        empty intervention whenever the empty set is possibly optimal.
+
+        Order is deterministic — sets in :func:`pomis`'s canonical order (by size, then name), and
+        assignments in the order the space enumerates them — so a tie broken by position is stable
+        across runs rather than dependent on set iteration order.
+        """
+        seen: set[tuple[tuple[str, object], ...]] = set()
+        out: list[Intervention] = []
+        for variables in self.sets(space.variables):
+            for assignment in space.assignments(variables):
+                key = canonical(assignment)
+                if key not in seen:
+                    seen.add(key)
+                    out.append(assignment)
+        return out
 
 
 def requires_experiment(graph: CausalGraph, treatment: Iterable[str], outcome: str) -> bool:

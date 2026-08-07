@@ -18,7 +18,14 @@ from causalrl.scm.graph import CausalGraph  # torch-free; safe to import eagerly
 if TYPE_CHECKING:  # for type checkers / IDEs only; not executed at runtime
     from causalrl.scm.continuous.bayesian_fit import BayesianLinearFit
     from causalrl.scm.fit import FitReport, NodeFit, fit_scm, fit_scm_mec
-    from causalrl.scm.fitters import ANMFit, LinearGaussianFit, NeuralFit, PoissonGLMFit, TabularCPT
+    from causalrl.scm.fitters import (
+        ANMFit,
+        LinearGaussianFit,
+        NeuralFit,
+        PinnedMechanism,
+        PoissonGLMFit,
+        TabularCPT,
+    )
     from causalrl.scm.mechanisms import (
         FunctionalMechanism,
         LinearGaussianMechanism,
@@ -42,6 +49,7 @@ _LAZY: dict[str, tuple[str, str]] = {
     "BayesianLinearFit": ("causalrl.scm.continuous.bayesian_fit", "BayesianLinearFit"),
     "LinearGaussianFit": ("causalrl.scm.fitters", "LinearGaussianFit"),
     "NeuralFit": ("causalrl.scm.fitters", "NeuralFit"),
+    "PinnedMechanism": ("causalrl.scm.fitters", "PinnedMechanism"),
     "PoissonGLMFit": ("causalrl.scm.fitters", "PoissonGLMFit"),
     "TabularCPT": ("causalrl.scm.fitters", "TabularCPT"),
     "FunctionalMechanism": ("causalrl.scm.mechanisms", "FunctionalMechanism"),
@@ -68,6 +76,7 @@ __all__ = [
     "NeuralFit",
     "NeuralMechanism",
     "NodeFit",
+    "PinnedMechanism",
     "PoissonGLMFit",
     "StructuralCausalModel",
     "TabularCPT",
