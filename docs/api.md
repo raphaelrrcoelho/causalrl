@@ -487,6 +487,8 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.agents.bandits.NaiveThompsonSampling
 
+::: causalrl.agents.online_causal_mbrl.OnlineCausalMBRL
+
 ::: causalrl.agents.baselines.OnlineOnlyUCB
 
 ::: causalrl.magames.PopulationAgentView

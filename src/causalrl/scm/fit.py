@@ -271,6 +271,23 @@ def fit_scm_mec(
             f"orient() (or supply interventional data) before fitting."
         )
     members = _enumerate_mec(cpdag)
+    if not members:
+        # No orientation of the undirected edges is acyclic, so the CPDAG's *directed* edges
+        # already contain a cycle and no DAG is consistent with it. Returning [] here would hand
+        # back an empty belief that reads exactly like "not fitted yet" -- a caller's next query
+        # then fails with a misleading message about calling this function, when the real fault is
+        # an inconsistent graph. This function already refuses to truncate a class it cannot
+        # enumerate; refusing an empty one is the same principle.
+        raise NotIdentifiableError(
+            f"no DAG is consistent with this CPDAG, so its equivalence class is empty: the "
+            f"directed edges {sorted(cpdag.directed_edges)} admit no acyclic orientation of the "
+            f"{undirected_count} undirected one(s). A cyclic directed set usually means the "
+            f"orientations came from separate sources that were not reconciled -- "
+            f"discover_interventional orients the edges incident to each intervention target "
+            f"independently, so two or more targets can disagree. Reconcile them (or drop a "
+            f"target) before fitting.",
+            witness=sorted(cpdag.directed_edges),
+        )
     if len(members) > max_members:
         raise ValueError(
             f"equivalence class has {len(members)} members, above max_members={max_members}; "
