@@ -12,6 +12,8 @@
 
 ::: causalrl.identification.intervention_sets.requires_experiment
 
+::: causalrl.identification.intervention_sets.AdmissibleInterventions
+
 ## Structural Causal Models
 
 ::: causalrl.scm.scm.StructuralCausalModel
@@ -261,3 +263,325 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 ::: causalrl.scale.d3rlpy.certify_fqe
 
 ::: causalrl.scale.d3rlpy.policy_actions
+
+## Set-Valued Interventions
+
+::: causalrl.intervention.InterventionSpace
+
+::: causalrl.intervention.canonical
+
+::: causalrl.agents.interventional.InterventionalAgent
+
+::: causalrl.agents.interventional.ScalarAgentAdapter
+
+::: causalrl.deadline.Deadline
+
+## Known Mechanisms
+
+::: causalrl.scm.fitters.PinnedMechanism
+
+## Continuous States
+
+::: causalrl.state.StateEncoder
+
+::: causalrl.state.OneHotEncoder
+
+::: causalrl.state.IdentityEncoder
+
+::: causalrl.state.RBFEncoder
+
+::: causalrl.state.FeatureTransition
+
+::: causalrl.state.encode_batch
+
+::: causalrl.agents.fitted.FittedQIteration
+
+## Function-Valued Causal Bounds
+
+::: causalrl.bounds.functional.FunctionalManskiBounds
+
+::: causalrl.bounds.functional.OverlapDiagnostic
+
+::: causalrl.agents.bounded_fitted.BoundedFittedQIteration
+
+
+<!-- The sections below complete the reference: every name in `causalrl.__all__` has an
+     entry, grouped by `causalrl.API_TIERS`. `test_every_export_appears_in_the_api_reference`
+     fails if a new export is added without one. -->
+
+
+## Core — Complete Reference
+
+::: causalrl.agents.causal_mbrl.CausalMBRLAgent
+
+::: causalrl.agents.bandits.CausalThompsonSampling
+
+::: causalrl.scm.fit.fit_scm
+
+
+## Identification, Transport & Discovery — Complete Reference
+
+::: causalrl.identification.counterfactual_bounds.CounterfactualBound
+
+::: causalrl.identification.bounds.Interval
+
+::: causalrl.identification.bounds.PivotalityCertificate
+
+::: causalrl.identification.estimate.PolicyValueContrast
+
+::: causalrl.identification.transport.TransportFormula
+
+::: causalrl.identification.transport_regret.TransportRegretCertificate
+
+::: causalrl.identification.criteria.backdoor_adjustment_set
+
+::: causalrl.identification.decision.certify_estimate
+
+::: causalrl.transport.estimate.certify_sequential_transport
+
+::: causalrl.identification.bounds.confounding_bias_per_step_bounds
+
+::: causalrl.identification.counterfactual_bounds.counterfactual_interval
+
+::: causalrl.identification.transport_regret.decision_abstain_mask
+
+::: causalrl.identification.transport_regret.decision_flip_rate
+
+::: causalrl.identification.criteria.is_identifiable
+
+::: causalrl.discovery.orient
+
+::: causalrl.identification.transport_regret.transport_regret_certificate
+
+
+## Structural Models & Data — Complete Reference
+
+::: causalrl.scm.fitters.ANMFit
+
+::: causalrl.scm.continuous.abduction.AmortizedGaussianAbduction
+
+::: causalrl.scm.continuous.bayesian_fit.BayesianLinearFit
+
+::: causalrl.protocols.CausalEnvProtocol
+
+::: causalrl.scm.continuous.mechanisms.ConditionalFlowMechanism
+
+::: causalrl.data.dataset.ConfoundedTrajectoryDataset
+
+::: causalrl.protocols.DictNoiseLedger
+
+::: causalrl.scm.scm.ExogenousPosterior
+
+::: causalrl.scm.fit.FitReport
+
+::: causalrl.scm.mechanisms.FunctionalMechanism
+
+::: causalrl.scm.fitters.LinearGaussianFit
+
+::: causalrl.scm.mechanisms.LinearGaussianMechanism
+
+::: causalrl.scm.continuous.mechanisms.LocationScaleMechanism
+
+::: causalrl.scm.continuous.mechanisms.MLPMechanism
+
+::: causalrl.scm.mechanisms.Mechanism
+
+::: causalrl.scm.continuous.nuts.NUTSNoisePosterior
+
+::: causalrl.scm.fitters.NeuralFit
+
+::: causalrl.scm.mechanisms.NeuralMechanism
+
+::: causalrl.scm.fit.NodeFit
+
+::: causalrl.protocols.NoiseLedger
+
+::: causalrl.protocols.NoisePosterior
+
+::: causalrl.scm.fitters.PoissonGLMFit
+
+::: causalrl.regime.Regime
+
+::: causalrl.protocols.SCMCausalEnv
+
+::: causalrl.scm.fitters.TabularCPT
+
+::: causalrl.data.trajectory.TrajectoryLog
+
+::: causalrl.data.dataset.Transition
+
+::: causalrl.scm.continuous.abduction.abduct_invertible
+
+::: causalrl.scm.continuous.abduction.abduct_location_scale
+
+::: causalrl.scm.continuous.nuts.abduct_nuts
+
+::: causalrl.scm.unrolled.build_unrolled_scm
+
+::: causalrl.conformal.core.certify_conformal_interval
+
+::: causalrl.scm.continuous.abduction.certify_counterfactual
+
+::: causalrl.scm.continuous.nuts.certify_nuts_counterfactual
+
+::: causalrl.conformal.core.conformal_quantile
+
+::: causalrl.conformal.core.cqr_interval
+
+::: causalrl.scm.fit.fit_scm_mec
+
+::: causalrl.data.dataset.generate_logs
+
+::: causalrl.conformal.core.split_conformal_interval
+
+
+## Agents, Environments & Interventions — Complete Reference
+
+::: causalrl.agents.base.Agent
+
+::: causalrl.magames.AgentType
+
+::: causalrl.agents.mbrl.BackdoorAdjustedAgent
+
+::: causalrl.agents.scbandit.BruteForceInterventionTS
+
+::: causalrl.magames.CCEPolytope
+
+::: causalrl.envs.base.CausalEnv
+
+::: causalrl.agents.mbrl.CertifiedPolicyAgent
+
+::: causalrl.envs.suite.confounded_context.ConfoundedContextualBandit
+
+::: causalrl.envs.suite.gridworld.ConfoundedGridworld
+
+::: causalrl.envs.base.ConfoundedMDP
+
+::: causalrl.envs.suite.continuous_confounded.ContinuousConfoundedBandit
+
+::: causalrl.envs.suite.counterfactual_bandit.CounterfactualBanditEnv
+
+::: causalrl.envs.suite.dtr.DTREnv
+
+::: causalrl.agents.deep_deconfounded.DeepDeconfoundedQ
+
+::: causalrl.agents.mbrl.DiscoveryBackdoorAgent
+
+::: causalrl.agents.scbandit.FixedSetThompsonSampling
+
+::: causalrl.agents.mbrl.FunctionApproxBackdoorAgent
+
+::: causalrl.agents.mbrl.GFormulaBackdoorAgent
+
+::: causalrl.intervention.Intervention
+
+::: causalrl.magames.KindNotLicensedError
+
+::: causalrl.magames.LearnerTopology
+
+::: causalrl.envs.suite.mabuc.MABUCEnv
+
+::: causalrl.agents.baselines.NaiveOffline
+
+::: causalrl.agents.scbandit.NaivePOMISThompsonSampling
+
+::: causalrl.agents.bandits.NaiveThompsonSampling
+
+::: causalrl.agents.baselines.OnlineOnlyUCB
+
+::: causalrl.magames.PopulationAgentView
+
+::: causalrl.envs.suite.seq_dtr.SequentialDTREnv
+
+::: causalrl.envs.suite.seq_mabuc.SequentialMABUCEnv
+
+::: causalrl.envs.suite.simpson_bandit.SimpsonBandit
+
+::: causalrl.envs.suite.scbandit.StructuralCausalBanditEnv
+
+::: causalrl.agents.mbrl.TransportBackdoorAgent
+
+::: causalrl.envs.suite.transport_bandit.TransportableConfoundedBandit
+
+::: causalrl.agents.offline_online.UCDTR
+
+::: causalrl.magames.cce_bounds
+
+::: causalrl.magames.cce_polytope
+
+::: causalrl.magames.cce_regret
+
+::: causalrl.magames.certify_cce_do
+
+::: causalrl.magames.topology_max_kind
+
+
+## Estimation, Bounds & Certificates — Complete Reference
+
+::: causalrl.certify.Assumption
+
+::: causalrl.estimate.estimators.EffectEstimate
+
+::: causalrl.certify.EstimandSpec
+
+::: causalrl.certify.Hedge
+
+::: causalrl.certify.Kind
+
+::: causalrl.certify.Provenance
+
+::: causalrl.estimate.sequential.SequentialValueEstimate
+
+::: causalrl.certify.Witness
+
+::: causalrl.bounds.continuous.certify_quantile
+
+::: causalrl.bounds.continuous.certify_sensitivity_bounds
+
+::: causalrl.estimate.sequential.certify_sequential_value
+
+::: causalrl.eval.metrics.cumulative_regret
+
+::: causalrl.estimate.estimators.estimate_ate
+
+::: causalrl.estimate.sequential.estimate_sequential_value
+
+::: causalrl.eval.metrics.finite_horizon_regret
+
+::: causalrl.certify.identify_effect_certified
+
+::: causalrl.certify.ipw_sensitivity_bounds_certified
+
+::: causalrl.eval.ope.ipw_value
+
+::: causalrl.bounds.continuous.moment_diagnostic
+
+::: causalrl.certify.msm_policy_value_bounds_certified
+
+::: causalrl.eval.benchmark.report_to_dict
+
+::: causalrl.eval.harness.run_episodes
+
+::: causalrl.eval.mbrl_probe.run_m0_kill_gate
+
+::: causalrl.eval.mbrl_probe.run_m1_discovery_gate
+
+::: causalrl.eval.mbrl_probe.run_m1b_dtr_gate
+
+::: causalrl.eval.mbrl_probe.run_m2_phase_diagram
+
+::: causalrl.eval.mbrl_probe.run_m3_function_approx_gate
+
+::: causalrl.estimate.sequential.sequential_ice_values
+
+
+## Interop, Scale & Errors — Complete Reference
+
+::: causalrl.interop.sbi_numpyro.PosteriorRegimeSampler
+
+::: causalrl.interop.columnar_sim.check_conformance
+
+::: causalrl.interop.causal_gym.from_causal_gym
+
+::: causalrl.interop.pettingzoo.pettingzoo_to_trajectory_log
+

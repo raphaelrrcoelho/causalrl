@@ -3,7 +3,7 @@ from typing import Any
 
 import numpy as np
 
-from causalrl.agents.base import Agent
+from causalrl.agents.base import Agent, BatchAgent
 from causalrl.data.dataset import ConfoundedTrajectoryDataset
 
 
@@ -37,7 +37,7 @@ class OnlineOnlyUCB(Agent):
         self._t += 1
 
 
-class NaiveOffline(Agent):
+class NaiveOffline(BatchAgent):
     """Fits E[R|s,a] from the logs as if unconfounded and acts greedily. Provably biased
     under confounding — the cautionary baseline."""
 
@@ -54,6 +54,3 @@ class NaiveOffline(Agent):
     def act(self, observation: dict[str, Any]) -> int:
         s = int(observation["state"])
         return int(np.argmax(np.asarray(self._mean[s], dtype=np.float64)))
-
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Naive-offline does not learn online (fixed policy from the logs)."""
