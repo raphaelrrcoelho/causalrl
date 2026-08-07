@@ -38,6 +38,29 @@ class Agent(ABC):
         """
         pass
 
+    def observe_step(
+        self,
+        observation: dict[str, Any],
+        action: int,
+        reward: float,
+        next_observation: dict[str, Any],
+        done: bool,
+    ) -> None:
+        """Observe one transition in the environment's own observation space.
+
+        This is the hook a *driver* should call. :meth:`observe_transition` takes state indices,
+        which forces whoever drives the loop to discretise before the agent sees anything -- and an
+        agent whose states are feature vectors then has no way to receive the transition at all.
+        Here the agent is handed the raw observations and decides for itself how to represent them.
+
+        The default is the tabular reading, so every existing agent and driver keeps its exact
+        behaviour: pull ``observation["state"]`` from each endpoint and forward to
+        :meth:`observe_transition`. A feature-space agent overrides this to encode instead.
+        """
+        self.observe_transition(
+            int(observation["state"]), action, int(next_observation["state"]), done
+        )
+
 
 class BatchAgent(Agent):
     """An agent whose policy comes from a batch step, not from per-reward updates.

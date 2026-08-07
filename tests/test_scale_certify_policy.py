@@ -37,7 +37,7 @@ def test_certify_policy_indifferent_when_policy_mimics_behavior():
 
 def test_length_mismatch_raises():
     ds = _uniform_bandit_dataset()
-    with pytest.raises(ValueError, match="one action per logged transition"):
+    with pytest.raises(ValueError, match="one for one"):
         certify_policy(ds, [1, 0])
 
 

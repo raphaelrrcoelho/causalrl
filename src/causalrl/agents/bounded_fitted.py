@@ -108,6 +108,7 @@ class BoundedFittedQIteration(BatchAgent):
             else FunctionalManskiBounds(n_actions, reward_range=self.reward_range)
         )
         self._make_regressor = regressor if regressor is not None else RidgeRegressor
+        self._buffer: list[FeatureTransition] = []
         self._lower_cont: dict[tuple[int, int], Regressor] = {}
         self._upper_cont: dict[tuple[int, int], Regressor] = {}
         self._fitted = False
@@ -126,8 +127,15 @@ class BoundedFittedQIteration(BatchAgent):
         """
         return self.horizon <= 1 or self.transition_assumption == "unconfounded"
 
-    def fit(self, transitions: Sequence[FeatureTransition]) -> BoundedFittedQIteration:
-        """Fit the reward bounds and propagate the envelope back from the horizon."""
+    def fit(
+        self, transitions: Sequence[FeatureTransition] | None = None
+    ) -> BoundedFittedQIteration:
+        """Fit the reward bounds and propagate the envelope back from the horizon.
+
+        Passing ``transitions`` replaces the observed buffer, matching
+        :meth:`causalrl.FittedQIteration.fit`; omitting it refits from whatever
+        :meth:`observe_step` has accumulated.
+        """
         if not self.is_certified and not self.allow_heuristic:
             raise UnverifiedAssumptionError(
                 "multi-step envelope propagation requires transition_assumption='unconfounded': "
@@ -136,7 +144,14 @@ class BoundedFittedQIteration(BatchAgent):
                 "propagated interval bounds nothing. Set allow_heuristic=True to run it anyway as "
                 "value propagation (the certificate then reports EMPIRICAL, not BOUNDED)."
             )
-        batch = unpack_transitions(transitions, encoder=self.encoder, n_actions=self.n_actions)
+        if transitions is not None:
+            self._buffer = list(transitions)
+        if not self._buffer:
+            raise ValueError(
+                "BoundedFittedQIteration.fit needs transitions: pass them explicitly or feed "
+                "them in through observe_step first. There is no envelope over an empty log."
+            )
+        batch = unpack_transitions(self._buffer, encoder=self.encoder, n_actions=self.n_actions)
         states, next_states = batch.states, batch.next_states
         actions, rewards, not_done = batch.actions, batch.rewards, batch.not_done
 
@@ -146,8 +161,8 @@ class BoundedFittedQIteration(BatchAgent):
         self._lower_cont = {}
         self._upper_cont = {}
         # Continuation value of the step above, evaluated at each row's successor. Zero at H+1.
-        lower_at_successor = np.zeros(len(transitions))
-        upper_at_successor = np.zeros(len(transitions))
+        lower_at_successor = np.zeros(len(self._buffer))
+        upper_at_successor = np.zeros(len(self._buffer))
         for step in range(self.horizon, 0, -1):
             lower_target = not_done * lower_at_successor
             upper_target = not_done * upper_at_successor
@@ -240,6 +255,39 @@ class BoundedFittedQIteration(BatchAgent):
             "hook cannot express a continuous state. Encode both endpoints and pass "
             "FeatureTransition objects to fit()."
         )
+
+    def observe_step(
+        self,
+        observation: dict[str, Any],
+        action: int,
+        reward: float,
+        next_observation: dict[str, Any],
+        done: bool,
+    ) -> None:
+        """Encode both endpoints and buffer the transition.
+
+        See :meth:`causalrl.FittedQIteration.observe_step`.
+        """
+        self._buffer.append(
+            FeatureTransition(
+                state=self.encoder.encode(observation),
+                action=action,
+                reward=float(reward),
+                next_state=self.encoder.encode(next_observation),
+                done=done,
+            )
+        )
+        self._fitted = False
+
+    def buffered_transitions(self) -> tuple[FeatureTransition, ...]:
+        """The transitions observed so far and not yet discarded by a ``fit(transitions=...)``.
+
+        The online buffer is otherwise write-only: a caller driving this agent through
+        :meth:`observe_step` had no way to see what it had actually collected, which makes
+        "did my driver wire the hook up correctly" unanswerable without reaching into a private
+        attribute.
+        """
+        return tuple(self._buffer)
 
     def _require_fit(self) -> None:
         if not self._fitted:

@@ -12,18 +12,21 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from typing import TypeVar
 
 from causalrl.conformal.core import conformal_action_value
-from causalrl.data.dataset import ConfoundedTrajectoryDataset
+from causalrl.data.logged import LoggedDecisions
 from causalrl.identification.decision import DecisionCertificate, certify_estimate
 from causalrl.identification.estimate import PolicyValueContrast
 
 __all__ = ["certify_policy"]
 
+ActionT = TypeVar("ActionT")
+
 
 def certify_policy(
-    dataset: ConfoundedTrajectoryDataset,
-    target_actions: Sequence[int],
+    dataset: LoggedDecisions[ActionT],
+    target_actions: Sequence[ActionT],
     *,
     gamma_max: float = 10.0,
     alpha: float | None = None,
@@ -32,8 +35,17 @@ def certify_policy(
     to hidden confounding.
 
     ``target_actions[i]`` is the action the learned policy would take at the ``i``-th logged
-    transition's state (e.g. from a d3rlpy policy's greedy prediction, using the same observation
-    encoding it was trained on). The contrast is the off-policy value ``V(pi) - V(behaviour)`` under
+    decision's state (e.g. from a d3rlpy policy's greedy prediction, using the same observation
+    encoding it was trained on). ``dataset`` is any
+    :class:`~causalrl.data.logged.LoggedDecisions`: the tabular
+    :class:`~causalrl.ConfoundedTrajectoryDataset` whose actions are arm indices, or a
+    :class:`~causalrl.data.logged.FeatureDecisionLog` whose states are feature vectors and whose
+    actions are :data:`~causalrl.Intervention` assignments -- so an
+    :class:`~causalrl.agents.interventional.InterventionalAgent` can be certified directly, with no
+    arm codebook in between. The action type is inferred from the log, so a mismatched pair is a
+    type error rather than a silent miscount.
+
+    The contrast is the off-policy value ``V(pi) - V(behaviour)`` under
     Tan's marginal sensitivity model: the nominal logging propensities are the dataset's empirical
     ``behavior_propensity``, ``pi``'s per-unit target probability is ``1`` where it matches the
     logged action (greedy), and the behaviour arm's target probability is the logging propensity, so
@@ -53,15 +65,9 @@ def certify_policy(
     one-step / terminal-return contrast; the per-step cumulative-reward extension uses
     :func:`causalrl.msm_per_step_bounds`.
     """
-    transitions = dataset.transitions
-    if len(target_actions) != len(transitions):
-        raise ValueError("target_actions must have one action per logged transition")
-    outcomes = [tr.reward for tr in transitions]
-    e0 = [dataset.behavior_propensity(tr.state, tr.action) for tr in transitions]
-    target_on = [
-        1.0 if int(a) == tr.action else 0.0
-        for a, tr in zip(target_actions, transitions, strict=True)
-    ]
+    outcomes = list(dataset.outcomes())
+    e0 = list(dataset.logging_propensities())
+    target_on = [1.0 if m else 0.0 for m in dataset.matches(target_actions)]
     contrast = PolicyValueContrast(
         outcomes=outcomes,
         logging_propensities=e0,

@@ -24,6 +24,7 @@ Formula-level implementations of the cited methods; no third-party code is porte
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TypeVar
 
 import numpy as np
 
@@ -35,8 +36,10 @@ from causalrl.certify.certificate import (
     Kind,
     Provenance,
 )
-from causalrl.data.dataset import ConfoundedTrajectoryDataset
+from causalrl.data.logged import LoggedDecisions, PositivityReport
 from causalrl.identification.bounds import Interval
+
+ActionT = TypeVar("ActionT")
 
 __all__ = [
     "certify_conformal_interval",
@@ -194,37 +197,37 @@ def _return_band(
 
 
 def _propensity_ratios(
-    dataset: ConfoundedTrajectoryDataset, target_actions: Sequence[int]
-) -> tuple[list[float], float, list[tuple[int, int]]]:
-    """Per-transition ``pi_target(a|s) / pi_behavior(a|s)``, the test-point bound, and the gaps.
+    log: LoggedDecisions[ActionT], target_actions: Sequence[ActionT]
+) -> tuple[list[float], float, PositivityReport]:
+    """Per-decision ``pi_target(a|s) / pi_behavior(a|s)``, the test-point bound, and positivity.
 
-    The target policy is deterministic (one action per logged transition), so its probability at
-    the logged action is the match indicator and the ratio is ``1[a_i = pi(s_i)] / e0(a_i | s_i)``;
-    ``e0`` is the dataset's empirical behaviour propensity, which is positive at every logged
-    transition. The test point's own ratio is unknown (it depends on the fresh state) and is
-    therefore bounded by the largest ratio the policy can produce on the logged state marginal —
-    conservative, so the band only ever widens. The third element lists the ``(state, action)``
-    pairs the policy reaches that the logs never played: positivity failures, for which that bound
-    is infinite and the band vacuous.
+    The target policy is deterministic (one action per logged decision), so its probability at the
+    logged action is the match indicator and the ratio is ``1[a_i = pi(s_i)] / e0(a_i | s_i)``;
+    ``e0`` is the log's behaviour propensity for the action it actually recorded, which is positive
+    at every logged decision. The test point's own ratio is unknown (it depends on the fresh state)
+    and is therefore bounded by the largest ratio the policy can produce on the logged state
+    marginal -- conservative, so the band only ever widens.
+
+    That bound needs ``e0`` at the action the *target* policy takes, which a log may be unable to
+    supply (see :meth:`~causalrl.data.logged.LoggedDecisions.target_propensities`). When it cannot,
+    the bound is infinite: an unknown likelihood ratio is not a small one, and pretending otherwise
+    would be the one way this band could under-cover.
     """
-    transitions = dataset.transitions
-    if len(target_actions) != len(transitions):
-        raise ValueError("target_actions must have one action per logged transition")
-    pairs = [(tr.state, int(a)) for a, tr in zip(target_actions, transitions, strict=True)]
-    weights = [
-        1.0 / dataset.behavior_propensity(tr.state, tr.action) if a == tr.action else 0.0
-        for (_s, a), tr in zip(pairs, transitions, strict=True)
-    ]
-    reached = {(s, a): dataset.behavior_propensity(s, a) for s, a in pairs}
-    unsupported = sorted(pair for pair, e0 in reached.items() if e0 <= 0.0)
-    supported = [1.0 / e0 for e0 in reached.values() if e0 > 0.0]
-    test_weight = max(supported) if not unsupported and supported else float("inf")
-    return weights, test_weight, unsupported
+    e0 = list(log.logging_propensities())
+    matched = log.matches(target_actions)
+    weights = [1.0 / p if m and p > 0.0 else 0.0 for m, p in zip(matched, e0, strict=True)]
+    report = log.positivity(target_actions)
+    reachable = log.target_propensities(target_actions)
+    if reachable is None:
+        return weights, float("inf"), report
+    supported = [1.0 / e for e in reachable if e > 0.0]
+    test_weight = max(supported) if supported and not report.violated else float("inf")
+    return weights, test_weight, report
 
 
 def conformal_action_value(
-    dataset: ConfoundedTrajectoryDataset,
-    target_actions: Sequence[int] | None = None,
+    dataset: LoggedDecisions[ActionT],
+    target_actions: Sequence[ActionT] | None = None,
     *,
     alpha: float = 0.1,
 ) -> Certificate:
@@ -232,8 +235,8 @@ def conformal_action_value(
 
     The off-policy caller of the weighted path. At logged transition ``i`` the likelihood ratio
     ``dP_target/dP_behavior`` is ``pi_target(a_i | s_i) / pi_behavior(a_i | s_i)``, computed here
-    from the dataset's empirical :meth:`~causalrl.ConfoundedTrajectoryDataset.behavior_propensity`
-    and ``target_actions[i]`` — the action the policy takes at that transition's state, one per
+    from the log's :meth:`~causalrl.data.logged.LoggedDecisions.logging_propensities` and
+    ``target_actions[i]`` — the action the policy takes at that transition's state, one per
     logged transition, exactly the argument :func:`causalrl.certify_policy` takes. Passing
     ``target_actions=None`` scores the logging policy itself, whose logged returns need no
     reweighting; that is the reference the lower-bound gate compares against.
@@ -247,19 +250,20 @@ def conformal_action_value(
 
     Valid under (i) weighted exchangeability of the logged returns; (ii) no unmeasured confounding
     of the logged action, without which the ratio above is not ``dP_target/dP_behavior``; and
-    (iii) positivity — every ``(state, action)`` the policy reaches must have been played by the
-    logs, else the band is vacuous and carries a positivity :class:`~causalrl.certify.Hedge`. The
+    (iii) positivity — every action the policy reaches must have been played by the logs in that
+    state, else the band is vacuous and carries a positivity :class:`~causalrl.certify.Hedge`; a
+    log that cannot check this carries the hedge too, rather than passing quietly. The
     state distribution is taken to be unchanged by the policy: the one-step / terminal-return
     regime :func:`causalrl.certify_policy` documents.
     """
     if not 0.0 < alpha < 1.0:
         raise ValueError("alpha must be in (0, 1)")
-    returns = [tr.reward for tr in dataset.transitions]
+    returns = list(dataset.outcomes())
     weights: list[float] | None = None
     test_weight: float | None = None
-    unsupported: list[tuple[int, int]] = []
+    report = PositivityReport(checkable=True)
     if target_actions is not None:
-        weights, test_weight, unsupported = _propensity_ratios(dataset, target_actions)
+        weights, test_weight, report = _propensity_ratios(dataset, target_actions)
     band = _return_band(returns, alpha, weights=weights, test_weight=test_weight)
 
     w = np.ones(len(returns)) if weights is None else np.asarray(weights, dtype=np.float64)
@@ -279,14 +283,23 @@ def conformal_action_value(
             Assumption(
                 name="positivity",
                 params={"max_propensity_ratio": test_weight},
-                checkable=True,
-                diagnostic={"unsupported_pairs": [list(pair) for pair in unsupported]},
+                checkable=report.checkable,
+                diagnostic={"unsupported": list(report.gaps)},
             )
         )
-        if unsupported:
+        if not report.checkable:
+            hedge = Hedge(
+                reason=(
+                    "positivity could not be checked: this log cannot report the behaviour "
+                    "propensity of an action it never recorded, so the test-point ratio is "
+                    "bounded by infinity rather than verified and the band is vacuous"
+                ),
+                detail={},
+            )
+        elif report.violated:
             hedge = Hedge(
                 reason="positivity: the target policy takes actions the logs never played there",
-                detail={"unsupported_state_action_pairs": [list(pair) for pair in unsupported]},
+                detail={"unsupported": list(report.gaps)},
             )
     label = "behavior" if target_actions is None else "target"
     return Certificate(

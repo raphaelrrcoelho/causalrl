@@ -6,8 +6,10 @@ from causalrl.agents.base import Agent
 def run_episodes(agent: Agent, env: Any, n_episodes: int, seed: int) -> list[float]:
     """Run an agent on a finite-horizon env for n_episodes, returning per-episode returns.
 
-    The agent acts each step, is updated with the step reward, and is shown the transition
-    via ``observe_transition``; the per-episode return is the sum of step rewards
+    The agent acts each step, is updated with the step reward, and is shown the transition via
+    ``observe_step`` -- the representation-neutral hook, so an agent whose states are feature
+    vectors can be driven by this harness too; the tabular default forwards to
+    ``observe_transition`` unchanged. The per-episode return is the sum of step rewards
     (terminal-reward envs put it all on the last step).
     """
     returns: list[float] = []
@@ -22,7 +24,7 @@ def run_episodes(agent: Agent, env: Any, n_episodes: int, seed: int) -> list[flo
             next_obs, reward, terminated, truncated, _info = env.step(action)
             done = bool(terminated or truncated)
             agent.update(obs, action, float(reward))
-            agent.observe_transition(int(obs["state"]), action, int(next_obs["state"]), done)
+            agent.observe_step(obs, action, float(reward), next_obs, done)
             obs = next_obs
             ep_return += float(reward)
         returns.append(ep_return)

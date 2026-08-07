@@ -119,6 +119,16 @@ class FittedQIteration(BatchAgent):
         self._buffer.append(transition)
         self._fitted = False
 
+    def buffered_transitions(self) -> tuple[FeatureTransition, ...]:
+        """The transitions observed so far and not yet discarded by a ``fit(transitions=...)``.
+
+        The online buffer is otherwise write-only: a caller driving this agent through
+        :meth:`observe_step` had no way to see what it had actually collected, which makes
+        "did my driver wire the hook up correctly" unanswerable without reaching into a private
+        attribute.
+        """
+        return tuple(self._buffer)
+
     def observe_transition(self, state: int, action: int, next_state: int, done: bool) -> None:
         """Refused: this agent's states are feature vectors, not indices.
 
@@ -131,6 +141,30 @@ class FittedQIteration(BatchAgent):
             "observe_transition(state: int, ...) hook cannot express a continuous state, and "
             "accepting it here would silently drop the transition. Encode both endpoints with "
             "this agent's encoder and call observe(FeatureTransition(...))."
+        )
+
+    def observe_step(
+        self,
+        observation: dict[str, Any],
+        action: int,
+        reward: float,
+        next_observation: dict[str, Any],
+        done: bool,
+    ) -> None:
+        """Encode both endpoints with this agent's encoder and buffer the transition.
+
+        The feature-space answer to the tabular hook above: a driver hands over raw observations
+        and the agent encodes them, so :func:`causalrl.eval.harness.run_episodes` can drive this
+        agent without knowing anything about its state representation.
+        """
+        self.observe(
+            FeatureTransition(
+                state=self.encoder.encode(observation),
+                action=action,
+                reward=float(reward),
+                next_state=self.encoder.encode(next_observation),
+                done=done,
+            )
         )
 
     def fit(self, transitions: Sequence[FeatureTransition] | None = None) -> FittedQIteration:

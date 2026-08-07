@@ -1,5 +1,8 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
+
+from causalrl.data.logged import PositivityReport
 
 
 class RolloutEnv(Protocol):
@@ -63,6 +66,62 @@ class ConfoundedTrajectoryDataset:
         if n == 0:
             return 0.0
         return self._reward_sums[state][action] / n
+
+    # -- LoggedDecisions: the off-policy certification interface (causalrl.data.logged) --
+
+    def outcomes(self) -> Sequence[float]:
+        """The logged return of each transition, in log order."""
+        return [tr.reward for tr in self._transitions]
+
+    def logging_propensities(self) -> Sequence[float]:
+        """Empirical ``pi_behavior(a_i | s_i)`` for the action logged at each transition."""
+        return [self.behavior_propensity(tr.state, tr.action) for tr in self._transitions]
+
+    def matches(self, target_actions: Sequence[int]) -> Sequence[bool]:
+        """Whether the target policy would have taken the logged action, per transition."""
+        self._check_length(target_actions)
+        return [
+            int(a) == tr.action for a, tr in zip(target_actions, self._transitions, strict=True)
+        ]
+
+    def target_propensities(self, target_actions: Sequence[int]) -> Sequence[float] | None:
+        """Empirical ``pi_behavior(a | s_i)`` for the action the target policy takes.
+
+        Never ``None``: a tabular log counts every cell, so the propensity of an action nobody
+        took in a state is known to be exactly zero.
+        """
+        self._check_length(target_actions)
+        return [
+            self.behavior_propensity(tr.state, int(a))
+            for a, tr in zip(target_actions, self._transitions, strict=True)
+        ]
+
+    def positivity(self, target_actions: Sequence[int]) -> PositivityReport:
+        """``(state, action)`` cells the target policy reaches that the logs never played.
+
+        Always ``checkable``: a tabular log counts every cell, so an action nobody took in a state
+        is known to have zero behaviour propensity rather than merely unobserved -- the
+        distinction :class:`~causalrl.data.logged.PositivityReport` exists to preserve.
+        """
+        self._check_length(target_actions)
+        gaps = sorted(
+            {
+                (tr.state, int(a))
+                for a, tr in zip(target_actions, self._transitions, strict=True)
+                if self.behavior_propensity(tr.state, int(a)) <= 0.0
+            }
+        )
+        return PositivityReport(
+            checkable=True, gaps=tuple(f"state {s}, action {a}" for s, a in gaps)
+        )
+
+    def _check_length(self, target_actions: Sequence[int]) -> None:
+        if len(target_actions) != len(self._transitions):
+            raise ValueError(
+                f"target_actions has {len(target_actions)} entries but the log has "
+                f"{len(self._transitions)} transitions: the certificate layer needs the action "
+                "the target policy would take at each logged transition, one for one."
+            )
 
 
 def generate_logs(env: RolloutEnv, n_episodes: int, seed: int) -> ConfoundedTrajectoryDataset:

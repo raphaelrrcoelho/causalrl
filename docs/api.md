@@ -405,6 +405,14 @@ one-call front door over the layers below.
 
 ::: causalrl.data.dataset.ConfoundedTrajectoryDataset
 
+::: causalrl.data.logged.FeatureDecisionLog
+
+::: causalrl.data.logged.LoggedDecision
+
+::: causalrl.data.logged.LoggedDecisions
+
+::: causalrl.data.logged.PositivityReport
+
 ::: causalrl.protocols.DictNoiseLedger
 
 ::: causalrl.scm.scm.ExogenousPosterior

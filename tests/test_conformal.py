@@ -194,7 +194,7 @@ def test_action_value_hedges_a_positivity_gap() -> None:
     assert cert.ci == Interval(float("-inf"), float("inf"))
     assert cert.hedge is not None and "positivity" in cert.hedge.reason
     assert cert.hedge.detail is not None
-    assert cert.hedge.detail["unsupported_state_action_pairs"] == [[0, 0], [1, 0]]
+    assert cert.hedge.detail["unsupported"] == ["state 0, action 0", "state 1, action 0"]
 
 
 def test_action_value_is_vacuous_when_the_weighted_sample_is_too_small() -> None:
@@ -209,7 +209,7 @@ def test_action_value_is_vacuous_when_the_weighted_sample_is_too_small() -> None
 
 
 def test_action_value_validates_its_arguments() -> None:
-    with pytest.raises(ValueError, match="one action per logged transition"):
+    with pytest.raises(ValueError, match="one for one"):
         conformal_action_value(_split_bandit_log(), [1, 0], alpha=0.1)
     # alpha is halved per end, so an out-of-range alpha would otherwise pass the primitive's check.
     with pytest.raises(ValueError, match="alpha"):
