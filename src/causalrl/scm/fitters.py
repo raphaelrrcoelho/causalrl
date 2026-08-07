@@ -523,6 +523,89 @@ class NeuralFit:
         )
 
 
+class PinnedMechanism:
+    """Deploy a **known** structural equation at this node instead of fitting one.
+
+    Real systems are rarely all-known or all-unknown: a documented rule, a tariff, a physical law
+    or a contractual formula sits next to behaviour nobody has a closed form for. This fitter is
+    the "known" half. Pass it to ``fit_scm(..., families={"V": PinnedMechanism(g)})`` and node
+    ``V`` deploys ``V = g(parents) + U`` exactly as given, while every other node is learned from
+    the data as usual.
+
+    ``mean`` is the deterministic part ``g``, taking the same ``dict[str, Tensor]`` of parent
+    columns every mechanism in this module receives and returning one column. The noise enters
+    additively, so the mechanism is invertible and counterfactuals at this node stay identified —
+    which is part of the point: pinning a mechanism can restore an identification that a fitted
+    node would have lost.
+
+    ``noise`` is the exogenous distribution. Leaving it ``None`` estimates it by resampling the
+    residuals ``V - g(parents)`` on the training rows, so the *shape* of the equation is pinned
+    while the spread around it still comes from data; supply a distribution to pin that too.
+
+    **A pinned node is still scored, and that score is the assumption's test.** ``fit_scm`` reports
+    :attr:`~causalrl.scm.fit.NodeFit.holdout_score` for this node like any other — but here it is
+    not a measure of how well a flexible family fitted, it is a measure of whether the equation you
+    asserted actually describes held-out data. A pinned node with a poor holdout score is telling
+    you the assertion is wrong, and nothing else in the pipeline will.
+    """
+
+    def __init__(
+        self,
+        mean: Callable[[dict[str, Tensor]], Tensor],
+        *,
+        noise: Distribution | None = None,
+    ) -> None:
+        self._mean = mean
+        self._noise = noise
+
+    def fit(self, parents: dict[str, np.ndarray], child: np.ndarray) -> FittedMechanism:
+        y = np.asarray(child, dtype=float)
+        names = sorted(parents)
+        parent_tensors = {
+            name: torch.tensor(  # type: ignore[reportPrivateImportUsage]
+                np.asarray(parents[name], dtype=float),
+                dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
+            )
+            for name in names
+        }
+        with torch.no_grad():
+            predicted_tensor = self._mean(parent_tensors).reshape(-1)
+        if predicted_tensor.shape[0] == 1 and len(y) != 1:
+            # A parentless (or otherwise constant) equation has nothing to vary over and may
+            # legitimately return a single value; broadcast it to the column it stands for.
+            predicted_tensor = predicted_tensor.expand(len(y))
+        elif predicted_tensor.shape[0] != len(y):
+            raise ValueError(
+                f"PinnedMechanism's mean returned {predicted_tensor.shape[0]} value(s) for "
+                f"{len(y)} training row(s): it must map the parent columns it is given to one "
+                "column of the same length (or a single value, for a constant equation), so that "
+                "the residual V - g(parents) is well defined."
+            )
+        predicted = predicted_tensor.numpy().astype(float)
+        residual = torch.tensor(  # type: ignore[reportPrivateImportUsage]
+            y - predicted,
+            dtype=torch.float32,  # type: ignore[reportPrivateImportUsage]
+        )
+
+        mean_fn = self._mean
+
+        def mechanism(parent_values: dict[str, Tensor], noise: Tensor) -> Tensor:
+            return mean_fn(parent_values).reshape(-1) + noise.reshape(-1)
+
+        def residual_closure(parent_values: dict[str, Tensor], value: Tensor) -> Tensor:
+            """Exact abduction: the noise is recovered as ``V - g(parents)``, nothing fitted."""
+            return value.reshape(-1) - mean_fn(parent_values).reshape(-1)
+
+        fitted_mechanism = FunctionalMechanism(names, mechanism)
+        fitted_mechanism.residual = residual_closure  # type: ignore[attr-defined]
+        return FittedMechanism(
+            mechanism=fitted_mechanism,
+            noise=self._noise if self._noise is not None else _Empirical(residual),
+            invertible=True,
+            score=_r2(y, predicted),
+        )
+
+
 class _AdditiveHead(torch.nn.Module):
     """Split ``NeuralMechanism``'s ``[parents, noise]`` input into ``net(parents) + noise``."""
 

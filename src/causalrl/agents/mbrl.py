@@ -25,7 +25,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from causalrl.agents.base import Agent
+from causalrl.agents.base import BatchAgent
 from causalrl.data.dataset import ConfoundedTrajectoryDataset
 from causalrl.discovery import discover
 from causalrl.identification.criteria import backdoor_adjustment_set
@@ -188,7 +188,7 @@ def _stratum_action(
     return int(np.argmax(np.asarray(row)))
 
 
-class CertifiedPolicyAgent(Agent):
+class CertifiedPolicyAgent(BatchAgent):
     """Ship the best deterministic policy whose improvement over behavior certifies robust to hidden
     confounding; abstain to the empirical behavior policy otherwise.
 
@@ -245,11 +245,8 @@ class CertifiedPolicyAgent(Agent):
     def act(self, observation: dict[str, Any]) -> int:
         return int(self.policy[int(observation["state"])])
 
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Fixed policy from the logs; no online update."""
 
-
-class BackdoorAdjustedAgent(Agent):
+class BackdoorAdjustedAgent(BatchAgent):
     """Active deconfounded optimizer: pick the action with the highest back-door-adjusted value
     ``E[Y | do(A=a)] = Σ_z P(z) · E[Y | A=a, Z=z]``, with the adjustment set read from the graph via
     :func:`~causalrl.backdoor_adjustment_set`.
@@ -306,12 +303,8 @@ class BackdoorAdjustedAgent(Agent):
             self._stratum_values, observation, self.adjustment, self._best_action
         )
 
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Fixed outcome model from the logs; the policy varies with the observation, not with
-        online experience."""
 
-
-class TransportBackdoorAgent(Agent):
+class TransportBackdoorAgent(BatchAgent):
     """Deconfound + transport: back-door-adjust for the confounders (source weighting) and reweight
     the selection variables by the target distribution, then ship the argmax of the transported
     interventional value ``E_target[Y | do(A=a)]``. The M2 upgrade of :class:`BackdoorAdjustedAgent`
@@ -391,12 +384,8 @@ class TransportBackdoorAgent(Agent):
         """
         return _stratum_action(self._stratum_values, observation, self._context, self._best_action)
 
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Fixed outcome model from the source logs; the policy varies with the observation, not
-        with online experience."""
 
-
-class DiscoveryBackdoorAgent(Agent):
+class DiscoveryBackdoorAgent(BatchAgent):
     """Learns the structure: discovers the causal skeleton from data, orients it with the known
     temporal tier order (covariates precede treatment precede outcome — standard in DTR/medicine),
     takes the treatment's earlier-tier neighbours as the back-door set, then adjusts. The M1 upgrade
@@ -467,10 +456,6 @@ class DiscoveryBackdoorAgent(Agent):
             self._stratum_values, observation, self.adjustment, self._best_action
         )
 
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Fixed structure and outcome model from the logs; the policy varies with the observation,
-        not with online experience."""
-
 
 def _rbf_features(z: np.ndarray, centers: np.ndarray, bandwidth: float) -> np.ndarray:
     """Design matrix ``[1, exp(-(z - c_k)^2 / (2 bandwidth^2))]`` for RBF ridge regression."""
@@ -479,7 +464,7 @@ def _rbf_features(z: np.ndarray, centers: np.ndarray, bandwidth: float) -> np.nd
     return np.hstack([np.ones((z.shape[0], 1)), phi])
 
 
-class FunctionApproxBackdoorAgent(Agent):
+class FunctionApproxBackdoorAgent(BatchAgent):
     """Function-approximation back-door: fit ``qhat(a, z)`` by ridge regression on RBF features of a
     CONTINUOUS confounder, then back-door-adjust by Monte-Carlo integrating ``qhat(a, .)`` over the
     observed confounder sample, and ship the argmax. The M3 upgrade that carries the deconfounding
@@ -574,10 +559,6 @@ class FunctionApproxBackdoorAgent(Agent):
         at_z = self._action_values(_rbf_features(z, self._centers, self.bandwidth))
         return int(np.argmax(np.asarray(at_z)))
 
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Fixed outcome model from the logs; the policy varies with the observation, not with
-        online experience."""
-
 
 def _standardization(fit_x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Column mean and (floored) std of ``fit_x`` — the ridge conditioning, returned as statistics
@@ -623,7 +604,7 @@ def _mean_prediction(model: _OutcomeModel | None, x: np.ndarray) -> float:
     return float(predictions.mean()) if predictions is not None else 0.0
 
 
-class GFormulaBackdoorAgent(Agent):
+class GFormulaBackdoorAgent(BatchAgent):
     """Multivariate g-formula (standardization) back-door for many, mixed-type covariates.
 
     Fits a per-action outcome model ``Ehat_a[Y | X]`` over ALL covariates X (a T-learner), then
@@ -734,6 +715,3 @@ class GFormulaBackdoorAgent(Agent):
         x = np.asarray([[float(value) for value in key]], dtype=float)
         return int(np.argmax(np.asarray([_mean_prediction(m, x) for m in self._models])))
 
-    def update(self, observation: dict[str, Any], action: int, reward: float) -> None:
-        """Fixed outcome models from the logs; the policy varies with the observation, not with
-        online experience."""

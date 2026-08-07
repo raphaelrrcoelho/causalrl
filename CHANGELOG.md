@@ -81,6 +81,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is the bandit case, expanding the one realized payoff by inverse-propensity weighting (EXP3, Auer
   et al., *SICOMP* 2002, with `explore` supplying the uniform mixing). This is the first import edge
   between `magames/` and `agents/`.
+- **`BatchAgent`** (`causalrl.agents.base`, exported top-level) — the agent interface split. `Agent`
+  requires `update`, but ten of its subclasses implemented it as an empty body: they are batch
+  learners whose policy comes from `fit`/`ingest_offline`, and a single reward carries nothing they
+  can use. `BatchAgent` supplies the no-op once and states why, so a third of the agent surface no
+  longer claims an online contract it does not honour. Fully additive — `BatchAgent` subclasses
+  `Agent`, so `isinstance` checks and online harnesses are unaffected.
+- **`unpack_transitions` / `TransitionBatch`** (`causalrl.state`, exported top-level) — the shared
+  validate-and-columnise step for feature-space agents (non-empty, features from *this* encoder,
+  actions in range). `FittedQIteration` and `BoundedFittedQIteration` had hand-written copies with
+  paraphrased error messages, which is worse than duplication that reads identically: the two could
+  drift and no reader could tell whether a wording difference was meaningful.
+- **`API_TIERS`** (exported top-level) — the 255-name public surface partitioned by what a reader is
+  trying to do (`core`, `identification`, `modelling`, `decision`, `inference`, `integration`), with
+  a 14-name core as the entry point. Tested to be a true partition of `__all__`, so a new export
+  cannot be added without being placed.
+- **`FunctionalManskiBounds`** (`causalrl.bounds.functional`, exported top-level) — the per-cell
+  Manski bound generalised to a function of state features. `causal_q_bounds` bounds
+  `E[R | do(a), s]` for a discrete `s` from the cell's propensity and mean; here both become fitted
+  functions, `lower(x,a) = mu(x,a)*e(x,a) + r_min*(1-e(x,a))` and likewise for the upper. With
+  indicator features it reproduces `causal_q_bounds` to ~1e-4 (asserted). Nuisances are
+  **cross-fitted**, because in-sample plug-in bounds are optimistically *tight* — the
+  anti-conservative direction, which is the dangerous one for a bound — and an `OverlapDiagnostic`
+  reports where estimated propensities leave the interval near-vacuous versus suspiciously narrow.
+- **`BoundedFittedQIteration`** (`causalrl.agents.bounded_fitted`, exported top-level) — envelope
+  propagation over features, recovering the causal bound `FittedQIteration` had to give up. With
+  `L`/`U` the lower/upper envelopes, `U_h(x,a) = upper_reward(x,a) + E[max_a' U_{h+1}(X',a') | x,a]`
+  and symmetrically for `L`. The recursion preserves the envelope because `max` and conditional
+  expectation are both monotone, and **no transition tensor or generative model appears** — the
+  successor distribution enters only through an expectation, which is a regression. Verified on a
+  confounded-action / unconfounded-transition MDP: the envelope contains the true interventional
+  `Q*` at every cell and step, at ~38% of the vacuous width, on a fixture where the naive
+  confounded mean picks the wrong action outright.
+
+  Gated exactly as `DOVI` is: multi-step propagation raises `UnverifiedAssumptionError` unless
+  `transition_assumption="unconfounded"`, since the continuation expectation is taken over the
+  *logged* successor distribution and a confounder driving the dynamics would make it
+  non-interventional. `allow_heuristic=True` runs it anyway and the certificate reports `EMPIRICAL`
+  with `downgraded_from="bounded"`. Even a certified run keeps a hedge: correct specification of the
+  outcome and propensity models is an assumption the tabular bound never needed, and every
+  certificate records it with the overlap diagnostic attached.
+- **`StateEncoder` / `OneHotEncoder` / `IdentityEncoder` / `RBFEncoder` / `FeatureTransition`**
+  (`causalrl.state`, exported top-level) — the observation-side counterpart to set-valued
+  interventions. The tabular agents ask for `n_states` and index by `int`, forcing a discretisation
+  before the causal machinery is reached, even though the estimation core (cross-fitted DML,
+  ANM/neural mechanisms, continuous bounds) never needed one. An encoder maps an observation to a
+  feature vector and everything downstream works in feature space. The tabular case is *contained*,
+  not discarded: `OneHotEncoder` spans every function on a finite state set, and the fitted backup
+  over those features reproduces the tabular one to numerical tolerance (asserted in the tests).
+- **`FittedQIteration`** (`causalrl.agents.fitted`, exported top-level) — finite-horizon backward
+  induction over encoded features, the continuous-state counterpart of `DOVI`. Keeps DOVI's
+  recursion and replaces the `(H, S, A)` table and `(S, A, S)` transition tensor with one fitted
+  regressor per `(step, action)`. The regressor is the duck-typed `causalrl.estimate.nuisance
+  .Regressor` protocol the DML estimators already use, so the control layer went continuous without
+  a new dependency.
+
+  **It does not inherit DOVI's guarantee, and says so.** DOVI caps optimism with a Manski bound per
+  `(state, action)` cell; in feature space there are no cells, so `FittedQIteration` falls back to
+  a global cap — with per-step reward bounded by `reward_max`, the return from step `h` cannot
+  exceed `reward_max * (H - h + 1)`. That is valid without any function-class assumption and much
+  weaker than the per-cell bound. `certificate()` reports `Kind.EMPIRICAL` with an explicit
+  `downgraded_from="bounded"` hedge, and `is_certified` is `False`. The inherited
+  `observe_transition(state: int, ...)` hook raises rather than silently discarding a transition it
+  cannot represent.
+- **`InterventionSpace` / `Intervention` / `InterventionalAgent` / `ScalarAgentAdapter`**
+  (`causalrl.intervention`, `causalrl.agents.interventional`, exported top-level) — the set-valued
+  action vocabulary the rest of the library already spoke. `do()` takes a `Mapping[str, value]` and
+  `pomis` returns *sets*, but `Agent.act` returned an arm index, so a multi-variable intervention
+  could be identified and never executed. `InterventionSpace` states which variables are
+  manipulable **in a given context** and to which values; `assignments()` turns an intervention set
+  into the arms an agent chooses between; `InterventionalAgent` returns an intervention rather than
+  an `int`; `ScalarAgentAdapter` lifts any existing arm-indexed agent into the new contract without
+  rewriting it. `Agent` is unchanged — this is additive.
+- **`AdmissibleInterventions`** (`causalrl.identification.intervention_sets`, exported top-level) —
+  POMIS recomputed for the variables each context actually permits, memoised on the manipulable
+  set. Restricting that set is a *latent projection* (Lee & Bareinboim r40, Thm. 4), **not** a
+  filter of the unconstrained POMIS: projecting a variable away can introduce possibly-optimal sets
+  the unconstrained enumeration never listed, so filtering loses optimality. `arms()` composes it
+  with an `InterventionSpace` to give an agent its admissible interventions directly.
+- **`PinnedMechanism`** (`causalrl.scm.fitters`, exported top-level) — deploy a **known**
+  structural equation at a node while `fit_scm` still learns the rest, for the ordinary case where
+  a documented rule sits beside behaviour with no closed form. Noise enters additively, so a pinned
+  node stays invertible and its counterfactuals identified. A model mixing pinned and learned nodes
+  carries the new `provenance="mixed"` (gated for L3 exactly like `"fitted"`); an all-pinned model
+  is `"specified"`. Pinned nodes are listed by `FitReport.pinned_nodes` and still scored — for them
+  `holdout_score` tests the asserted equation rather than measuring a fit.
+- **`Deadline`** (`causalrl.deadline`, exported top-level) — a monotonic per-decision wall-clock
+  budget, accepted by `InterventionalAgent.act`. Cooperative and advisory: nothing interrupts a
+  running computation, so an agent that honours it keeps a usable incumbent answer and returns it
+  when the budget is gone.
 - **`cce_polytope` / `cce_bounds` / `cce_regret` / `certify_cce_do`** (`causalrl.magames`, exported
   top-level) — partial identification of a learning population's time-averaged behaviour by the
   coarse-correlated-equilibrium polytope of a (possibly `do()`-intervened) finite game. Both bound
@@ -131,6 +220,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   *none* of them — including the `{"state": 0}` a 2.1.0 caller passes — still returns the marginal
   `argmax_a E[Y|do(a)]` unchanged. A *partial* set of conditioning variables now raises `KeyError`
   rather than silently answering a different query.
+### Removed
+- **`causalrl.interference`** — `ExposureMapping`, `ExposureContrast`, `adjacency_from_matrix`,
+  `neighbourhood_count`, `neighbourhood_fraction`, `any_neighbour_treated`, `population_share`,
+  `direct_effect`, `spillover_effect` and `total_effect` are gone, with the module and its
+  top-level exports. They were added earlier in this same unreleased cycle and never shipped in a
+  release, so no released API is affected.
+
+  **Why.** The module estimated the Aronow & Samii (2017) direct / spillover / total contrasts by
+  exposure-stratified cell means. That is correct causal inference, but it is not reinforcement
+  learning and it could not be made into any: nothing under `agents/` or `envs/` referenced it, and
+  nothing could. Every multi-agent surface the library actually has already knows the same
+  decomposition *exactly* rather than by estimation — `magames`' `CCEPolytope.deviation_gains[k, j]`
+  **is** the own-action (direct) effect at realized profile `j`, in closed form, and it is what
+  `cce_regret`, `cce_bounds` and `certify_cce_do` are built on; `meanfield`'s
+  `payoff(own_action, fraction)` **is** the `population_share` exposure mapping, as a known
+  function. Meanwhile every environment in `envs/suite/` is single-actor and
+  `ConfoundedTrajectoryDataset` carries no unit or peer index, so the library cannot produce the
+  logged multi-unit data the estimators exist for. The module's entire coupling to the rest of
+  `causalrl` was one import of `NotIdentifiableError`, and it returned a bare point estimate with no
+  `Certificate` — an island from the causal half as well as the RL half.
+
+  **What to do instead.** For a population of interacting agents, build it as a `Population` of
+  `AgentType`s and use `causalrl.magames`: `cce_polytope(...).deviation_gains` gives the exact
+  own-action effect at every profile, `cce_regret` its population summary, and `certify_cce_do` a
+  certificate over the time-averaged behaviour; for the anonymous `N → ∞` case use
+  `causalrl.meanfield`. For cross-sectional SUTVA-failure analysis — which is out of scope for a
+  reinforcement-learning library — compute the exposure column directly with numpy and stratify,
+  then hand the resulting contrast to `certify_estimate` via `PolicyValueContrast` if you want the
+  sensitivity band. Full decision record: `.superpowers/sdd/PLAN/interference-decision.md`.
+
+### Fixed
+- **Every exported name now has an API-reference entry.** 129 of 255 were missing, including `Agent`,
+  `CausalMBRLAgent` and `CausalThompsonSampling` — the README's own headline example.
+  `mkdocs --strict` never caught it because mkdocstrings validates the references that exist, not
+  the ones that are absent; `test_every_export_appears_in_the_api_reference` now does, resolving
+  through the lazy export map so a renamed export is checked against the attribute it points at.
+- **`BoundedFittedQIteration` no longer redefines `TransitionAssumption` as `str`.** It now imports
+  `causalrl.agents.dovi.TransitionAssumption`, which is the `Literal["unknown", "unconfounded"]` the
+  codebase already had — the sibling definition silently discarded that narrowing.
+- **`FunctionalManskiBounds.fit` annotates `actions` as an integer array**, which is what it has
+  always required and coerced.
 
 ### Added (experimental)
 - **`LinearCyclicSCM.stability_margin` / `spectral_abscissa` / `max_stable_learning_rate`** —
