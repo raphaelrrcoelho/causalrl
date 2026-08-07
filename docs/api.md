@@ -631,3 +631,9 @@ one-call front door over the layers below.
 ::: causalrl.scm.bounded_fit.BoundedSCMFit
 
 ::: causalrl.scm.bounded_fit.BoundedNodeFit
+
+::: causalrl.transport.localize.localize_mechanism_shift
+
+::: causalrl.transport.localize.ShiftReport
+
+::: causalrl.transport.localize.MechanismShift
