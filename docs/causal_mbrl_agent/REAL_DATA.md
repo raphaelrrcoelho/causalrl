@@ -66,9 +66,15 @@ an unbiased randomly-assigned test set (ground truth), and the observation prope
 
 This is the suite's **cleanest debiasing win**: the top MNAR techniques cut ~50–75% of the selection
 bias, landing far closer to the truth than naive (and at parity with each other). **But** it hinges
-entirely on the propensity model — the sensitivity band shows that if the propensities are off by even
-Γ=1.3, the debiased estimate swings to [1.86, 3.15]. The number is only as trustworthy as the
-selection model you assume; the band is the honest part.
+entirely on the propensity model — under Tan's marginal sensitivity model, propensities off by even
+Γ=1.3 put the debiased estimate anywhere in [2.07, 2.61], a band that still covers the naive number
+it was supposed to correct. The band first covers the measured truth at Γ≈1.11. The point estimate is
+only as trustworthy as the selection model you assume; the band is the honest part.
+
+(Corrected 2026-08-07. The band previously reported here, [1.86, 3.15], came from a hand-rolled loop
+in the example that rescaled every propensity by the same Γ without self-normalising — not Tan's MSM,
+which lets each unit's odds move independently within [1/Γ, Γ] and takes the sharp extremum over that
+set. The example now calls `msm_policy_value_bounds`, and the correct bands are tighter.)
 
 ## The certificate — the one place causal clearly earns its keep (`examples/causal_mbrl_certificate.py`)
 
