@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 
 from causalrl import TrajectoryLog
-from causalrl.estimate.streaming import stream_policy_value
+from causalrl.ope.ipw import stream_policy_value
 
 
 def build_large_log(n: int, seed: int) -> TrajectoryLog:

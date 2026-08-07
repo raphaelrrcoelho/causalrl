@@ -34,12 +34,12 @@ from torch.distributions import Bernoulli, Distribution, Uniform
 
 from causalrl.discovery import discover
 from causalrl.envs.suite.scbandit import StructuralCausalBanditEnv
-from causalrl.identification.bounds import ipw_sensitivity_bounds
 from causalrl.identification.id_algorithm import (
     estimate_effect,
     estimate_transported_effect,
 )
 from causalrl.identification.intervention_sets import pomis
+from causalrl.ope.bounds import ipw_sensitivity_bounds
 from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import FunctionalMechanism, Mechanism
 from causalrl.scm.scm import StructuralCausalModel

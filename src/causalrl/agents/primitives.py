@@ -1,5 +1,5 @@
 from causalrl.data.dataset import ConfoundedTrajectoryDataset
-from causalrl.identification.bounds import causal_q_bounds
+from causalrl.ope.bounds import causal_q_bounds
 
 
 def bounds_table(

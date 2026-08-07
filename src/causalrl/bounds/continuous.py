@@ -1,10 +1,10 @@
 """Continuous partial-identification bounds: estimated-propensity MSM (plan §7.3).
 
-An addition over the shipped nominal-propensity MSM kernels (``identification.bounds``):
+An addition over the shipped nominal-propensity MSM kernels (``ope.bounds``):
 
 * **Estimated-propensity MSM** (``msm_sensitivity_bounds``): the Tan marginal-sensitivity-model
   bound on ``E[Y(1)]`` when logging propensities are *estimated* from covariates rather than known.
-  It reduces exactly to :func:`~causalrl.identification.bounds.ipw_sensitivity_bounds` when
+  It reduces exactly to :func:`~causalrl.ope.bounds.ipw_sensitivity_bounds` when
   propensities are supplied directly (the ``propensities=`` path), and otherwise fits a propensity
   model and feeds the estimates to the same sharp box kernel.
 
@@ -26,7 +26,8 @@ from causalrl.certify.certificate import (
     Provenance,
 )
 from causalrl.estimate.nuisance import Classifier, LogisticRegressor
-from causalrl.identification.bounds import Interval, ipw_sensitivity_bounds
+from causalrl.identification.bounds import Interval
+from causalrl.ope.bounds import ipw_sensitivity_bounds
 
 __all__ = [
     "certify_sensitivity_bounds",

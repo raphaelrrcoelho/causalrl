@@ -11,8 +11,8 @@ from __future__ import annotations
 import numpy as np
 
 from causalrl.certify.certificate import Certificate, Kind
-from causalrl.estimate.sequential import sequential_ice_values
 from causalrl.identification.transport import SelectionDiagram
+from causalrl.ope.sequential import sequential_ice_values
 from causalrl.scm.graph import CausalGraph
 from causalrl.transport.estimate import certify_transported_policy_value
 

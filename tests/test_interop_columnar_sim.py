@@ -9,13 +9,13 @@ import pytest
 
 from causalrl.certify.certificate import Certificate
 from causalrl.data.trajectory import TrajectoryLog
-from causalrl.estimate.streaming import stream_policy_value
 from causalrl.exceptions import CausalInterfaceUnavailableError
 from causalrl.interop.columnar_sim import (
     ColumnarSimulator,
     check_conformance,
     simulator_from_callables,
 )
+from causalrl.ope.ipw import stream_policy_value
 
 
 def _sample_fn(n: int, seed: int | None) -> list[dict[str, Any]]:

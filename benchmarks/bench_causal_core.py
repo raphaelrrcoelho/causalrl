@@ -18,7 +18,7 @@ import time
 import numpy as np
 from torch.distributions import Normal
 
-from causalrl.identification.bounds import ipw_sensitivity_bounds
+from causalrl.ope.bounds import ipw_sensitivity_bounds
 from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import LinearGaussianMechanism
 from causalrl.scm.scm import StructuralCausalModel

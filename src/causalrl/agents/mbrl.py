@@ -30,7 +30,7 @@ from causalrl.data.dataset import ConfoundedTrajectoryDataset
 from causalrl.discovery import discover
 from causalrl.identification.criteria import backdoor_adjustment_set
 from causalrl.identification.id_algorithm import is_transportable_effect
-from causalrl.scale import certify_policy
+from causalrl.ope.certify import certify_policy
 from causalrl.scm.graph import CausalGraph
 
 

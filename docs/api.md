@@ -200,17 +200,17 @@ The `K`-head critic that makes it an algorithm (needs the `causalrl[torch]` extr
 
 ::: causalrl.identification.bounds.manski_bounds
 
-::: causalrl.identification.bounds.ipw_sensitivity_bounds
+::: causalrl.ope.bounds.ipw_sensitivity_bounds
 
-::: causalrl.identification.bounds.causal_q_bounds
+::: causalrl.ope.bounds.causal_q_bounds
 
-::: causalrl.identification.bounds.msm_policy_value_bounds
+::: causalrl.ope.bounds.msm_policy_value_bounds
 
-::: causalrl.identification.bounds.msm_contribution_bounds
+::: causalrl.ope.bounds.msm_contribution_bounds
 
-::: causalrl.identification.bounds.msm_per_step_bounds
+::: causalrl.ope.bounds.msm_per_step_bounds
 
-::: causalrl.identification.bounds.msm_stratified_bounds
+::: causalrl.ope.bounds.msm_stratified_bounds
 
 ::: causalrl.conformal.core.conformal_action_value
 
@@ -268,7 +268,7 @@ one-call front door over the layers below.
 
 ## Scale & Streaming (Phase 3)
 
-::: causalrl.estimate.streaming.stream_policy_value
+::: causalrl.ope.ipw.stream_policy_value
 
 ::: causalrl.bounds.streaming.stream_msm_bounds
 
@@ -286,7 +286,7 @@ one-call front door over the layers below.
 
 ::: causalrl.interop.columnar_sim.simulator_from_callables
 
-::: causalrl.scale.certify_policy
+::: causalrl.ope.certify.certify_policy
 
 ::: causalrl.scale.d3rlpy.certify_fqe
 
@@ -558,19 +558,19 @@ one-call front door over the layers below.
 
 ::: causalrl.certify.Provenance
 
-::: causalrl.estimate.sequential.SequentialValueEstimate
+::: causalrl.ope.sequential.SequentialValueEstimate
 
 ::: causalrl.certify.Witness
 
 ::: causalrl.bounds.continuous.certify_sensitivity_bounds
 
-::: causalrl.estimate.sequential.certify_sequential_value
+::: causalrl.ope.sequential.certify_sequential_value
 
 ::: causalrl.eval.metrics.cumulative_regret
 
 ::: causalrl.estimate.estimators.estimate_ate
 
-::: causalrl.estimate.sequential.estimate_sequential_value
+::: causalrl.ope.sequential.estimate_sequential_value
 
 ::: causalrl.eval.metrics.finite_horizon_regret
 
@@ -578,7 +578,7 @@ one-call front door over the layers below.
 
 ::: causalrl.certify.ipw_sensitivity_bounds_certified
 
-::: causalrl.eval.ope.ipw_value
+::: causalrl.ope.ipw.ipw_value
 
 ::: causalrl.certify.msm_policy_value_bounds_certified
 
@@ -596,7 +596,7 @@ one-call front door over the layers below.
 
 ::: causalrl.eval.mbrl_probe.run_m3_function_approx_gate
 
-::: causalrl.estimate.sequential.sequential_ice_values
+::: causalrl.ope.sequential.sequential_ice_values
 
 
 ## Interop, Scale & Errors — Complete Reference

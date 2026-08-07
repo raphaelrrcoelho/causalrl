@@ -36,7 +36,7 @@ class UCDTR(Agent):
 
     def ingest_offline(self, dataset: ConfoundedTrajectoryDataset) -> None:
         if self._require_identified:
-            from causalrl.identification.bounds import causal_q_bounds
+            from causalrl.ope.bounds import causal_q_bounds
 
             for s in range(self.n_states):
                 for a in range(self.n_actions):

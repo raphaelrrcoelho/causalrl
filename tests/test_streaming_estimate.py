@@ -12,8 +12,8 @@ from causalrl.bounds.streaming import stream_msm_bounds
 from causalrl.certify.certificate import Kind
 from causalrl.data.streaming_join import KeyJoiner
 from causalrl.data.trajectory import TrajectoryLog
-from causalrl.estimate.streaming import stream_policy_value
-from causalrl.identification.bounds import ipw_sensitivity_bounds
+from causalrl.ope.bounds import ipw_sensitivity_bounds
+from causalrl.ope.ipw import stream_policy_value
 
 
 def _weight_reward_log(weights: np.ndarray, rewards: np.ndarray) -> TrajectoryLog:

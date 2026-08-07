@@ -21,7 +21,7 @@ import numpy as np
 
 from causalrl.backends.streaming import StreamingMoments, WeightedStreamingRatio
 from causalrl.data.trajectory import TrajectoryLog
-from causalrl.estimate.streaming import stream_policy_value
+from causalrl.ope.ipw import stream_policy_value
 
 # Conservative relative floor: streaming may be at most this many times a single vectorised pass.
 # Set well above the observed ~1-2x so only a genuine >2x regression trips it (not machine noise).

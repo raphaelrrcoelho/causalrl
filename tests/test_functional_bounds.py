@@ -5,7 +5,7 @@ import pytest
 
 from causalrl.bounds.functional import FunctionalManskiBounds
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition
-from causalrl.identification.bounds import causal_q_bounds
+from causalrl.ope.bounds import causal_q_bounds
 
 
 def _confounded_logs(

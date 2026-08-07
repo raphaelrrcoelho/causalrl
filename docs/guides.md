@@ -84,7 +84,7 @@ Parquet path (`log.to_parquet(path)` then `stream_policy_value(path)`) and it st
 disk unchanged.
 
 ```python
-from causalrl.estimate.streaming import stream_policy_value
+from causalrl.ope.ipw import stream_policy_value
 
 cert = stream_policy_value(log, weight="weight", reward="reward", batch_size=100_000)
 ```

@@ -13,7 +13,8 @@ from causalrl.bounds.continuous import (
     msm_sensitivity_bounds,
 )
 from causalrl.certify.certificate import Certificate, Kind
-from causalrl.identification.bounds import Interval, ipw_sensitivity_bounds
+from causalrl.identification.bounds import Interval
+from causalrl.ope.bounds import ipw_sensitivity_bounds
 
 
 def test_msm_estimated_reduces_to_ipw_under_known_propensities() -> None:

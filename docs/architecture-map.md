@@ -129,7 +129,9 @@ shipped code, per plan §4):
   cross-fit DML with influence-function CIs), pure-numpy nuisances (`RidgeRegressor` /
   `LogisticRegressor`, sklearn-style pluggable). Non-identified / front-door / overlap-destroyed →
   hedge (I3).
-- `bounds/` (§7.3) — shim re-exporting `identification.bounds` + `bounds/continuous.py`:
+- `bounds/` (§7.3) — shim re-exporting `ope.bounds` (the value-side MSM family, moved there in
+  3.0.0) + `identification.bounds` (`Interval`, `manski_bounds`, `tipping_gamma`) +
+  `bounds/continuous.py`:
   `msm_sensitivity_bounds` (estimated-`e` MSM; reduces to `ipw_sensitivity_bounds`). The heavy-tail /
   quantile targets that used to live here too — `moment_diagnostic` / `tail_index_hill`,
   `certify_mean`, `certify_quantile` / `weighted_quantile` — are **removed in 3.0.0** (general
@@ -165,7 +167,8 @@ continuous mechanisms.
   forward, pure-NumPy `NUTSNoisePosterior`), `certify_nuts_counterfactual` (`EMPIRICAL`). Lazy
   duck-typed import; module coverage-omitted; own `nuts` CI lane (`ubuntu`/`3.11`, `--extra numpyro`).
   The extra is gated to `python_version < '3.14'` so the universal lock resolves.
-- **`estimate/sequential.py` (§7.2, numpy)** — `estimate_sequential_value` /
+- **`ope/sequential.py` (§7.2, numpy; was `estimate/sequential.py` before 3.0.0)** —
+  `estimate_sequential_value` /
   `certify_sequential_value`: ICE g-computation + cross-fitted sequentially doubly-robust (LTMLE)
   recursion under sequential ignorability (non-checkable assumption; per-stage overlap hedge, I3);
   reduces to single-stage DR at horizon 1. `sequential_ice_values` is the per-unit backbone.
@@ -222,7 +225,8 @@ core; the JAX backend is an optional accelerated mirror whose only hard duty is 
   streamed Parquet via `TrajectoryLog.iter_parquet_batches`) + `KeyJoiner` (carry-over decision join,
   O(1) memory for a `sorted_by_key` log). Both additive `TrajectoryLog` methods live in
   `data/trajectory.py`.
-- **Streaming certificate kernels (§9)** — `estimate/streaming.py`: `stream_policy_value`
+- **Streaming certificate kernels (§9)** — `ope/ipw.py` (was `estimate/streaming.py` before
+  3.0.0): `stream_policy_value`
   (IS off-policy value + CI, ESS overlap hedge — I3). `bounds/streaming.py`: `stream_msm_bounds`
   (streamed columns → exact Tan closed form → `BOUNDED`). Each emits a unified `Certificate` over a
   log too large to hold. The end-to-end acceptance (Phase-2 population env → Parquet → streamed OPE

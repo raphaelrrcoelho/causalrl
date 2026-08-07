@@ -12,7 +12,7 @@ import numpy as np
 
 from causalrl.certify.certificate import Certificate, Kind
 from causalrl.estimate.estimators import estimate_ate
-from causalrl.estimate.sequential import (
+from causalrl.ope.sequential import (
     certify_sequential_value,
     estimate_sequential_value,
 )

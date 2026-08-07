@@ -1,14 +1,18 @@
-"""Streaming certificate kernels over columnar logs (plan §9; invariant I3).
+"""Importance-sampling off-policy value: the in-memory kernel and its streaming certificate.
 
-Single-pass estimators that consume a :class:`~causalrl.data.trajectory.TrajectoryLog` — or an
-on-disk Parquet log streamed batch-by-batch — and emit a unified
-:class:`~causalrl.certify.certificate.Certificate`, never materialising the whole log. The numerics
-live in the mergeable accumulators of :mod:`causalrl.backends`; this module joins the columnar cells
-into per-decision records (:class:`~causalrl.data.streaming_join.KeyJoiner`) and wraps the result in
-an identification-aware certificate.
+Two ways to answer "what would this target policy have scored on these logs?" by reweighting the
+logged rewards:
 
-* :func:`stream_policy_value` — self-normalised (Hájek) importance-sampling off-policy value with a
-  confidence interval and an effective-sample-size overlap hedge (I3).
+* :func:`ipw_value` — the plain inverse-propensity-weighted estimate over in-memory lists.
+* :func:`stream_policy_value` — the self-normalised (Hájek) importance-sampling value with a
+  confidence interval and an effective-sample-size overlap hedge (I3), streamed single-pass over a
+  :class:`~causalrl.data.trajectory.TrajectoryLog` — or an on-disk Parquet log consumed
+  batch-by-batch — and returned as a unified
+  :class:`~causalrl.certify.certificate.Certificate`, never materialising the whole log. The
+  numerics live in the mergeable accumulators of :mod:`causalrl.backends`; this module joins the
+  columnar cells into per-decision records
+  (:class:`~causalrl.data.streaming_join.KeyJoiner`) and wraps the result in an
+  identification-aware certificate.
 """
 
 from __future__ import annotations
@@ -28,7 +32,26 @@ from causalrl.certify.certificate import (
 from causalrl.data.streaming_join import KeyJoiner, LogSource, iter_log_batches
 from causalrl.estimate._stats import norm_ppf
 
-__all__ = ["stream_policy_value"]
+__all__ = ["ipw_value", "stream_policy_value"]
+
+
+def ipw_value(
+    actions: list[int],
+    rewards: list[float],
+    behavior_probs: list[float],
+    target_probs: list[float],
+) -> float:
+    """Inverse-propensity-weighted off-policy value estimate.
+
+    Samples with zero behavior propensity (``b == 0``) contribute 0 to the sum but are
+    still counted in the ``n`` denominator, which biases the estimate toward 0 — pass only
+    samples with positive behavior propensity for an unbiased estimate.
+    """
+    n = len(actions)
+    total = 0.0
+    for _a, r, b, t in zip(actions, rewards, behavior_probs, target_probs, strict=True):
+        total += (t / b) * r if b > 0 else 0.0
+    return total / n
 
 
 def _stream_fingerprint(*parts: float) -> str:

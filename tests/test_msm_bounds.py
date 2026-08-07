@@ -2,15 +2,13 @@
 
 import numpy as np
 
-from causalrl.identification.bounds import (
-    Interval,
+from causalrl.identification.bounds import Interval, manski_bounds, tipping_gamma
+from causalrl.ope.bounds import (
     ipw_sensitivity_bounds,
-    manski_bounds,
     msm_contribution_bounds,
     msm_per_step_bounds,
     msm_policy_value_bounds,
     msm_stratified_bounds,
-    tipping_gamma,
 )
 
 

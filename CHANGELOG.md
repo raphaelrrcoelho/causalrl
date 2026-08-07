@@ -240,7 +240,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     exact string updates it; `.recommendation` (`"act"` / `"abstain"`) was already the intended
     read and is unaffected.
   - **`estimate_sequential_value(treatments=, outcome=)` and `certify_sequential_value(treatments=,
-    outcome=)` → `(actions=, reward=)`** (`causalrl.estimate.sequential`), threaded through every
+    outcome=)` → `(actions=, reward=)`** (now `causalrl.ope.sequential`), threaded through every
     internal helper (`_fingerprint`, `_check_shapes`, `_dr_fold`, `_stage`, `_gcomp`) and through
     `sequential_ice_values`, so the module has no `treatments` left underneath the public rename.
     The nuisance-model parameters (`outcome_model`, `propensity_model`) are a different concept —
@@ -255,6 +255,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     **`causalrl.interop.econml.from_econml_cate` → `policy_from_econml_cate`.** Neither was
     exported top-level. **Migration:** rename the import; both adapters' own `outcomes=` /
     `treated=` keyword arguments are unchanged.
+- **Off-policy evaluation is one package, `causalrl.ope`.** The OPE surface was spread across five
+  packages with no single place to import it from — a symptom of the library's RL half being an
+  afterthought. It now has one home. **No numerics, defaults or control flow changed; this is a
+  module move plus re-exports, and the top-level API is byte-for-byte the same surface:
+  `from causalrl import causal_q_bounds, msm_policy_value_bounds, certify_policy, ipw_value,
+  stream_policy_value, estimate_sequential_value, …` all still work, unchanged.** What moved:
+  - **`causalrl.ope.ipw`** — `ipw_value` (from `causalrl.eval.ope`, module deleted) and
+    `stream_policy_value` (from `causalrl.estimate.streaming`, module deleted). The two ways to
+    reweight logged rewards now sit together.
+  - **`causalrl.ope.sequential`** — the whole of `causalrl.estimate.sequential` (module deleted):
+    `SequentialValueEstimate`, `sequential_ice_values`, `estimate_sequential_value`,
+    `certify_sequential_value`.
+  - **`causalrl.ope.bounds`** — the value-side sensitivity family, out of
+    `causalrl.identification.bounds`: `causal_q_bounds`, `ipw_sensitivity_bounds`,
+    `msm_policy_value_bounds`, `msm_contribution_bounds`, `msm_per_step_bounds`,
+    `msm_stratified_bounds`. `causalrl.identification.bounds` keeps what identification itself
+    needs — `Interval`, `manski_bounds`, the pivotality layer (`PivotalityCertificate`,
+    `pivotality_certificate`, `mi_flip_threshold`, `confounding_bias_bound`,
+    `confounding_bias_per_step_bounds`) and `tipping_gamma`, which takes a `gamma -> Interval`
+    callable and so depends on no particular bound.
+  - **`causalrl.ope.certify`** — `certify_policy`, out of `causalrl.scale`. `causalrl.scale`
+    re-exports it, so `from causalrl.scale import certify_policy` still works and the scale story
+    (train elsewhere with `causalrl.scale.d3rlpy`, certify here) still reads end to end.
+
+  **Migration:** only a *module-path* import needs editing, and only for the paths above — e.g.
+  `from causalrl.identification.bounds import msm_policy_value_bounds` becomes
+  `from causalrl.ope.bounds import msm_policy_value_bounds`. `causalrl.bounds` and
+  `causalrl.estimate` keep re-exporting what they re-exported before (`causalrl.estimate`'s
+  `stream_policy_value` now resolves lazily, so `import causalrl.ope.ipw` does not re-enter a
+  half-initialised `causalrl.estimate`), and `causalrl.ope` itself resolves lazily through module
+  `__getattr__` — eager binding there would close `ope.certify` → `identification.decision` →
+  `ope.bounds` into an import cycle.
 ### Changed
 - **`act()` on the back-door planners is now a policy, not a constant.**
   `BackdoorAdjustedAgent`, `DiscoveryBackdoorAgent`, `TransportBackdoorAgent`,
@@ -317,13 +349,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     causal-RL primitive — reach for `numpy`/`scipy` directly.
   - **`causalrl.estimate.streaming.stream_quantile_certificate`**, with its top-level export. Its own
     docstring said it plainly: *"not a causal effect."* `stream_policy_value` — the self-normalised
-    off-policy value estimator in the same module — is unaffected.
+    off-policy value estimator that shared the module — is unaffected, and moved to
+    `causalrl.ope.ipw` (above).
   - **`causalrl.backends.quantile_sketch`** — the module and `GKQuantileSketch` — is deleted. It
     existed only to back `stream_quantile_certificate`; nothing else imported it.
   - **`causalrl.experimental.ope`** — the module and `confounding_sensitivity_bounds` — is deleted.
     Its own module docstring called its contents *exploratory utilities, not validated estimators*,
     and its own test asserted it was not part of the public API. The published bound is
-    `causalrl.identification.bounds.msm_policy_value_bounds` (population OPE) or
+    `causalrl.ope.bounds.msm_policy_value_bounds` (population OPE) or
     `ipw_sensitivity_bounds` (per-unit).
   - **`causalrl.meanfield`** — `MeanFieldGame`, `mean_field_equilibria`, `best_response_fraction`,
     `certify_mean_field_equilibrium`, `UNSTABLE` — is deleted. It was already outside the frozen

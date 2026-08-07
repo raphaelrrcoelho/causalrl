@@ -33,11 +33,11 @@ from causalrl.certify.certificate import (
     Provenance,
     Witness,
 )
-from causalrl.estimate.sequential import OutcomeFactory, sequential_ice_values
 from causalrl.exceptions import NotIdentifiableError
 from causalrl.graphs import graph_hash
 from causalrl.identification.criteria import backdoor_adjustment_set
 from causalrl.identification.transport import SelectionDiagram, transport_formula
+from causalrl.ope.sequential import OutcomeFactory, sequential_ice_values
 
 __all__ = [
     "certify_transported_effect",

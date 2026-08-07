@@ -1,4 +1,4 @@
-from causalrl.eval.ope import ipw_value
+from causalrl.ope.ipw import ipw_value
 
 
 def test_ipw_recovers_value_with_known_propensities():

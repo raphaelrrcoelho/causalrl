@@ -2,11 +2,12 @@
 
 Given confounded / off-policy logs of a binary decision — "does action 1 outperform action 0?" —
 report whether that decision is robust to hidden confounding. It is an ergonomic orchestrator,
-not new theory: it composes the documented decision stack from
-:mod:`causalrl.identification.bounds` — the cheap sign-robustness certificate
-(:func:`pivotality_certificate`) and, when logging propensities are supplied, the
-marginal-sensitivity-model tipping point (:func:`tipping_gamma` over
-:func:`msm_contribution_bounds`) — into a single call with a human-readable verdict.
+not new theory: it composes the documented decision stack — the cheap sign-robustness
+certificate (:func:`~causalrl.identification.bounds.pivotality_certificate`) and, when logging
+propensities are supplied, the marginal-sensitivity-model tipping point
+(:func:`~causalrl.identification.bounds.tipping_gamma` over
+:func:`~causalrl.ope.bounds.msm_contribution_bounds`) — into a single call with a human-readable
+verdict.
 """
 
 from __future__ import annotations
@@ -19,11 +20,11 @@ import numpy as np
 from causalrl.identification.bounds import (
     Interval,
     PivotalityCertificate,
-    msm_contribution_bounds,
     pivotality_certificate,
     tipping_gamma,
 )
 from causalrl.identification.estimate import PolicyValueContrast
+from causalrl.ope.bounds import msm_contribution_bounds
 
 
 class DecisionCertificate(NamedTuple):

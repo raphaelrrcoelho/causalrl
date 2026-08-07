@@ -1,1 +1,1 @@
-"""Evaluation: regret metrics and off-policy evaluation."""
+"""Evaluation: regret metrics, benchmark harnesses, and the MBRL probe gates."""

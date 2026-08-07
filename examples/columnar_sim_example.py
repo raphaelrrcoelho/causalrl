@@ -14,8 +14,8 @@ from typing import Any
 
 import numpy as np
 
-from causalrl.estimate.streaming import stream_policy_value
 from causalrl.interop.columnar_sim import check_conformance, simulator_from_callables
+from causalrl.ope.ipw import stream_policy_value
 
 
 def promotion_simulator_rows(n: int, seed: int | None) -> list[dict[str, Any]]:
