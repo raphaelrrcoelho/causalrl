@@ -81,6 +81,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is the bandit case, expanding the one realized payoff by inverse-propensity weighting (EXP3, Auer
   et al., *SICOMP* 2002, with `explore` supplying the uniform mixing). This is the first import edge
   between `magames/` and `agents/`.
+- **`OnlineCausalMBRL`** (`causalrl.agents.online_causal_mbrl`, exported top-level and from
+  `causalrl.agents`) — an agent that learns its SCM *while acting* instead of from a fixed table.
+  It keeps an observational buffer alongside one interventional buffer per intervention target;
+  `refit()` recomputes the **interventional Markov equivalence class** with
+  `discover_interventional` and fits one SCM per member with `fit_scm_mec`, and that set of SCMs is
+  the belief. `act()` plans inside it — `thompson` (draw one member: Thompson sampling over
+  structure, Ortega & Braun, [arXiv:1303.4431](https://arxiv.org/abs/1303.4431)), `average`
+  (marginalise the structure out) or `robust` (maximin over members) — and `probe()` returns the
+  intervention target whose effect the members disagree about most, predictive disagreement
+  standing in for expected information gain. `belief_size()` / `structure_uncertain()` /
+  `history()` are first-class outputs, so an agent that still does not know its structure can say
+  so instead of committing to an arbitrary member. The alternating loop is Sun et al., *Learning by
+  Doing*, Science China Information Sciences 2024
+  ([arXiv:2402.04869](https://arxiv.org/abs/2402.04869)); needing observational *and* experimental
+  data under confounding is Bareinboim & Forney (MABUC) and Forney, Pearl & Bareinboim. No code is
+  ported. `examples/online_causal_mbrl.py` runs three data diets on a synthetic world whose
+  six-member I-MEC disagrees about the optimal action, so observation alone cannot succeed at any
+  sample size: the observational-only arm holds all six for the whole run and so deploys the wrong
+  action about five rounds in six, while the two arms that experiment collapse the belief to one
+  member within a round or two and reach zero regret. It reports the
+  share of seeds whose belief still contains the *true* DAG beside the belief size, because a
+  collapsed belief is not thereby a correct one.
 - **`BatchAgent`** (`causalrl.agents.base`, exported top-level) — the agent interface split. `Agent`
   requires `update`, but ten of its subclasses implemented it as an empty body: they are batch
   learners whose policy comes from `fit`/`ingest_offline`, and a single reward carries nothing they

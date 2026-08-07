@@ -98,3 +98,34 @@ def test_intervening_on_a_leaf_does_not_over_orient() -> None:
 def test_unknown_target_raises() -> None:
     with pytest.raises(CausalGraphError):
         discover_interventional(_obs(), {"Q": {}}, ["A", "B", "C"])
+
+
+def test_an_empty_do_sample_refuses_rather_than_orienting_everything() -> None:
+    # The shift test is an empirical total variation, and `_empirical_pmf` on an empty column is
+    # {} -- so the distance to ANY observational marginal is 0.5, ten times the default
+    # shift_threshold. Before the guard this oriented every edge incident to the target from zero
+    # data and let Meek propagate outward from the fabrication. Discriminating: the assertion is
+    # that it RAISES, so removing the guard fails the test (the call would return a fully oriented
+    # CPDAG instead).
+    empty = {name: np.array([], dtype=np.int64) for name in ("A", "B", "C")}
+    with pytest.raises(CausalGraphError, match="0 sample"):
+        discover_interventional(_obs(), {"B": empty}, ["A", "B", "C"])
+
+
+def test_a_tiny_do_sample_refuses_rather_than_orienting_on_noise() -> None:
+    # A single sample's pmf is a point mass, so its distance to the observational marginal is
+    # 1 - p_obs(v) -- which clears the 0.05 threshold for almost any value. Small samples are the
+    # same failure as the empty one, just less obvious.
+    tiny = {name: column[:3] for name, column in _do("B", 1.0).items()}
+    with pytest.raises(CausalGraphError, match="3 sample"):
+        discover_interventional(_obs(), {"B": tiny}, ["A", "B", "C"])
+
+
+def test_min_interventional_samples_is_lowerable_for_callers_who_accept_the_risk() -> None:
+    # The guard refuses by default but does not forbid: a caller who knowingly accepts a small
+    # sample can lower the floor. Pinning this keeps the guard a default rather than a wall.
+    small = {name: column[:8] for name, column in _do("B", 1.0).items()}
+    cpdag = discover_interventional(
+        _obs(), {"B": small}, ["A", "B", "C"], min_interventional_samples=8
+    )
+    assert cpdag.undirected_edges == frozenset()
