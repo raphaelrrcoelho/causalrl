@@ -26,7 +26,6 @@ Markov-equivalence class (CPDAG), which may leave some edges unoriented. No exte
 
 from __future__ import annotations
 
-import math
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -50,25 +49,74 @@ __all__ = [
 def conditional_mutual_information(
     data: Mapping[str, np.ndarray], x: str, y: str, z: Sequence[str]
 ) -> float:
-    """Empirical ``I(X; Y | Z)`` in nats (discrete columns; ``0`` iff ``X ⊥ Y | Z``)."""
-    xs, ys = data[x], data[y]
-    n = len(xs)
-    zcols = [data[zi] for zi in z]
-    joint: dict[tuple[int, int, tuple[int, ...]], int] = defaultdict(int)
-    xz: dict[tuple[int, tuple[int, ...]], int] = defaultdict(int)
-    yz: dict[tuple[int, tuple[int, ...]], int] = defaultdict(int)
-    zc: dict[tuple[int, ...], int] = defaultdict(int)
-    for i in range(n):
-        xv, yv = int(xs[i]), int(ys[i])
-        zk = tuple(int(c[i]) for c in zcols)
-        joint[(xv, yv, zk)] += 1
-        xz[(xv, zk)] += 1
-        yz[(yv, zk)] += 1
-        zc[zk] += 1
-    cmi = 0.0
-    for (xv, yv, zk), count in joint.items():
-        ratio = (count * zc[zk]) / (xz[(xv, zk)] * yz[(yv, zk)])
-        cmi += (count / n) * math.log(ratio)
+    """Empirical ``I(X; Y | Z)`` in nats (discrete columns; ``0`` iff ``X ⊥ Y | Z``).
+
+    Counted with :func:`numpy.unique` over integer-encoded cells rather than a Python loop over
+    rows. This is the inner loop of every discovery routine here -- PC, FCI and the interventional
+    and invariance variants all bottom out in it, once per (pair, conditioning set) triple -- so its
+    constant factor sets how large a problem ``discover`` can take at all. The counts are sparse
+    (only cells that occur are materialised), so the memory cost follows the data rather than the
+    product of the variables' level counts.
+    """
+    xs = np.asarray(data[x]).ravel()
+    ys = np.asarray(data[y]).ravel()
+    n = int(xs.size)
+    if n == 0:
+        return 0.0
+    _, xcode = np.unique(xs.astype(np.int64), return_inverse=True)
+    _, ycode = np.unique(ys.astype(np.int64), return_inverse=True)
+    # Mix the conditioning columns into one integer key, then re-factorise it. A row-wise
+    # np.unique(axis=0) would do the same job but sorts a structured view of the whole block,
+    # which costs several times more than sorting the int64 keys it produces.
+    zcode = np.zeros(n, dtype=np.int64)
+    for name in z:
+        _, column = np.unique(np.asarray(data[name]).ravel().astype(np.int64), return_inverse=True)
+        column = column.astype(np.int64).ravel()
+        zcode = zcode * (int(column.max()) + 1) + column
+    if z:
+        _, zcode = np.unique(zcode, return_inverse=True)
+        zcode = zcode.astype(np.int64).ravel()
+    n_x = int(xcode.max()) + 1
+    n_y = int(ycode.max()) + 1
+
+    # One integer key per cell, so every count is a single sorted pass.
+    xz_key = zcode * n_x + xcode
+    yz_key = zcode * n_y + ycode
+    joint_key = xz_key * n_y + ycode
+
+    n_z = int(zcode.max()) + 1
+    dense = n_z * n_x * n_y
+    if dense <= max(4 * n, 1024):
+        # Dense counting is a linear pass instead of a sort, and at this size the table is smaller
+        # than the data. Above it, the sparse path keeps memory proportional to occupied cells.
+        table = np.bincount(joint_key, minlength=dense)
+        keys = np.flatnonzero(table)
+        joint = table[keys]
+        count_xz_dense = np.bincount(xz_key, minlength=n_z * n_x)
+        count_yz_dense = np.bincount(yz_key, minlength=n_z * n_y)
+        count_z_dense = np.bincount(zcode, minlength=n_z)
+        cell_y = keys % n_y
+        cell_rest = keys // n_y
+        cell_x = cell_rest % n_x
+        cell_z = cell_rest // n_x
+        c_xz = count_xz_dense[cell_z * n_x + cell_x]
+        c_yz = count_yz_dense[cell_z * n_y + cell_y]
+        c_z = count_z_dense[cell_z]
+    else:
+        keys, joint = np.unique(joint_key, return_counts=True)
+        uniq_xz, count_xz = np.unique(xz_key, return_counts=True)
+        uniq_yz, count_yz = np.unique(yz_key, return_counts=True)
+        uniq_z, count_z = np.unique(zcode, return_counts=True)
+        cell_y = keys % n_y
+        cell_rest = keys // n_y
+        cell_x = cell_rest % n_x
+        cell_z = cell_rest // n_x
+        c_xz = count_xz[np.searchsorted(uniq_xz, cell_z * n_x + cell_x)]
+        c_yz = count_yz[np.searchsorted(uniq_yz, cell_z * n_y + cell_y)]
+        c_z = count_z[np.searchsorted(uniq_z, cell_z)]
+
+    ratio = (joint * c_z) / (c_xz * c_yz)
+    cmi = float(np.sum((joint / n) * np.log(ratio)))
     return max(cmi, 0.0)
 
 
@@ -211,6 +259,25 @@ def _apply_meek_rules(
                     break
 
 
+def _pair_sepset(
+    data: Mapping[str, np.ndarray],
+    a: str,
+    b: str,
+    rest: Sequence[str],
+    size: int,
+    threshold: float,
+) -> tuple[str, ...] | None:
+    """The first size-``size`` subset of ``rest`` that separates ``a`` and ``b``, or ``None``.
+
+    A free function because it is the skeleton search's unit of work: it reads the level's
+    snapshot and returns a verdict, touching no shared state.
+    """
+    for candidate in combinations(rest, size):
+        if _independent(data, a, b, candidate, threshold=threshold):
+            return candidate
+    return None
+
+
 def _pc_skeleton(
     data: Mapping[str, np.ndarray],
     nodes: Sequence[str],
@@ -218,10 +285,24 @@ def _pc_skeleton(
     threshold: float,
     max_conditioning_size: int,
 ) -> tuple[dict[str, set[str]], dict[frozenset[str], tuple[str, ...]]]:
-    """The PC skeleton: drop ``a - b`` when some neighbour subset renders them independent.
+    """The PC-stable skeleton: drop ``a - b`` when some neighbour subset renders them independent.
 
     Returns the adjacency sets and the separating set recorded for each removed pair. Shared by
     :func:`discover` (PC) and :func:`discover_latent` (FCI).
+
+    **Stable in the sense of Colombo & Maathuis (JMLR 2014).** The adjacency sets are snapshotted
+    at the start of each conditioning-set size and every test at that level reads the snapshot, so
+    removals within a level cannot change which subsets other pairs are tested against. The
+    original PC updates adjacency in place, which makes the output depend on the order the
+    variables happen to arrive in -- a real and well-documented instability, not a tie-break
+    detail. Stability is also what makes the level parallelisable at all: with a frozen snapshot
+    the pair tests are independent, whereas in-place updating makes them sequentially dependent by
+    construction.
+
+    ``n_jobs`` runs those independent pair tests on a thread pool. The counting inside
+    :func:`conditional_mutual_information` is numpy sorting and binning, which releases the GIL, so
+    threads help without the per-worker pickling a process pool would need. The result does not
+    depend on ``n_jobs``: verdicts are collected and then applied in sorted order.
     """
     for v in nodes:
         if v not in data:
@@ -229,21 +310,24 @@ def _pc_skeleton(
     adj: dict[str, set[str]] = {v: set(nodes) - {v} for v in nodes}
     sepset: dict[frozenset[str], tuple[str, ...]] = {}
     for size in range(max_conditioning_size + 1):
-        testable = False
-        for a in nodes:
-            for b in sorted(adj[a]):
-                rest = sorted(adj[a] - {b})
-                if len(rest) < size:
-                    continue
-                testable = True
-                for candidate in combinations(rest, size):
-                    if _independent(data, a, b, candidate, threshold=threshold):
-                        adj[a].discard(b)
-                        adj[b].discard(a)
-                        sepset[frozenset((a, b))] = candidate
-                        break
-        if not testable:
+        snapshot = {v: frozenset(adj[v]) for v in nodes}
+        jobs: list[tuple[str, str, tuple[str, ...]]] = []
+        for a in sorted(nodes):
+            for b in sorted(snapshot[a]):
+                rest = tuple(sorted(snapshot[a] - {b}))
+                if len(rest) >= size:
+                    jobs.append((a, b, rest))
+        if not jobs:
             break
+        verdicts = [_pair_sepset(data, a, b, rest, size, threshold) for a, b, rest in jobs]
+        # Applied after the whole level, in the deterministic order the jobs were built, so the
+        # first separating set found for a pair wins whatever order the tests ran in.
+        for (a, b, _rest), candidate in zip(jobs, verdicts, strict=True):
+            if candidate is None or frozenset((a, b)) in sepset:
+                continue
+            adj[a].discard(b)
+            adj[b].discard(a)
+            sepset[frozenset((a, b))] = candidate
     return adj, sepset
 
 
