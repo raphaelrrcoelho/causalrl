@@ -156,3 +156,23 @@ is: a factored-advantage decomposition primitive.
 
 Full gate per commit. Push, PR, watch CI. `v3.0.0` requires the CHANGELOG migration section to be
 complete before release.
+
+---
+
+### Task 10 — lift `magames` out of its small-`N` corner (recorded, not scheduled)
+
+Surfaced by the `interference` decision (`.superpowers/sdd/PLAN/interference-decision.md` §7) and
+worth keeping after that module was removed.
+
+`Population.to_game()` materialises every action profile with `itertools.product`
+(`magames/population.py:110`), and `run_no_regret` then calls `cce_polytope(game)`, which enumerates
+them again (`magames/cce.py:87`). So the whole multi-agent surface is `|A|^N` and small-`N` by
+construction — which is *why* several proposed recentrings had nowhere to land.
+
+Indexing instead by an **anonymity statistic** — how many others played each action, rather than who
+played what — collapses that to `|A| x (N+1)` for symmetric populations. It needs roughly one
+summary function; none of the estimators change. `meanfield.MeanFieldPayoff` is already
+`f(own_action, population_share)`, i.e. the anonymous form, so the library has the target
+representation and only `magames` is stuck in the exponential one.
+
+Not scheduled: it is a `magames` design change, not a recentring, and nothing currently blocks on it.
