@@ -6,6 +6,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+import pytest
+
 import causalrl
 
 
@@ -113,6 +115,70 @@ def test_agent_frontdoor_symbols_exported():
     for name in ("CausalMBRLAgent", "GFormulaBackdoorAgent"):
         assert name in causalrl.__all__
         assert getattr(causalrl, name) is not None
+
+
+def test_online_causal_mbrl_is_exported_top_level_and_from_the_agents_package():
+    """Both re-export sites, and the same object at each.
+
+    A class that is only reachable by its full module path
+    (``causalrl.agents.online_causal_mbrl.OnlineCausalMBRL``) is not part of the public API, and a
+    package re-export that resolves to a *different* object is worse than none: callers would then
+    fail ``isinstance`` checks across the two import spellings.
+    """
+    import causalrl.agents
+
+    assert "OnlineCausalMBRL" in causalrl.__all__
+    assert "OnlineCausalMBRL" in causalrl.agents.__all__
+    assert "OnlineCausalMBRL" in dir(causalrl.agents)
+    from causalrl.agents.online_causal_mbrl import OnlineCausalMBRL
+
+    assert causalrl.OnlineCausalMBRL is OnlineCausalMBRL
+    assert causalrl.agents.OnlineCausalMBRL is OnlineCausalMBRL
+
+
+def test_agents_package_rejects_an_unknown_name():
+    """A lazy loader must still raise ``AttributeError`` for a name it does not export.
+
+    Module ``__getattr__`` is the fallback Python calls when normal lookup fails, so anything it
+    raises is what a typo'd import surfaces as, and ``hasattr`` only reports ``False`` for
+    ``AttributeError``. Letting a ``KeyError`` or a ``None`` escape here would make a misspelt
+    ``from causalrl.agents import ...`` fail with the wrong exception and break introspection.
+    """
+    import causalrl.agents
+
+    with pytest.raises(AttributeError, match="OnlineCausalMBLR"):
+        _ = causalrl.agents.OnlineCausalMBLR  # type: ignore[attr-defined]
+    assert not hasattr(causalrl.agents, "OnlineCausalMBLR")
+
+
+def test_agents_package_imports_without_torch():
+    """``causalrl.agents`` must stay importable with PyTorch absent.
+
+    The top-level lazy loader reaches ``DOVI`` by importing ``causalrl.agents.dovi``, which
+    executes ``causalrl/agents/__init__.py`` first. Binding a torch-backed agent there eagerly
+    would therefore make the torch-free graph surface require torch, so the package re-exports
+    lazily and this pins it: the module imports, and its ``__all__`` is readable, before anything
+    that needs torch is touched.
+    """
+    source = """
+import builtins
+
+original_import = builtins.__import__
+
+def import_without_torch(name, globals=None, locals=None, fromlist=(), level=0):
+    if name == "torch" or name.startswith("torch."):
+        raise ModuleNotFoundError("No module named 'torch'", name="torch")
+    return original_import(name, globals, locals, fromlist, level)
+
+builtins.__import__ = import_without_torch
+import causalrl.agents
+
+assert "OnlineCausalMBRL" in causalrl.agents.__all__
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", source], check=False, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_learned_scm_surface_is_exported_top_level():

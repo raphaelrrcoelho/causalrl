@@ -111,6 +111,80 @@ Reported alongside `mec_size_over_time()` so the belief collapse is visible, not
 synthetic world with exact ground truth, and the example must say so in its own output — the same
 discipline `examples/learned_scm_policy.py` follows. No benchmark claims.
 
+## What the demonstration actually shows
+
+`examples/online_causal_mbrl.py`, run at its defaults (8 rounds, 5 seeds, 200 rows a round).
+
+**The world.** Binary `Z -> A -> Y` with `Z -> Y`: `P(Z=1)=0.2`, `P(A=1|Z)= 0.95 / 0.10`,
+`P(Y=1|A,Z) = 0.05 / 0.45` at `Z=0` and `0.95 / 0.45` at `Z=1`. Exactly: `E[Y|do(A=0)] = 0.230`,
+`E[Y|do(A=1)] = 0.450`, so `A=1` is optimal and deploying `A=0` costs 0.220 a round — while the log
+reverses the ordering, `E[Y|A=0] = 0.786` against `E[Y|A=1] = 0.450`. The observational skeleton is
+the complete triangle with no v-structure, so PC returns a fully undirected CPDAG and the class has
+six members. The parameters were chosen so that every PC test clears its 0.01-nat threshold by at
+least 3x (the binding one is `I(A;Y|Z) = 0.031`) and the `do(A)` marginal shift clears its 0.05
+total-variation threshold by 3.7x; those margins are what make the run reproducible rather than
+lucky. The belief trajectory is read off `history()` — which is what the sketch above called
+`mec_size_over_time()`; it shipped as a tuple of `RefitRecord(step, belief_size)`.
+
+**The ambiguity, printed member by member.** One member is the truth and prefers `A=1`; two have
+`A` as a source and read `do(A=a)` straight off `E[Y|A=a]`, so they prefer `A=0`; three leave `A`
+unable to reach `Y`, and there `do(A=0)` and `do(A=1)` produce *bit-identical* rollouts (same
+mechanism, same exogenous draws), so `act()` falls through to its tie-break and takes `A=0`. Five of
+six deploy the wrong action, which is why the observation-only arm plateaus near
+`5/6 x 0.220 = 0.183` rather than at 0.220.
+
+**The three arms.** Belief size is the spread across the five seeds.
+
+| round | observational only | interventional only | both |
+| --- | --- | --- | --- |
+| 0 | 6 members, regret 0.132 | 6, 0.220 | 6, 0.132 |
+| 1 | 6, 0.220 | 1 (truth kept on 4/5 seeds), 0.044 | 1–2 (4/5), 0.044 |
+| 2 | 6, 0.132 | 1, 0.000 | 1, 0.000 |
+| 3–7 | 6, 0.176–0.220 | 1, 0.000 | 1, 0.000 |
+
+The observation-only arm reads 1,400 more rows over the run and its belief never moves, because the
+six members induce the same observational law by construction. Both experimenting arms collapse to
+one member within a round or two of the first experiment and their regret goes to zero.
+
+**Three things the run made visible that this design did not anticipate.**
+
+1. **A belief of size one is not a belief in the right DAG.** At round 1 one seed of each
+   experimenting arm has already excluded the truth. The example therefore reports a *second*
+   structure column — the share of seeds whose belief still contains the true DAG — because belief
+   size alone flatters exactly the runs that deserve it least.
+2. **The dominant finite-sample error is the false positive, not the miss.** Deciding `A -> Y`
+   needs a 0.184 shift detected against a 0.05 threshold and is easy; deciding `Z -> A` needs
+   `Z`'s marginal to be seen *not* moving, and `shift_threshold` is an absolute cutoff with no
+   dependence on the sample size. Measured, for two Bernoulli(0.2) samples: `P(TV >= 0.05)` is
+   **44%** at a 40-row do-sample against a 3,000-row reference, **9%** at 200 rows, and **19%** at
+   200 rows against a 250-row reference. That is what sets the 200-row experiment size and what
+   every non-monotone row in the table above is made of — a property of a fixed-threshold test at a
+   finite sample, not of this world. The do-buffer accumulates across rounds, which is why the
+   flicker is confined to round 1.
+3. **The log's second job is being the reference the invariance test compares against.** The
+   interventional-only arm's 250-row seed is not only thin for fitting mechanisms; it is the
+   baseline the `do(A)` marginals are differenced from, so that arm is likelier both to misread an
+   unmoved marginal as moved and to miss one that moved. On one seed it misses the `Y` shift the
+   3,000-row arm sees in the same experimental data.
+
+**What the run does not show.** The interventional-only and both arms end level. This world's causal
+gap (0.220) is wide enough that a 250-row observational seed plus a few hundred experimental rows
+already estimates the mechanisms well enough to rank two actions, so "the log buys the mechanisms
+cheaply" shows up here as a difference in *orientation stability*, not in the final decision. A
+world with a narrower gap would separate them on the decision too; this one does not, and the
+example says so.
+
+**Only the treatment is intervened on.** `probe()` is called and reported every round, and on this
+world it almost always names `Z` — the most informative experiment is one no agent that can only
+set its own action is able to run. Reporting it rather than acting on it is deliberate, and it also
+sidesteps a sharp edge worth recording: with two intervention targets buffered,
+`discover_interventional` orients each target's incident edges independently, so a misread marginal
+on one target can contradict a correct orientation from the other and leave a *cyclic* edge set.
+`fit_scm_mec` then enumerates zero members and returns an empty belief rather than raising, and the
+next `act()` fails with the empty-belief error. With a single target on three variables that is
+impossible — one target orients two edges and only Meek's R2 can fire, which never closes a cycle —
+so the example stays inside that regime. The general fix belongs in the library, not in an example.
+
 ## Risks, stated rather than discovered later
 
 - **PC is noisy at finite samples**, so the CPDAG can flicker between refits and the belief can grow
