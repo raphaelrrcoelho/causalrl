@@ -267,3 +267,59 @@ def test_screened_discovery_recovers_the_known_var_chain() -> None:
     assert ("X", "Y") in edges
     assert ("Y", "Z") in edges
     assert ("X", "Z") not in edges
+
+
+def test_exogenous_variables_are_conditioned_on_but_never_linked() -> None:
+    """A known driver belongs in every conditioning set and in no edge."""
+    rng = np.random.default_rng(0)
+    n = 6000
+    driver = rng.standard_normal(n)
+    # A follows the driver at lag 1 and B at lag 2, so A's *past* predicts B's present even though
+    # nothing connects them — the spurious lagged edge a shared driver actually produces.
+    a = np.zeros(n)
+    b = np.zeros(n)
+    a[1:] = 2.0 * driver[:-1] + 0.3 * rng.standard_normal(n - 1)
+    b[2:] = 2.0 * driver[:-2] + 0.3 * rng.standard_normal(n - 2)
+    data = {"A": a, "B": b, "drive": driver}
+    naive = discover_lagged(
+        data,
+        ["A", "B"],
+        max_lag=2,
+        ci_test=PartialCorrelationTest(alpha=1e-4),
+        max_conditioning_size=1,
+    )
+    adjusted = discover_lagged(
+        data,
+        ["A", "B"],
+        max_lag=2,
+        ci_test=PartialCorrelationTest(alpha=1e-4),
+        max_conditioning_size=1,
+        exogenous=["drive"],
+    )
+    assert ("A", "B") in naive.lagged_edges()  # the driver manufactures A -> B
+    assert ("A", "B") not in adjusted.lagged_edges()  # conditioning on it removes the edge
+    # The driver is conditioned on, never drawn: it is in neither graph's variables.
+    assert "drive" not in adjusted.variables
+    assert all("drive" not in edge for edge in adjusted.lagged_edges())
+
+
+def test_exogenous_max_lag_bounds_the_pinned_columns() -> None:
+    seen: list[int] = []
+
+    def spy(data: object, x: str, y: str, z: list[str]) -> bool:
+        seen.append(sum(1 for v in z if v.startswith("drive")))
+        return True
+
+    rng = np.random.default_rng(1)
+    data = {k: rng.standard_normal(500) for k in ("A", "B", "drive")}
+    discover_lagged(
+        data,
+        ["A", "B"],
+        max_lag=3,
+        ci_test=spy,
+        max_conditioning_size=0,
+        exogenous=["drive"],
+        exogenous_max_lag=1,
+        contemporaneous=False,
+    )
+    assert seen and max(seen) == 2  # lags 0 and 1 only, not all four

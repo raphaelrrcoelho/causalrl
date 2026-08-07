@@ -36,6 +36,7 @@ __all__ = [
     "from_nwb_ecephys",
     "from_spike_trains",
     "load_dataset",
+    "require_h5py",
 ]
 
 FloatArray = NDArray[np.float64]
@@ -108,7 +109,7 @@ DATASETS: dict[str, DatasetSpec] = {
 }
 
 
-def _require_h5py() -> Any:
+def require_h5py() -> Any:
     """Import h5py, or say how to get it. NWB files are HDF5; nothing else here needs it."""
     try:
         import h5py
@@ -363,6 +364,7 @@ def from_nwb_ecephys(
     t_stop: float | None = None,
     areas: Sequence[str] | None = None,
     quality: Mapping[str, float] | None = None,
+    unit_ids: Sequence[int] | None = None,
     max_units_per_area: int | None = None,
     lfp_path: str | Path | None = None,
     lfp_max_channels: int = 8,
@@ -378,6 +380,11 @@ def from_nwb_ecephys(
     the ``unit_area`` map, and hence the ``tau`` of the micro→meso abstraction. ``areas`` restricts
     which are kept.
 
+    ``unit_ids`` selects specific units by their NWB id, bypassing ``max_units_per_area``'s
+    file-order truncation. Taking "the first N per area" silently selects on nothing in
+    particular — for a question about stimulus drive, for instance, it can hand back a set of
+    units the stimulus does not drive.
+
     ``quality`` filters the units table by column thresholds. Pass :data:`ALLEN_QUALITY` (the
     default when ``quality`` is ``None``) for the published Allen criteria, or ``{}`` to keep every
     unit. Sorted-unit quality is not cosmetic here: a unit with refractory violations is partly
@@ -387,7 +394,7 @@ def from_nwb_ecephys(
     ``lfp_path`` points at the matching probe file; its channels are block-averaged onto the same
     bin grid and attached as the mesoscopic scale.
     """
-    h5py = _require_h5py()
+    h5py = require_h5py()
 
     path = Path(session_path)
     if not path.exists():
@@ -395,7 +402,7 @@ def from_nwb_ecephys(
     thresholds = ALLEN_QUALITY if quality is None else dict(quality)
 
     # h5py ships no type stubs and its __getitem__ returns Group | Dataset | Datatype, so the
-    # handle stays Any (via _require_h5py) rather than being cast at every access site below.
+    # handle stays Any (via require_h5py) rather than being cast at every access site below.
     with h5py.File(path, "r") as f:
         if "units" not in f:
             raise RecordingError(f"{path.name} has no units table (not a sorted-spike NWB file)")
@@ -424,6 +431,8 @@ def from_nwb_ecephys(
             area = np.array([location.get(int(p), "?") for p in peak], dtype=object)
         if areas is not None:
             keep &= np.isin(area, list(areas))
+        if unit_ids is not None:
+            keep &= np.isin(units["id"][()], np.asarray(list(unit_ids)))
 
         selected = np.flatnonzero(keep)
         if max_units_per_area is not None:
@@ -497,7 +506,7 @@ def _read_nwb_lfp(
     Only the requested time window is read off disk — a full probe's LFP is gigabytes, and the
     timestamps are sorted, so a binary search bounds the slice.
     """
-    h5py = _require_h5py()
+    h5py = require_h5py()
 
     with h5py.File(path, "r") as f:  # Any for the same reason as above
         acquisition = f.get("acquisition")

@@ -52,10 +52,12 @@ from causalrl.neuro.connectivity import (
     observed_shared_variance,
 )
 from causalrl.neuro.io import (
+    ALLEN_QUALITY,
     DATASETS,
     DatasetSpec,
     DatasetUnavailableError,
     from_neo_block,
+    from_nwb_ecephys,
     from_spike_trains,
     load_dataset,
 )
@@ -71,6 +73,12 @@ from causalrl.neuro.simulate import (
     SpikingCorticalSimulator,
     two_area_microcircuit,
 )
+from causalrl.neuro.stimulus import (
+    EpochTable,
+    contiguous_blocks,
+    read_epochs,
+    stimulus_regressors,
+)
 from causalrl.neuro.timeseries import (
     ConditionedCITest,
     LaggedGraph,
@@ -81,6 +89,7 @@ from causalrl.neuro.timeseries import (
 )
 
 __all__ = [
+    "ALLEN_QUALITY",
     "DATASETS",
     "AbstractionReport",
     "AreaRateAbstraction",
@@ -90,6 +99,7 @@ __all__ = [
     "CorticalNetworkSpec",
     "DatasetSpec",
     "DatasetUnavailableError",
+    "EpochTable",
     "FunctionalConnectivity",
     "InterventionOutcome",
     "KnnCMITest",
@@ -110,9 +120,11 @@ __all__ = [
     "certify_abstraction",
     "certify_functional_edge",
     "common_input_tipping_point",
+    "contiguous_blocks",
     "default_interventions",
     "discover_lagged",
     "from_neo_block",
+    "from_nwb_ecephys",
     "from_spike_trains",
     "functional_connectivity",
     "lag_name",
@@ -120,5 +132,7 @@ __all__ = [
     "load_dataset",
     "mean_field_stability_margin",
     "observed_shared_variance",
+    "read_epochs",
+    "stimulus_regressors",
     "two_area_microcircuit",
 ]

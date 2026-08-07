@@ -308,6 +308,8 @@ def discover_lagged(
     max_conditioning_size: int = 3,
     max_contemporaneous_conditioning_size: int = 2,
     screen_samples: int | None = None,
+    exogenous: Sequence[str] = (),
+    exogenous_max_lag: int | None = None,
     seed: int = 0,
 ) -> LaggedGraph:
     """Discover a lagged causal graph from multivariate time series (PCMCI + FCI at lag 0).
@@ -317,6 +319,17 @@ def discover_lagged(
     :class:`~causalrl.neuro.citests.PoissonGLMTest` for spike counts and
     :class:`~causalrl.neuro.citests.PartialCorrelationTest` for continuous mesoscopic signals
     (the default). ``contemporaneous_ci_test`` defaults to ``ci_test``.
+
+    ``exogenous_max_lag`` bounds how far back the exogenous columns are pinned (default: all of
+    ``max_lag``); a stimulus that acts within a bin or two does not need four lags of conditioning,
+    and every pinned column enlarges every regression.
+
+    ``exogenous`` names series that are **conditioned on but never linked**: they are lag-embedded
+    and pinned into every conditioning set, yet they are neither candidates nor targets, so no edge
+    is ever drawn to or from them. This is how a known common driver is handled — a visual
+    stimulus, running speed, pupil diameter. Adjusting for the stimulus is the difference between
+    "these two neurons are connected" and "these two neurons were both looking at the same thing",
+    and the data cannot tell them apart unless the driver is in the conditioning set.
 
     Set ``contemporaneous=False`` to skip the lag-0 phase entirely when the bin width is known to
     resolve every interaction of interest; the returned PAG is then empty.
@@ -337,7 +350,15 @@ def discover_lagged(
     if max_lag < 1:
         raise CausalGraphError("max_lag must be at least 1 for lagged discovery")
     lag_test = ci_test if ci_test is not None else PartialCorrelationTest()
-    frame = lagged_frame(data, names, max_lag)
+    exo = [e for e in exogenous if e not in names]
+    frame = lagged_frame(data, [*names, *exo], max_lag)
+    if exo:
+        # Pinned into every conditioning set, at every lag: a driver that acts now and a moment ago
+        # confounds now and a moment ago.
+        exo_lags = max_lag if exogenous_max_lag is None else min(exogenous_max_lag, max_lag)
+        exo_columns = [lag_name(e, lag) for e in exo for lag in range(exo_lags + 1)]
+        pinned = dict.fromkeys(names, exo_columns)
+        lag_test = ConditionedCITest(lag_test, pinned)
 
     # Stage 1 + 2: lagged parents per target.
     candidates = {
@@ -380,6 +401,13 @@ def discover_lagged(
         base = contemporaneous_ci_test if contemporaneous_ci_test is not None else lag_test
         always = {
             target: [lag_name(ln.source, ln.lag) for ln in links if ln.target == target]
+            + [
+                lag_name(e, lag)
+                for e in exo
+                for lag in range(
+                    (max_lag if exogenous_max_lag is None else min(exogenous_max_lag, max_lag)) + 1
+                )
+            ]
             for target in names
         }
         pag = discover_latent(
