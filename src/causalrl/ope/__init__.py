@@ -62,14 +62,21 @@ _LAZY: dict[str, tuple[str, str]] = {
     "msm_policy_value_bounds": ("causalrl.ope.bounds", "msm_policy_value_bounds"),
     "msm_stratified_bounds": ("causalrl.ope.bounds", "msm_stratified_bounds"),
     "sequential_ice_values": ("causalrl.ope.sequential", "sequential_ice_values"),
+    "ConfidenceSequence": ("causalrl.ope.sequential_test", "ConfidenceSequence"),
+    "SequentialVerdict": ("causalrl.ope.sequential_test", "SequentialVerdict"),
+    "confidence_sequence": ("causalrl.ope.sequential_test", "confidence_sequence"),
+    "sequential_policy_comparison": ("causalrl.ope.sequential_test", "sequential_policy_comparison"),
     "stream_policy_value": ("causalrl.ope.ipw", "stream_policy_value"),
 }
 
 __all__ = [
+    "ConfidenceSequence",
     "SequentialValueEstimate",
+    "SequentialVerdict",
     "causal_q_bounds",
     "certify_policy",
     "certify_sequential_value",
+    "confidence_sequence",
     "estimate_sequential_value",
     "ipw_sensitivity_bounds",
     "ipw_value",
@@ -78,6 +85,7 @@ __all__ = [
     "msm_policy_value_bounds",
     "msm_stratified_bounds",
     "sequential_ice_values",
+    "sequential_policy_comparison",
     "stream_policy_value",
 ]
 
