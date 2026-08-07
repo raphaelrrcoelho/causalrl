@@ -26,12 +26,12 @@ def _extract_propensities(estimate: Any) -> list[float]:
         if scores is not None:
             return [float(v) for v in np.asarray(scores, dtype=float).ravel()]
     raise TypeError(
-        "from_dowhy_estimate needs a propensity-based DoWhy estimate "
+        "policy_contrast_from_dowhy needs a propensity-based DoWhy estimate "
         "(e.g. PropensityScoreWeightingEstimator); no propensity_scores found"
     )
 
 
-def from_dowhy_estimate(
+def policy_contrast_from_dowhy(
     estimate: Any,
     *,
     outcomes: Sequence[float],

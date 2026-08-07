@@ -117,18 +117,18 @@ def _ci(value: float, se: float, alpha: float) -> Interval:
 
 def _check_shapes(
     histories: Sequence[FloatArray],
-    treatments: Sequence[FloatArray],
+    actions: Sequence[FloatArray],
     target_actions: Sequence[FloatArray],
-    outcome: FloatArray,
+    reward: FloatArray,
 ) -> tuple[int, int]:
     t = len(histories)
     if t == 0:
         raise ValueError("need at least one stage")
-    if not (len(treatments) == len(target_actions) == t):
-        raise ValueError("histories, treatments, target_actions must have equal horizon length")
-    n = len(outcome)
-    for stage, (a, ap) in enumerate(zip(treatments, target_actions, strict=True)):
-        for name, arr in (("treatment", a), ("target_action", ap)):
+    if not (len(actions) == len(target_actions) == t):
+        raise ValueError("histories, actions, target_actions must have equal horizon length")
+    n = len(reward)
+    for stage, (a, ap) in enumerate(zip(actions, target_actions, strict=True)):
+        for name, arr in (("action", a), ("target_action", ap)):
             uniq = set(np.unique(np.asarray(arr, dtype=np.float64)).tolist())
             if not uniq <= {0.0, 1.0}:
                 raise ValueError(f"stage {stage} {name} must be binary 0/1; got {sorted(uniq)}")
@@ -139,9 +139,9 @@ def _dr_fold(
     fit_idx: IntArray,
     eval_idx: IntArray,
     histories: Sequence[FloatArray],
-    treatments: Sequence[FloatArray],
+    actions: Sequence[FloatArray],
     target_actions: Sequence[FloatArray],
-    outcome: FloatArray,
+    reward: FloatArray,
     *,
     outcome_factory: OutcomeFactory,
     propensity_factory: PropensityFactory,
@@ -155,11 +155,11 @@ def _dr_fold(
     doubly-robust pseudo-outcome (van der Laan & Gruber LTMLE).
     """
     horizon = len(histories)
-    q_fit = outcome[fit_idx]
-    q_eval = outcome[eval_idx]
+    q_fit = reward[fit_idx]
+    q_eval = reward[eval_idx]
     for t in reversed(range(horizon)):
-        h_fit, a_fit, ap_fit = _stage(histories, treatments, target_actions, t, fit_idx)
-        h_ev, a_ev, ap_ev = _stage(histories, treatments, target_actions, t, eval_idx)
+        h_fit, a_fit, ap_fit = _stage(histories, actions, target_actions, t, fit_idx)
+        h_ev, a_ev, ap_ev = _stage(histories, actions, target_actions, t, eval_idx)
         m = outcome_factory().fit(_with_action(h_fit, a_fit), q_fit)
         g_model = propensity_factory().fit(h_fit, a_fit)
         q_fit = _dr_update(m, g_model, h_fit, a_fit, ap_fit, q_fit, clip)
@@ -171,12 +171,12 @@ def _dr_fold(
 
 def _stage(
     histories: Sequence[FloatArray],
-    treatments: Sequence[FloatArray],
+    actions: Sequence[FloatArray],
     target_actions: Sequence[FloatArray],
     t: int,
     idx: IntArray,
 ) -> tuple[FloatArray, FloatArray, FloatArray]:
-    return histories[t][idx], treatments[t][idx], target_actions[t][idx]
+    return histories[t][idx], actions[t][idx], target_actions[t][idx]
 
 
 def _dr_update(
@@ -200,17 +200,17 @@ def _dr_update(
 
 def _gcomp(
     histories: Sequence[FloatArray],
-    treatments: Sequence[FloatArray],
+    actions: Sequence[FloatArray],
     target_actions: Sequence[FloatArray],
-    outcome: FloatArray,
+    reward: FloatArray,
     *,
     outcome_factory: OutcomeFactory,
 ) -> FloatArray:
     """In-sample iterated conditional expectations; returns the per-unit ``q_1`` plug-in."""
     horizon = len(histories)
-    q = outcome
+    q = reward
     for t in reversed(range(horizon)):
-        h, a, a_pi = histories[t], treatments[t], target_actions[t]
+        h, a, a_pi = histories[t], actions[t], target_actions[t]
         m = outcome_factory().fit(_with_action(h, a), q)
         q = _predict(m, _with_action(h, a_pi))
     return q
@@ -218,9 +218,9 @@ def _gcomp(
 
 def sequential_ice_values(
     histories: Sequence[object],
-    treatments: Sequence[object],
+    actions: Sequence[object],
     target_actions: Sequence[object],
-    outcome: object,
+    reward: object,
     *,
     outcome_model: OutcomeFactory | None = None,
 ) -> FloatArray:
@@ -232,27 +232,27 @@ def sequential_ice_values(
     different (e.g. transported) baseline distribution.
     """
     hist = [_as2d(h) for h in histories]
-    treat = [np.asarray(a, dtype=np.float64) for a in treatments]
+    act = [np.asarray(a, dtype=np.float64) for a in actions]
     target = [np.asarray(a, dtype=np.float64) for a in target_actions]
-    y = np.asarray(outcome, dtype=np.float64)
-    _check_shapes(hist, treat, target, y)
+    y = np.asarray(reward, dtype=np.float64)
+    _check_shapes(hist, act, target, y)
     of = outcome_model or _default_outcome
-    return _gcomp(hist, treat, target, y, outcome_factory=of)
+    return _gcomp(hist, act, target, y, outcome_factory=of)
 
 
-def _fingerprint(outcome: FloatArray, treatments: Sequence[FloatArray]) -> str:
+def _fingerprint(reward: FloatArray, actions: Sequence[FloatArray]) -> str:
     h = hashlib.sha256()
-    h.update(np.ascontiguousarray(outcome).tobytes())
-    for a in treatments:
+    h.update(np.ascontiguousarray(reward).tobytes())
+    for a in actions:
         h.update(np.ascontiguousarray(np.asarray(a, dtype=np.float64)).tobytes())
     return h.hexdigest()[:16]
 
 
 def estimate_sequential_value(
     histories: Sequence[object],
-    treatments: Sequence[object],
+    actions: Sequence[object],
     target_actions: Sequence[object],
-    outcome: object,
+    reward: object,
     *,
     method: str = "dr",
     alpha: float = 0.05,
@@ -265,22 +265,22 @@ def estimate_sequential_value(
     """Estimate a deterministic target policy's finite-horizon value under sequential ignorability.
 
     ``histories[t]`` is the stage-``t`` adjustment history ``H_t`` (shape ``(n,)`` or ``(n, d_t)``);
-    ``treatments[t]`` / ``target_actions[t]`` are binary ``(n,)`` observed / target actions.
+    ``actions[t]`` / ``target_actions[t]`` are binary ``(n,)`` observed / target actions.
     ``method`` is ``"gcomp"`` (g-computation) or ``"dr"`` (cross-fitted sequentially doubly-robust).
     Nuisances are pluggable sklearn-style factories (defaults: ridge outcome, logistic propensity).
     """
     if method not in _METHODS:
         raise ValueError(f"method must be one of {_METHODS}, got {method!r}")
     hist = [_as2d(h) for h in histories]
-    treat = [np.asarray(a, dtype=np.float64) for a in treatments]
+    act = [np.asarray(a, dtype=np.float64) for a in actions]
     target = [np.asarray(a, dtype=np.float64) for a in target_actions]
-    y = np.asarray(outcome, dtype=np.float64)
-    horizon, n = _check_shapes(hist, treat, target, y)
+    y = np.asarray(reward, dtype=np.float64)
+    horizon, n = _check_shapes(hist, act, target, y)
     of = outcome_model or _default_outcome
     pf = propensity_model or _default_propensity
 
     if method == "gcomp":
-        q1 = _gcomp(hist, treat, target, y, outcome_factory=of)
+        q1 = _gcomp(hist, act, target, y, outcome_factory=of)
         value = float(q1.mean())
         se = float(q1.std(ddof=1) / np.sqrt(n)) if n > 1 else float("nan")
         overlap_by_step = [
@@ -302,7 +302,7 @@ def estimate_sequential_value(
             tr,
             te,
             hist,
-            treat,
+            act,
             target,
             y,
             outcome_factory=of,
@@ -326,9 +326,9 @@ def estimate_sequential_value(
 
 def certify_sequential_value(
     histories: Sequence[object],
-    treatments: Sequence[object],
+    actions: Sequence[object],
     target_actions: Sequence[object],
-    outcome: object,
+    reward: object,
     *,
     method: str = "dr",
     alpha: float = 0.05,
@@ -351,9 +351,9 @@ def certify_sequential_value(
     """
     est = estimate_sequential_value(
         histories,
-        treatments,
+        actions,
         target_actions,
-        outcome,
+        reward,
         method=method,
         alpha=alpha,
         n_folds=n_folds,
@@ -362,9 +362,9 @@ def certify_sequential_value(
         propensity_model=propensity_model,
         clip=clip,
     )
-    treat = [np.asarray(a, dtype=np.float64) for a in treatments]
-    y = np.asarray(outcome, dtype=np.float64)
-    fingerprint = _fingerprint(y, treat)
+    act = [np.asarray(a, dtype=np.float64) for a in actions]
+    y = np.asarray(reward, dtype=np.float64)
+    fingerprint = _fingerprint(y, act)
 
     for t, ov in enumerate(est.overlap_by_step):
         min_e = ov.get("min_propensity", float("nan"))

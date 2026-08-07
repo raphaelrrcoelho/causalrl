@@ -32,7 +32,7 @@ class TestStructuralLayer:
         y, f, z = _confounded_rows(20000, 0.0, seed=1)
         cert = certify_decision(y, f, confounder_bins=z)
         assert isinstance(cert, DecisionCertificate)
-        assert cert.decision == "prefer treated"
+        assert cert.decision == "prefer action 1"
         assert cert.certified
         assert cert.pivotality is not None and cert.pivotality.certified
         assert cert.tipping_gamma is None and cert.msm_certified is None  # MSM layer not run
@@ -45,7 +45,7 @@ class TestStructuralLayer:
         f = (rng.random(n) < 0.3 + 0.4 * (z - 0.5)).astype(int)
         y = 1.0 * z - 0.1 * f + rng.normal(0, 0.1, size=n)
         cert = certify_decision(y, f, confounder_bins=z)
-        assert cert.decision == "prefer treated"
+        assert cert.decision == "prefer action 1"
         assert not cert.certified
 
     def test_structural_cap_mode(self):
@@ -64,7 +64,7 @@ class TestMsmLayer:
         y = 0.5 * f + rng.uniform(0, 0.2, size=n)  # treated genuinely better
         e0 = np.full(n, 0.5)
         cert = certify_decision(y, f, propensities=e0, gamma_max=20.0)
-        assert cert.decision == "prefer treated"
+        assert cert.decision == "prefer action 1"
         assert cert.msm_certified is not None  # MSM layer ran
         assert cert.tipping_gamma is None or cert.tipping_gamma >= 1.0
         assert cert.pivotality is None  # structural layer not run
@@ -91,22 +91,22 @@ class TestOrchestration:
         assert cert.msm_certified is not None  # MSM layer ran
 
     def test_decision_string_follows_sign(self):
-        # control genuinely better => "prefer control"
+        # action 0 genuinely better => "prefer action 0"
         rng = np.random.default_rng(7)
         n = 6000
         z = rng.integers(0, 2, size=n)
         f = rng.integers(0, 2, size=n)
-        y = 0.3 * z - 0.5 * f + rng.normal(0, 0.1, size=n)  # treated is worse
+        y = 0.3 * z - 0.5 * f + rng.normal(0, 0.1, size=n)  # action 1 is worse
         cert = certify_decision(y, f, confounder_bins=z)
         assert cert.naive_contrast < 0
-        assert cert.decision == "prefer control"
+        assert cert.decision == "prefer action 0"
 
     def test_summary_is_human_readable(self):
         y, f, z = _confounded_rows(8000, 0.0, seed=8)
         cert = certify_decision(y, f, confounder_bins=z)
         summary = cert.summary
         assert isinstance(summary, str) and summary
-        assert "prefer treated" in summary
+        assert "prefer action 1" in summary
         assert str(cert) == summary
 
     def test_str_returns_summary(self):
@@ -143,7 +143,7 @@ class TestEstimateDelegation:
             b = certify_estimate(
                 PolicyValueContrast.from_binary(y, f, propensities=e0),
                 gamma_max=15.0,
-                labels=("treated", "control"),
+                labels=("action 1", "action 0"),
             )
             assert a == b
 
@@ -166,20 +166,20 @@ class TestEstimateDelegation:
             certify_decision([0.0, 1.0], [1, 0], estimate=c)
 
     def test_missing_all_inputs_raises(self):
-        with pytest.raises(ValueError, match="outcomes and treated"):
+        with pytest.raises(ValueError, match="rewards and actions"):
             certify_decision()
 
 
 class TestRecommendation:
     def test_recommendation_abstains_when_not_certified(self):
-        # naive "prefer treated" but confounding can flip it -> abstain, not act
+        # naive "prefer action 1" but confounding can flip it -> abstain, not act
         rng = np.random.default_rng(1)
         n = 20000
         z = rng.integers(0, 2, size=n)
         f = (rng.random(n) < 0.3 + 0.4 * (z - 0.5)).astype(int)
         y = 1.0 * z - 0.1 * f + rng.normal(0, 0.1, size=n)
         cert = certify_decision(y, f, confounder_bins=z)
-        assert cert.decision == "prefer treated" and not cert.certified
+        assert cert.decision == "prefer action 1" and not cert.certified
         assert cert.recommendation == "abstain"
 
     def test_recommendation_acts_when_certified(self):

@@ -20,12 +20,9 @@ from causalrl.certify.certificate import (
     Witness,
 )
 from causalrl.graphs import graph_hash
-from causalrl.identification.bounds import (
-    Interval,
-    ipw_sensitivity_bounds,
-    msm_policy_value_bounds,
-)
+from causalrl.identification.bounds import Interval
 from causalrl.identification.id_algorithm import identify_effect
+from causalrl.ope.bounds import ipw_sensitivity_bounds, msm_policy_value_bounds
 from causalrl.scm.graph import CausalGraph
 
 

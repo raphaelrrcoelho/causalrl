@@ -3,7 +3,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition
-from causalrl.identification.bounds import causal_q_bounds
+from causalrl.ope.bounds import causal_q_bounds
 
 
 @given(

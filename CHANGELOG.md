@@ -5,17 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Changed (BREAKING)
-- **`certify_conformal_interval` no longer takes `query`, and emits `EstimandSpec(query="see")`.**
-  It previously defaulted to `query="counterfactual"` — a string label with no counterfactual
-  mathematics behind it: split conformal around a fitted prediction consumes no causal assumption,
-  and `weights` only move the observational law to a shifted one. *Migration:* delete the argument.
-  A caller who passed `query="counterfactual"` was labelling an observational prediction interval
-  and should move to `conformal_action_value` (below), which computes the propensity ratio and
-  records the assumptions that license an interventional claim; a caller who passed anything else
-  was relabelling the same interval and loses nothing.
+## [3.0.0] - 2026-08-07
 
 ### Added
 - **`conformal_action_value(dataset, target_actions, *, alpha)`** (`causalrl.conformal`, exported
@@ -214,7 +204,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`examples/learned_scm_policy.py` learns from confounded logs, plans inside the model with
   Thompson sampling, and scores the resulting policy in the true world).
 
-### Changed (breaking)
+### Changed (BREAKING)
+- **`certify_conformal_interval` no longer takes `query`, and emits `EstimandSpec(query="see")`.**
+  It previously defaulted to `query="counterfactual"` — a string label with no counterfactual
+  mathematics behind it: split conformal around a fitted prediction consumes no causal assumption,
+  and `weights` only move the observational law to a shifted one. *Migration:* delete the argument.
+  A caller who passed `query="counterfactual"` was labelling an observational prediction interval
+  and should move to `conformal_action_value` (below), which computes the propensity ratio and
+  records the assumptions that license an interventional claim; a caller who passed anything else
+  was relabelling the same interval and loses nothing.
 - **`PopulationAgentView` → `LinearGaussianPopulationEnv`** and **`agent_causal_env_view` →
   `linear_gaussian_population_env`** (`causalrl.magames.views`, both also renamed in the top-level
   export list). The class never was an agent: it is a hand-written linear-Gaussian data-generating
@@ -225,6 +223,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `from causalrl import linear_gaussian_population_env`; `PopulationAgentView(...)` →
   `LinearGaussianPopulationEnv(...)`. Constructor arguments, fields and the `sample` / `do` /
   `noise_ledger` behaviour are unchanged, so only the two names need editing.
+- **The decision front door drops its clinical-trial parameter names for the RL ones its own
+  docstrings already used.** No deprecation shims — this is a 3.0.0 breaking rename cycle — and no
+  numerics, defaults or control flow changed; most call sites pass these positionally and are
+  unaffected.
+  - **`certify_decision(outcomes=, treated=)` → `certify_decision(rewards=, actions=)`**
+    (`causalrl.identification.decision`). The docstring already said *"`outcomes` are logged
+    rewards"* and *"the off-policy (IPS) value contrast"* — only the parameter names disagreed.
+    **Migration:** a keyword call site renames `outcomes=` → `rewards=` and `treated=` → `actions=`.
+  - **`DecisionCertificate.decision` now reads `"prefer action 1"` / `"prefer action 0"`**, not
+    `"prefer treated"` / `"prefer control"` — the action labels `certify_decision` passes into
+    `certify_estimate`'s general `labels=` are no longer `("treated", "control")`. An 80-arm bandit
+    log no longer comes back with a "treated" verdict. **Migration:** a caller asserting on the
+    exact string updates it; `.recommendation` (`"act"` / `"abstain"`) was already the intended
+    read and is unaffected.
+  - **`estimate_sequential_value(treatments=, outcome=)` and `certify_sequential_value(treatments=,
+    outcome=)` → `(actions=, reward=)`** (now `causalrl.ope.sequential`), threaded through every
+    internal helper (`_fingerprint`, `_check_shapes`, `_dr_fold`, `_stage`, `_gcomp`) and through
+    `sequential_ice_values`, so the module has no `treatments` left underneath the public rename.
+    The nuisance-model parameters (`outcome_model`, `propensity_model`) are a different concept —
+    a pluggable regression model, not the reward array — and are unchanged. **Migration:** rename
+    the two keyword arguments at any keyword call site.
+  - **`causalrl.transport.estimate.certify_sequential_transport` →
+    `certify_transported_policy_value`.** It already emits `EstimandSpec(query="policy_value")`;
+    the new name is the true one. **Migration:** rename the import / call; its own `outcome=` /
+    `target_actions=` parameters (the outcome *column name* and the per-stage target action) are
+    unchanged.
+  - **`causalrl.interop.dowhy.from_dowhy_estimate` → `policy_contrast_from_dowhy`** and
+    **`causalrl.interop.econml.from_econml_cate` → `policy_from_econml_cate`.** Neither was
+    exported top-level. **Migration:** rename the import; both adapters' own `outcomes=` /
+    `treated=` keyword arguments are unchanged.
+- **Off-policy evaluation is one package, `causalrl.ope`.** The OPE surface was spread across five
+  packages with no single place to import it from — a symptom of the library's RL half being an
+  afterthought. It now has one home. **No numerics, defaults or control flow changed; this is a
+  module move plus re-exports, and the top-level API is byte-for-byte the same surface:
+  `from causalrl import causal_q_bounds, msm_policy_value_bounds, certify_policy, ipw_value,
+  stream_policy_value, estimate_sequential_value, …` all still work, unchanged.** What moved:
+  - **`causalrl.ope.ipw`** — `ipw_value` (from `causalrl.eval.ope`, module deleted) and
+    `stream_policy_value` (from `causalrl.estimate.streaming`, module deleted). The two ways to
+    reweight logged rewards now sit together.
+  - **`causalrl.ope.sequential`** — the whole of `causalrl.estimate.sequential` (module deleted):
+    `SequentialValueEstimate`, `sequential_ice_values`, `estimate_sequential_value`,
+    `certify_sequential_value`.
+  - **`causalrl.ope.bounds`** — the value-side sensitivity family, out of
+    `causalrl.identification.bounds`: `causal_q_bounds`, `ipw_sensitivity_bounds`,
+    `msm_policy_value_bounds`, `msm_contribution_bounds`, `msm_per_step_bounds`,
+    `msm_stratified_bounds`. `causalrl.identification.bounds` keeps what identification itself
+    needs — `Interval`, `manski_bounds`, the pivotality layer (`PivotalityCertificate`,
+    `pivotality_certificate`, `mi_flip_threshold`, `confounding_bias_bound`,
+    `confounding_bias_per_step_bounds`) and `tipping_gamma`, which takes a `gamma -> Interval`
+    callable and so depends on no particular bound.
+  - **`causalrl.ope.certify`** — `certify_policy`, out of `causalrl.scale`. `causalrl.scale`
+    re-exports it, so `from causalrl.scale import certify_policy` still works and the scale story
+    (train elsewhere with `causalrl.scale.d3rlpy`, certify here) still reads end to end.
+
+  **Migration:** only a *module-path* import needs editing, and only for the paths above — e.g.
+  `from causalrl.identification.bounds import msm_policy_value_bounds` becomes
+  `from causalrl.ope.bounds import msm_policy_value_bounds`. `causalrl.bounds` and
+  `causalrl.estimate` keep re-exporting what they re-exported before (`causalrl.estimate`'s
+  `stream_policy_value` now resolves lazily, so `import causalrl.ope.ipw` does not re-enter a
+  half-initialised `causalrl.estimate`), and `causalrl.ope` itself resolves lazily through module
+  `__getattr__` — eager binding there would close `ope.certify` → `identification.decision` →
+  `ope.bounds` into an import cycle.
+- **Task guide 6, `examples/guides/06_learn_the_scm_while_acting.py`** — the first guide that
+  *trains* an agent rather than scoring one someone else trained. `OnlineCausalMBRL` starts from an
+  off-policy log whose observational contrast reverses the causal one, finds six DAGs it cannot
+  choose between (five of which deploy the wrong action), runs its own randomized `do(A)`
+  experiments through `observe(..., intervention=...)`, and watches the I-MEC collapse to one
+  member as exact regret falls to zero. Documented in `docs/guides.md`; run in CI by the existing
+  `examples/guides/*.py` glob.
 ### Changed
 - **`act()` on the back-door planners is now a policy, not a constant.**
   `BackdoorAdjustedAgent`, `DiscoveryBackdoorAgent`, `TransportBackdoorAgent`,
@@ -242,6 +309,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   *none* of them — including the `{"state": 0}` a 2.1.0 caller passes — still returns the marginal
   `argmax_a E[Y|do(a)]` unchanged. A *partial* set of conditioning variables now raises `KeyError`
   rather than silently answering a different query.
+- **One description, everywhere.** `pyproject.toml`, `README.md`, `mkdocs.yml`, `docs/index.md`,
+  `CITATION.cff` and `causalrl/__init__.py` gave two different answers to "what is this?" across six
+  places — the package metadata said *"Causal reinforcement learning: the 9-task causal RL taxonomy, made
+  runnable."* while the README PyPI renders directly beneath it said *"Causal intervention-selection
+  and causal-RL research tools."* All now carry the first sentence. The README's scope caveat is
+  sharpened rather than dropped: the **planners and environments** are the demo-scale half, the
+  **decision, certificate and OPE layers** are the half that runs on real data, and the recorded
+  real-data finding stays a negative (`docs/causal_mbrl_agent/REAL_DATA.md`). "How it compares" now
+  maps the RL side too (`d3rlpy` trains, `causalrl.scale.d3rlpy` bridges, `certify_policy` decides),
+  and `docs/api.md` leads with agents and environments instead of putting them behind graph algebra.
+  Added `Topic :: Scientific/Engineering :: Information Analysis` and the `offline-rl` /
+  `off-policy-evaluation` keywords; PyPI's trove list has no reinforcement-learning classifier, so
+  none was invented.
 ### Removed
 - **`causalrl.interference`** — `ExposureMapping`, `ExposureContrast`, `adjacency_from_matrix`,
   `neighbourhood_count`, `neighbourhood_fraction`, `any_neighbour_treated`, `population_share`,
@@ -255,9 +335,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nothing could. Every multi-agent surface the library actually has already knows the same
   decomposition *exactly* rather than by estimation — `magames`' `CCEPolytope.deviation_gains[k, j]`
   **is** the own-action (direct) effect at realized profile `j`, in closed form, and it is what
-  `cce_regret`, `cce_bounds` and `certify_cce_do` are built on; `meanfield`'s
-  `payoff(own_action, fraction)` **is** the `population_share` exposure mapping, as a known
-  function. Meanwhile every environment in `envs/suite/` is single-actor and
+  `cce_regret`, `cce_bounds` and `certify_cce_do` are built on; `meanfield` (removed below, for the
+  identical zero-consumer reason) had `payoff(own_action, fraction)` as **exactly** the
+  `population_share` exposure mapping, as a known function. Meanwhile every environment in
+  `envs/suite/` is single-actor and
   `ConfoundedTrajectoryDataset` carries no unit or peer index, so the library cannot produce the
   logged multi-unit data the estimators exist for. The module's entire coupling to the rest of
   `causalrl` was one import of `NotIdentifiableError`, and it returned a bare point estimate with no
@@ -266,11 +347,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **What to do instead.** For a population of interacting agents, build it as a `Population` of
   `AgentType`s and use `causalrl.magames`: `cce_polytope(...).deviation_gains` gives the exact
   own-action effect at every profile, `cce_regret` its population summary, and `certify_cce_do` a
-  certificate over the time-averaged behaviour; for the anonymous `N → ∞` case use
-  `causalrl.meanfield`. For cross-sectional SUTVA-failure analysis — which is out of scope for a
-  reinforcement-learning library — compute the exposure column directly with numpy and stratify,
-  then hand the resulting contrast to `certify_estimate` via `PolicyValueContrast` if you want the
-  sensitivity band. Full decision record: `.superpowers/sdd/PLAN/interference-decision.md`.
+  certificate over the time-averaged behaviour. The anonymous `N → ∞` case (`causalrl.meanfield`) is
+  removed below, for the same reason, and currently has no replacement. For cross-sectional
+  SUTVA-failure analysis — which is out of scope for a reinforcement-learning library — compute the
+  exposure column directly with numpy and stratify, then hand the resulting contrast to
+  `certify_estimate` via `PolicyValueContrast` if you want the sensitivity band. Full decision
+  record: `.superpowers/sdd/PLAN/interference-decision.md`.
+- **General statistics tooling with no RL referent** — a library-wide audit tested every remaining
+  symbol against one question: can anything under `agents/` or `envs/` reach it? These could not, so
+  they are gone:
+  - **`causalrl.bounds.continuous`: `certify_mean`, `certify_quantile`, `moment_diagnostic`,
+    `tail_index_hill`, `weighted_quantile`, `bootstrap_quantile_ci`, `MomentDiagnostic`** — a Hill
+    tail-index diagnostic, weighted/bootstrapped quantiles, and a heavy-tail-aware mean certificate,
+    with their top-level exports. `certify_mean` additionally emitted `EstimandSpec(query="do", …)`
+    for a computation containing no intervention at all — misleading provenance on a plain sample
+    statistic was part of why it goes. `msm_sensitivity_bounds` and `certify_sensitivity_bounds` —
+    the actual marginal-sensitivity-model kernels in the same module — are unaffected and remain
+    exported. No in-library replacement is offered; this was general-purpose statistics, not a
+    causal-RL primitive — reach for `numpy`/`scipy` directly.
+  - **`causalrl.estimate.streaming.stream_quantile_certificate`**, with its top-level export. Its own
+    docstring said it plainly: *"not a causal effect."* `stream_policy_value` — the self-normalised
+    off-policy value estimator that shared the module — is unaffected, and moved to
+    `causalrl.ope.ipw` (above).
+  - **`causalrl.backends.quantile_sketch`** — the module and `GKQuantileSketch` — is deleted. It
+    existed only to back `stream_quantile_certificate`; nothing else imported it.
+  - **`causalrl.experimental.ope`** — the module and `confounding_sensitivity_bounds` — is deleted.
+    Its own module docstring called its contents *exploratory utilities, not validated estimators*,
+    and its own test asserted it was not part of the public API. The published bound is
+    `causalrl.ope.bounds.msm_policy_value_bounds` (population OPE) or
+    `ipw_sensitivity_bounds` (per-unit).
+  - **`causalrl.meanfield`** — `MeanFieldGame`, `mean_field_equilibria`, `best_response_fraction`,
+    `certify_mean_field_equilibrium`, `UNSTABLE` — is deleted. It was already outside the frozen
+    top-level API (reachable only as `causalrl.meanfield`, per its own docstring: *"Evaluation-only
+    (no learning)"*) and had zero consumers outside its own test.
+  - **`causalrl.estimate.nuisance`'s `Classifier` / `LogisticRegressor` / `Regressor` /
+    `RidgeRegressor`** are no longer re-exported from `causalrl.estimate` (they were never in the
+    top-level `causalrl` API, so this is not a breaking change to anything documented). The module
+    remains fully importable directly — `from causalrl.estimate.nuisance import Classifier` — and
+    `agents/fitted.py`, `agents/bounded_fitted.py`, `bounds/continuous.py` and `bounds/functional.py`
+    all continue to depend on it internally; it is a hand-rolled mini-sklearn kept for their sake,
+    not a public estimation surface.
 
 ### Fixed
 - **Every exported name now has an API-reference entry.** 129 of 255 were missing, including `Agent`,

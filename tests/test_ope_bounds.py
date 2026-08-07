@@ -13,7 +13,8 @@ import numpy as np
 import pytest
 from torch.distributions import Bernoulli, Distribution, Uniform
 
-from causalrl.identification.bounds import ipw_sensitivity_bounds, manski_bounds
+from causalrl.identification.bounds import manski_bounds
+from causalrl.ope.bounds import ipw_sensitivity_bounds
 from causalrl.scm.graph import CausalGraph
 from causalrl.scm.mechanisms import FunctionalMechanism, Mechanism
 from causalrl.scm.scm import StructuralCausalModel

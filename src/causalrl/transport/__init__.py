@@ -15,8 +15,8 @@ from causalrl.identification.transport import (
     transport_formula,
 )
 from causalrl.transport.estimate import (
-    certify_sequential_transport,
     certify_transported_effect,
+    certify_transported_policy_value,
     transport_gcomp,
     transport_sequential_gcomp,
 )
@@ -24,8 +24,8 @@ from causalrl.transport.estimate import (
 __all__ = [
     "SelectionDiagram",
     "TransportFormula",
-    "certify_sequential_transport",
     "certify_transported_effect",
+    "certify_transported_policy_value",
     "is_transportable",
     "transport_estimand",
     "transport_formula",

@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 
 from causalrl import certify_estimate
-from causalrl.interop.econml import from_econml_cate
+from causalrl.interop.econml import policy_from_econml_cate
 
 
 class _FakeCate:
@@ -19,12 +19,12 @@ class _FakeCate:
         return self._tau
 
 
-def test_from_econml_cate_builds_msm_only_contrast():
+def test_policy_from_econml_cate_builds_msm_only_contrast():
     y = [1.0, 0.0, 1.0, 0.0]
     f = [1, 0, 0, 1]
     e0 = [0.5, 0.5, 0.5, 0.5]
     tau = [0.4, -0.2, 0.3, -0.1]  # induced policy treats units 0 and 2
-    c = from_econml_cate(
+    c = policy_from_econml_cate(
         _FakeCate(tau), np.zeros((4, 1)), outcomes=y, treated=f, logging_propensities=e0
     )
     assert c.has_msm and not c.has_pivotality

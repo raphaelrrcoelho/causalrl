@@ -162,7 +162,7 @@ def _extreme_under_sum(
     A fractional knapsack: start every cell at its floor, then pour the remaining mass into cells in
     value order. Exact, so the resulting bound is tight.
 
-    Not :func:`causalrl.identification.bounds._fractional_extreme` — that one extremizes a *ratio*
+    Not :func:`causalrl.ope.bounds._fractional_extreme` — that one extremizes a *ratio*
     with a free denominator, whereas the conditioning event fixes this sum. Reusing it would give a
     valid but loose interval, and this function's whole contract is tightness.
     """

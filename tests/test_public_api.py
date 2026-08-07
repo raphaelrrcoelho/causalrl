@@ -1,6 +1,7 @@
 """The curated public API (`causalrl.__all__`) stays consistent and importable."""
 
 import inspect
+import re
 import subprocess
 import sys
 import tomllib
@@ -56,8 +57,43 @@ def test_front_door_symbols_exported():
 
 
 def test_version_is_stamped():
-    pyproject = tomllib.loads((Path(__file__).parent.parent / "pyproject.toml").read_text())
-    assert causalrl.__version__ == pyproject["project"]["version"]
+    """The version is derived rather than hardcoded, and every file quoting it agrees.
+
+    Deliberately *not* ``causalrl.__version__ == pyproject version``. ``__version__`` reads the
+    installed distribution's metadata, so that comparison tests how recently the environment was
+    installed, not anything about this source tree: it fails on any editable checkout where
+    ``pyproject.toml`` was bumped after the last install, and it passes automatically in CI, where
+    the install is always fresh. What is worth pinning is that the version cannot drift from what
+    was packaged -- which derivation guarantees -- and that the files quoting it to users agree.
+    """
+    root = Path(__file__).parent.parent
+    declared = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "version"
+    ]
+
+    init = (root / "src" / "causalrl" / "__init__.py").read_text(encoding="utf-8")
+    assert re.search(r"^__version__ = (?![\"'])", init, re.M), (
+        "__version__ must be derived from installed metadata, not written as a string literal"
+    )
+    assert re.fullmatch(r"\d+\.\d+\.\d+", causalrl.__version__), (
+        f"__version__ did not resolve to a release version: {causalrl.__version__!r}"
+    )
+
+    newest = re.search(
+        r"^## \[(\d+\.\d+\.\d+)\]", (root / "CHANGELOG.md").read_text(encoding="utf-8"), re.M
+    )
+    assert newest is not None, "CHANGELOG.md has no released section"
+    assert newest.group(1) == declared, (
+        f"pyproject declares {declared}, but the newest CHANGELOG release is {newest.group(1)}"
+    )
+
+    cited = re.search(
+        r'^version: "([^"]+)"', (root / "CITATION.cff").read_text(encoding="utf-8"), re.M
+    )
+    assert cited is not None, "CITATION.cff has no version field"
+    assert cited.group(1) == declared, (
+        f"pyproject declares {declared}, but CITATION.cff cites {cited.group(1)}"
+    )
 
 
 def test_graph_and_tabular_exports_import_without_torch():
@@ -231,11 +267,11 @@ def test_every_export_appears_in_the_api_reference():
     import re
 
     root = Path(__file__).resolve().parent.parent
-    reference = (root / "docs" / "api.md").read_text()
+    reference = (root / "docs" / "api.md").read_text(encoding="utf-8")
     documented = {m.rsplit(".", 1)[-1] for m in re.findall(r"^::: ([\w\.]+)", reference, re.M)}
     # The lazy export map may rename on the way out (attr `canonical` -> export
     # `canonical_intervention`), so resolve each export to the attribute it actually points at.
-    source = (root / "src" / "causalrl" / "__init__.py").read_text()
+    source = (root / "src" / "causalrl" / "__init__.py").read_text(encoding="utf-8")
     block = source[source.index("_EXPORTS") : source.index("API_TIERS")]
     targets = {
         name: attr

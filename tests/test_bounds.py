@@ -2,7 +2,7 @@ import pytest
 
 from causalrl.data.dataset import ConfoundedTrajectoryDataset, Transition
 from causalrl.exceptions import NotIdentifiableError
-from causalrl.identification.bounds import causal_q_bounds
+from causalrl.ope.bounds import causal_q_bounds
 
 
 def make_dataset() -> ConfoundedTrajectoryDataset:

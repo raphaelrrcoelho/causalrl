@@ -7,15 +7,25 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-Causal intervention-selection and causal-RL research tools.
+Causal reinforcement learning: the 9-task causal RL taxonomy, made runnable.
 
-`causalrl` provides graph algorithms for causal bandits, demonstration environments and agents,
-and explicit-latent structural causal models with `see` (L1), `do` (L2), and `counterfactual`
-(L3) queries, organised around the [9-task taxonomy of causal RL](https://crl.causalai.net/).
+`causalrl` supplies **the causal layer for sequential decisions, not a new trainer**: agents that
+plan inside a given or learned structural causal model, graph algorithms for causal bandits,
+demonstration environments, and explicit-latent SCMs with `see` (L1), `do` (L2), and
+`counterfactual` (L3) queries, organised around the
+[9-task taxonomy of causal RL](https://crl.causalai.net/). Train a policy however you like, then
+hand its actions to `certify_policy`: it bounds whether the value improvement over the logging
+policy survives hidden confounding, and abstains when it cannot.
 
-Scope is explicit and enforced in code: out-of-class identification queries raise
+Scope is explicit and enforced in code. Out-of-class identification queries raise
 `NotIdentifiableError` with the witnessing hedge (or return `None` for the conservative helpers)
-rather than guessing a formula, and learning agents are tabular/demo-scale, not production RL. See
+rather than guessing a formula. The two halves also sit at deliberately different maturities: the
+**planners and environments are demo-scale** — tabular to modest function approximation, on
+synthetic worlds built to isolate one failure mode each — while the **decision, certificate and
+off-policy-evaluation layers run on real data**. The `examples/causal_mbrl_*.py` scripts are the
+evidence: on NHEFS, LaLonde and Twins they fit an agent, call `.act()` per unit and certify the
+resulting policy; on the Open Bandit Dataset and Coat they run the off-policy-evaluation and
+sensitivity kernels (`certify_policy`, `msm_policy_value_bounds`) against measured ground truth. See
 [Guarantees & Scope](https://raphaelrrcoelho.github.io/causalrl/guarantees/).
 
 ## Install
@@ -89,6 +99,7 @@ see the [causal-MBRL results note](docs/causal_mbrl_agent/RESULTS.md).
 | Decision under confounding | Counterfactual Thompson sampling on the MABUC | `CausalThompsonSampling` |
 | Confounded offline agent | One front-door → back-door / discovery / transport / function-approx / sequential | `CausalMBRLAgent` |
 | Learned world model | Fit an SCM from logs, then act in it as a Gymnasium env | `fit_scm`, `orient`, `counterfactual_interval` |
+| Learn the model while acting | Refit the I-MEC from the agent's own experiments; Thompson-sample over structure | `OnlineCausalMBRL` |
 | 1 — Offline→online | Learn from confounded logs via causal bounds | `UCDTR`, `DOVI`, `DeepDeconfoundedQ` |
 | 2 — Where to intervene | POMIS / MIS, incl. non-manipulable variables | `pomis`, `minimal_intervention_sets` |
 | 3 — Counterfactual policy | Act on `E[Y_do(a) \| intent]` | `CounterfactualOptimalPolicy` |
@@ -103,6 +114,29 @@ see the [causal-MBRL results note](docs/causal_mbrl_agent/RESULTS.md).
 A runnable example for every row is in the
 [**Tour by Task**](https://raphaelrrcoelho.github.io/causalrl/tour/); end-to-end notebooks are in
 [`examples/`](examples) and the [Tutorials](https://raphaelrrcoelho.github.io/causalrl/tutorials/).
+Six [task guides](https://raphaelrrcoelho.github.io/causalrl/guides/) — five that certify a policy
+and one that trains an agent online — are scripts in [`examples/guides/`](examples/guides) executed
+end to end in CI.
+
+## What the numbers say — a deliberate negative
+
+Scored the way an RL practitioner scores things — `.act()` per unit, then **regret** against ground
+truth — the causal *point estimates* do not win on real data, and the shipped examples print that
+themselves rather than hiding it:
+
+- **Twins** (`examples/causal_mbrl_twins.py`, 11,984 pairs with both potential outcomes): our
+  policy reaches 0.8316 survival against the per-pair oracle's 0.8747 — **regret 0.0431**, the
+  worst of the learned policies, and behind the trivial constant "always the heavier twin"
+  (0.8358).
+- **LaLonde** (`examples/causal_mbrl_lalonde.py`, priced by the NSW randomized experiment): the
+  contextual policy enrols 73.5% of the population for **$476/person of regret**, where the
+  marginal rule it is built from ("enrol everyone") leaves $0 — and its off-policy value from the
+  observational logs, −$453/person, has the wrong sign outright.
+
+Both examples then **abstain**: `certify_policy` refuses Twins at Γ≈1.07 and LaLonde at Γ≈1.10, and
+on LaLonde the randomized experiment vindicates the refusal. That is the recorded finding, and it
+is the positioning — **the defensible edge is the decision and certificate layer, not the number.**
+Full write-up: [real-data results](docs/causal_mbrl_agent/REAL_DATA.md).
 
 ## How it compares
 
@@ -113,12 +147,28 @@ A runnable example for every row is in the
   `causalrl` instead targets *sequential decision-making*: intervention-set selection (POMIS),
   confounded offline-to-online RL, counterfactual policies, and causal curricula / shaping /
   games. Those are the parts of the Bareinboim taxonomy these libraries do not cover.
-- For pure graph identification it overlaps with **Ananke / pgmpy / Y0**. It deliberately does
-  **not** reimplement offline RL at scale; pair it with a dedicated library such as
-  [`d3rlpy`](https://github.com/takuseno/d3rlpy) for that.
+- For pure graph identification it overlaps with **Ananke / pgmpy / Y0**.
+
+On the RL side it is a layer, not a competitor:
+
+- **`d3rlpy` (and offline-RL libraries generally) train the policy**; `causalrl` does not
+  reimplement any of that, and pairs with them instead. `src/causalrl/scale/d3rlpy.py` is the
+  bridge in both directions — `to_mdp_dataset` hands a `ConfoundedTrajectoryDataset` to a d3rlpy
+  algorithm, `policy_actions` reads the trained policy's greedy actions back, and `certify_fqe`
+  wraps a fitted-Q evaluation as a certificate. `pip install causalrl[scale]`; see the
+  [Scale guide](https://raphaelrrcoelho.github.io/causalrl/scale/).
+- **What it adds on top of a trained policy** is the assumption those libraries' evaluators take
+  for granted. Off-policy evaluation — importance sampling, doubly-robust, FQE — is valid only when
+  the logged actions are unconfounded given the recorded state, and logs written by a human, a
+  clinician or a legacy heuristic often are not. `certify_policy` bounds the value improvement over
+  the logging policy under Tan's marginal sensitivity model, reports the **tipping Γ** at which the
+  ship/keep decision flips, and with `alpha=…` gates it on a finite-sample conformal lower bound
+  (`conformal_action_value`). When the bound will not carry the decision, its `recommendation` is
+  `abstain` rather than a green light.
 
 Use `causalrl` when your problem is a causal *decision* over time; use DoWhy/EconML when it is a
-treatment-effect *estimate*.
+treatment-effect *estimate*; use d3rlpy when you need the policy *trained*, and `causalrl` to
+decide whether to ship it.
 
 ## Stability
 

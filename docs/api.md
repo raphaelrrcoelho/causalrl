@@ -1,18 +1,17 @@
 # API Reference
 
+Ordered the way the library is used: the two objects everything is built on (a causal graph and an
+SCM), then the **agents and environments** that act in them, then the causal machinery those agents
+call — intervention sets, identification, transport, discovery — and finally the decision, bounds
+and certificate layer that scores a policy. The `— Complete Reference` sections at the end carry an
+entry for every name in `causalrl.__all__`, grouped by `causalrl.API_TIERS`.
+
+The full-lifecycle agent front doors are `CausalMBRLAgent` (fit → act on confounded logs) and
+`OnlineCausalMBRL` (learn the SCM while acting); both are in the complete-reference sections below.
+
 ## Graphs
 
 ::: causalrl.scm.graph.CausalGraph
-
-## Intervention Sets
-
-::: causalrl.identification.intervention_sets.pomis
-
-::: causalrl.identification.intervention_sets.minimal_intervention_sets
-
-::: causalrl.identification.intervention_sets.requires_experiment
-
-::: causalrl.identification.intervention_sets.AdmissibleInterventions
 
 ## Structural Causal Models
 
@@ -23,6 +22,50 @@
 ::: causalrl.agents.dovi.DOVI
 
 ::: causalrl.agents.scbandit.POMISThompsonSampling
+
+## Causal Gymnasium Wrapper
+
+::: causalrl.envs.wrapper.CausalEnvWrapper
+
+## Gymnasium Env Registration
+
+::: causalrl.envs.registration.register_envs
+
+## Causal Graph-Factored Advantage (CGFA-PPO)
+
+The pure-NumPy rollout arithmetic (no framework dependency):
+
+::: causalrl.agents.factored_advantage.factor_rewards
+
+::: causalrl.agents.factored_advantage.factor_gae
+
+::: causalrl.agents.factored_advantage.blend_advantages
+
+::: causalrl.agents.factored_advantage.factored_advantage
+
+::: causalrl.agents.factored_advantage.FactoredAdvantageConfig
+
+The `K`-head critic that makes it an algorithm (needs the `causalrl[torch]` extra):
+
+::: causalrl.agents.cgfa_critic.FactoredCritic
+
+::: causalrl.agents.cgfa_critic.CGFACriticConfig
+
+::: causalrl.agents.cgfa_critic.CGFAAdvantages
+
+::: causalrl.agents.cgfa_critic.CGFALosses
+
+::: causalrl.agents.cgfa_critic.CGFAUpdateStats
+
+## Intervention Sets
+
+::: causalrl.identification.intervention_sets.pomis
+
+::: causalrl.identification.intervention_sets.minimal_intervention_sets
+
+::: causalrl.identification.intervention_sets.requires_experiment
+
+::: causalrl.identification.intervention_sets.AdmissibleInterventions
 
 ## Benchmark Reports
 
@@ -148,40 +191,6 @@
 
 ::: causalrl.games.is_nash_equilibrium
 
-## Causal Gymnasium Wrapper
-
-::: causalrl.envs.wrapper.CausalEnvWrapper
-
-## Causal Graph-Factored Advantage (CGFA-PPO)
-
-The pure-NumPy rollout arithmetic (no framework dependency):
-
-::: causalrl.agents.factored_advantage.factor_rewards
-
-::: causalrl.agents.factored_advantage.factor_gae
-
-::: causalrl.agents.factored_advantage.blend_advantages
-
-::: causalrl.agents.factored_advantage.factored_advantage
-
-::: causalrl.agents.factored_advantage.FactoredAdvantageConfig
-
-The `K`-head critic that makes it an algorithm (needs the `causalrl[torch]` extra):
-
-::: causalrl.agents.cgfa_critic.FactoredCritic
-
-::: causalrl.agents.cgfa_critic.CGFACriticConfig
-
-::: causalrl.agents.cgfa_critic.CGFAAdvantages
-
-::: causalrl.agents.cgfa_critic.CGFALosses
-
-::: causalrl.agents.cgfa_critic.CGFAUpdateStats
-
-## Gymnasium Env Registration
-
-::: causalrl.envs.registration.register_envs
-
 ## Exceptions
 
 ::: causalrl.exceptions.CausalRLError
@@ -200,25 +209,25 @@ The `K`-head critic that makes it an algorithm (needs the `causalrl[torch]` extr
 
 ::: causalrl.identification.bounds.manski_bounds
 
-::: causalrl.identification.bounds.ipw_sensitivity_bounds
+::: causalrl.ope.bounds.ipw_sensitivity_bounds
 
-::: causalrl.identification.bounds.causal_q_bounds
+::: causalrl.ope.bounds.causal_q_bounds
 
-::: causalrl.identification.bounds.msm_policy_value_bounds
+::: causalrl.ope.bounds.msm_policy_value_bounds
 
-::: causalrl.identification.bounds.msm_contribution_bounds
+::: causalrl.ope.bounds.msm_contribution_bounds
 
-::: causalrl.identification.bounds.msm_per_step_bounds
+::: causalrl.ope.bounds.msm_per_step_bounds
 
-::: causalrl.identification.bounds.msm_stratified_bounds
+::: causalrl.ope.bounds.msm_stratified_bounds
 
 ::: causalrl.conformal.core.conformal_action_value
 
 ## Decision Certificates
 
-The decision stack — certify whether a confounded / off-policy decision ("is the treated arm
-better than the control arm?") is robust to hidden confounding, cheapest layer first.
-`certify_decision` is the one-call front door over the layers below.
+The decision stack — certify whether a confounded / off-policy decision ("is action 1 better than
+action 0?") is robust to hidden confounding, cheapest layer first. `certify_decision` is the
+one-call front door over the layers below.
 
 ::: causalrl.identification.decision.certify_decision
 
@@ -244,8 +253,6 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.bounds.continuous.msm_sensitivity_bounds
 
-::: causalrl.bounds.continuous.certify_mean
-
 ::: causalrl.transport.estimate.certify_transported_effect
 
 ## Multi-Agent Core (Phase 2)
@@ -270,17 +277,13 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ## Scale & Streaming (Phase 3)
 
-::: causalrl.estimate.streaming.stream_policy_value
-
-::: causalrl.estimate.streaming.stream_quantile_certificate
+::: causalrl.ope.ipw.stream_policy_value
 
 ::: causalrl.bounds.streaming.stream_msm_bounds
 
 ::: causalrl.backends.streaming.StreamingMoments
 
 ::: causalrl.backends.streaming.WeightedStreamingRatio
-
-::: causalrl.backends.quantile_sketch.GKQuantileSketch
 
 ## Interop & Scale (Phase 4)
 
@@ -292,7 +295,7 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.interop.columnar_sim.simulator_from_callables
 
-::: causalrl.scale.certify_policy
+::: causalrl.ope.certify.certify_policy
 
 ::: causalrl.scale.d3rlpy.certify_fqe
 
@@ -371,7 +374,7 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.identification.decision.certify_estimate
 
-::: causalrl.transport.estimate.certify_sequential_transport
+::: causalrl.transport.estimate.certify_transported_policy_value
 
 ::: causalrl.identification.bounds.confounding_bias_per_step_bounds
 
@@ -564,21 +567,19 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.certify.Provenance
 
-::: causalrl.estimate.sequential.SequentialValueEstimate
+::: causalrl.ope.sequential.SequentialValueEstimate
 
 ::: causalrl.certify.Witness
 
-::: causalrl.bounds.continuous.certify_quantile
-
 ::: causalrl.bounds.continuous.certify_sensitivity_bounds
 
-::: causalrl.estimate.sequential.certify_sequential_value
+::: causalrl.ope.sequential.certify_sequential_value
 
 ::: causalrl.eval.metrics.cumulative_regret
 
 ::: causalrl.estimate.estimators.estimate_ate
 
-::: causalrl.estimate.sequential.estimate_sequential_value
+::: causalrl.ope.sequential.estimate_sequential_value
 
 ::: causalrl.eval.metrics.finite_horizon_regret
 
@@ -586,9 +587,7 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.certify.ipw_sensitivity_bounds_certified
 
-::: causalrl.eval.ope.ipw_value
-
-::: causalrl.bounds.continuous.moment_diagnostic
+::: causalrl.ope.ipw.ipw_value
 
 ::: causalrl.certify.msm_policy_value_bounds_certified
 
@@ -606,7 +605,7 @@ better than the control arm?") is robust to hidden confounding, cheapest layer f
 
 ::: causalrl.eval.mbrl_probe.run_m3_function_approx_gate
 
-::: causalrl.estimate.sequential.sequential_ice_values
+::: causalrl.ope.sequential.sequential_ice_values
 
 
 ## Interop, Scale & Errors — Complete Reference

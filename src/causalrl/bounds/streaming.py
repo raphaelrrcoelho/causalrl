@@ -3,7 +3,7 @@
 :func:`stream_msm_bounds` streams the log, extracting only the two float columns the closed-form Tan
 bound needs — the treated units' outcomes and nominal propensities — instead of holding the whole
 long log, then applies the exact ``O(n log n)`` closed form
-(:func:`causalrl.identification.bounds.ipw_sensitivity_bounds`). The result is a ``kind=BOUNDED``
+(:func:`causalrl.ope.bounds.ipw_sensitivity_bounds`). The result is a ``kind=BOUNDED``
 :class:`~causalrl.certify.certificate.Certificate`: partial identification of the treated
 counterfactual mean ``E[Y(1)]`` under an odds-ratio confounding budget ``gamma`` — never a point
 estimate (I2/I3).
@@ -25,7 +25,7 @@ from causalrl.certify.certificate import (
     Provenance,
 )
 from causalrl.data.streaming_join import KeyJoiner, LogSource, iter_log_batches
-from causalrl.identification.bounds import ipw_sensitivity_bounds
+from causalrl.ope.bounds import ipw_sensitivity_bounds
 
 __all__ = ["stream_msm_bounds"]
 

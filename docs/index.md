@@ -1,14 +1,19 @@
 # causalrl
 
-Causal intervention-selection and causal-RL research tools. `causalrl` provides graph
-algorithms for causal bandits, demonstration environments and agents, and explicit-latent
-structural causal models with `see` (L1), `do` (L2), and `counterfactual` (L3) queries,
-organised around the [9-task taxonomy of causal RL](https://crl.causalai.net/).
+Causal reinforcement learning: the 9-task causal RL taxonomy, made runnable. `causalrl`
+supplies **the causal layer for sequential decisions, not a new trainer** — agents that plan
+inside a given or learned structural causal model, graph algorithms for causal bandits,
+demonstration environments, and explicit-latent structural causal models with `see` (L1),
+`do` (L2), and `counterfactual` (L3) queries, organised around the
+[9-task taxonomy of causal RL](https://crl.causalai.net/). Train a policy however you like,
+then hand its actions to [`certify_policy`](scale.md).
 
 It is built for **honesty about scope**: identification routines return `None` (or raise with
-a witnessing hedge) outside their supported class rather than guessing, and agents are marked
-as benchmark/demo rather than production. Read [Guarantees & Scope](guarantees.md) before
-relying on any causal claim.
+a witnessing hedge) outside their supported class rather than guessing, the **planners and
+environments are demo-scale** (tabular to modest function approximation, on synthetic worlds),
+and the **decision, certificate and off-policy-evaluation layers are the parts that run on real
+data** — see the [real-data results](causal_mbrl_agent/REAL_DATA.md), which are a deliberate
+negative. Read [Guarantees & Scope](guarantees.md) before relying on any causal claim.
 
 ## Install
 

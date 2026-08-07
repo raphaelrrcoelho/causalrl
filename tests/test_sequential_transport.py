@@ -11,10 +11,10 @@ from __future__ import annotations
 import numpy as np
 
 from causalrl.certify.certificate import Certificate, Kind
-from causalrl.estimate.sequential import sequential_ice_values
 from causalrl.identification.transport import SelectionDiagram
+from causalrl.ope.sequential import sequential_ice_values
 from causalrl.scm.graph import CausalGraph
-from causalrl.transport.estimate import certify_sequential_transport
+from causalrl.transport.estimate import certify_transported_policy_value
 
 # Shared-mechanism T=2 DGP with a DISCRETE baseline B; only P(B) differs across domains.
 T1, T2, G1, G2, ALPHA, BETA = 1.0, 2.0, 0.5, 0.5, 0.7, 1.0
@@ -65,7 +65,7 @@ def test_baseline_shift_transports_to_target_value() -> None:
     target = _seq_domain(rng, 8000, p_b1=0.8)  # target E[B] = 0.8
     diagram = SelectionDiagram(_graph(), frozenset({"B"}))
 
-    cert = certify_sequential_transport(
+    cert = certify_transported_policy_value(
         diagram, source, target, stages=_STAGES, outcome="Y", target_actions=[1.0, 1.0]
     )
     assert cert.kind is Kind.IDENTIFIED and cert.hedge is None
@@ -92,7 +92,7 @@ def test_selection_on_time_varying_covariate_hedges() -> None:
     target = _seq_domain(rng, 3000, p_b1=0.5)
     diagram = SelectionDiagram(_graph(), frozenset({"L2"}))
 
-    cert = certify_sequential_transport(
+    cert = certify_transported_policy_value(
         diagram, source, target, stages=_STAGES, outcome="Y", target_actions=[1.0, 1.0]
     )
     assert cert.value is None
@@ -107,7 +107,7 @@ def test_identified_transport_roundtrips() -> None:
     source = _seq_domain(rng, 4000, p_b1=0.4)
     target = _seq_domain(rng, 4000, p_b1=0.7)
     diagram = SelectionDiagram(_graph(), frozenset({"B"}))
-    cert = certify_sequential_transport(
+    cert = certify_transported_policy_value(
         diagram,
         source,
         target,

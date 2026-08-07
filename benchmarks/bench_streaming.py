@@ -6,9 +6,7 @@ Guards the scale path the same way ``bench_causal_core.py`` guards the closed-fo
   (1) The streaming accumulators (``StreamingMoments`` / ``WeightedStreamingRatio``) reproduce the
       one-shot NumPy statistics EXACTLY, and run within a conservative constant factor of a single
       vectorised pass (hard-fail on a >2x slowdown vs the recorded relative floor).
-  (2) The Greenwald-Khanna sketch answers quantiles within its ε rank-error bound in sub-linear
-      space over a large stream.
-  (3) The end-to-end streamed OPE certificate (``stream_policy_value`` over a columnar log) equals
+  (2) The end-to-end streamed OPE certificate (``stream_policy_value`` over a columnar log) equals
       the materialised Hájek estimate — correctness never regresses with scale.
 
 The shipped closed-form guards (the 874x MSM speedup, exact known-noise counterfactual) live in
@@ -21,10 +19,9 @@ import time
 
 import numpy as np
 
-from causalrl.backends.quantile_sketch import GKQuantileSketch
 from causalrl.backends.streaming import StreamingMoments, WeightedStreamingRatio
 from causalrl.data.trajectory import TrajectoryLog
-from causalrl.estimate.streaming import stream_policy_value
+from causalrl.ope.ipw import stream_policy_value
 
 # Conservative relative floor: streaming may be at most this many times a single vectorised pass.
 # Set well above the observed ~1-2x so only a genuine >2x regression trips it (not machine noise).
@@ -98,28 +95,6 @@ def bench_weighted_ratio() -> None:
     assert ratio < _MAX_SLOWDOWN, f"ratio streaming regressed: {ratio:.1f}x > {_MAX_SLOWDOWN}x"
 
 
-def bench_quantile_sketch() -> None:
-    """GK sketch over a large stream: quantiles within ε rank error, sub-linear space."""
-    rng = np.random.default_rng(2)
-    x = rng.standard_normal(2_000_000)
-    eps = 0.01
-    t_build, sketch = _timed(lambda: GKQuantileSketch(eps).update(x), repeat=1)
-    sk: GKQuantileSketch = sketch  # type: ignore[assignment]
-    srt = np.sort(x)
-    n = x.shape[0]
-    worst = 0.0
-    for q in (0.01, 0.1, 0.5, 0.9, 0.99):
-        rank = int(np.searchsorted(srt, sk.quantile(q), side="right"))
-        worst = max(worst, abs(rank - q * n) / n)
-    thru = n / t_build / 1e6
-    print(
-        f"[sketch]  {n:,} in {t_build * 1e3:.0f} ms ({thru:.2f}M/s); {len(sk._entries)} entries "
-        f"(vs {n:,}); worst rank-error {worst:.4f} (ε={eps})"
-    )
-    assert worst <= eps + 1e-3, f"sketch rank error {worst} exceeds ε={eps}"
-    assert len(sk._entries) < n / 100, "sketch space is not sub-linear"
-
-
 def bench_stream_policy_value_end_to_end() -> None:
     """End-to-end streamed OPE certificate over a columnar log == the materialised Hájek value."""
     rng = np.random.default_rng(3)
@@ -150,7 +125,6 @@ def main() -> None:
     print("causal-core streaming micro-benchmarks (Phase 3 §9 scale path)")
     bench_streaming_moments()
     bench_weighted_ratio()
-    bench_quantile_sketch()
     bench_stream_policy_value_end_to_end()
     print("OK — all streaming bench assertions passed")
 

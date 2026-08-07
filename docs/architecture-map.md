@@ -114,7 +114,8 @@ version is recorded, never a specific string.
 ## 8. `experimental/`
 
 `experimental/ope.py` — `confounding_sensitivity_bounds(point, gamma)`, explicitly documented as a
-*qualitative, non-validated* sensitivity interval (not the published MSM bound). Phase 5's
+*qualitative, non-validated* sensitivity interval (not the published MSM bound) — **removed in
+3.0.0** (own test asserted it was not public; superseded by `identification/bounds.py`). Phase 5's
 `experimental/cyclic/` lands here first.
 
 ## 9. Phase 1 — continuous causal core (v1.4.0)
@@ -128,10 +129,13 @@ shipped code, per plan §4):
   cross-fit DML with influence-function CIs), pure-numpy nuisances (`RidgeRegressor` /
   `LogisticRegressor`, sklearn-style pluggable). Non-identified / front-door / overlap-destroyed →
   hedge (I3).
-- `bounds/` (§7.3) — shim re-exporting `identification.bounds` + `bounds/continuous.py`:
-  `msm_sensitivity_bounds` (estimated-`e` MSM; reduces to `ipw_sensitivity_bounds`),
-  `moment_diagnostic` / `tail_index_hill`, `certify_mean` (heavy-tail → median downgrade),
-  `certify_quantile` / `weighted_quantile` (percentile-bootstrap CIs).
+- `bounds/` (§7.3) — shim re-exporting `ope.bounds` (the value-side MSM family, moved there in
+  3.0.0) + `identification.bounds` (`Interval`, `manski_bounds`, `tipping_gamma`) +
+  `bounds/continuous.py`:
+  `msm_sensitivity_bounds` (estimated-`e` MSM; reduces to `ipw_sensitivity_bounds`). The heavy-tail /
+  quantile targets that used to live here too — `moment_diagnostic` / `tail_index_hill`,
+  `certify_mean`, `certify_quantile` / `weighted_quantile` — are **removed in 3.0.0** (general
+  statistics tooling, not an RL concept).
 - `conformal/` (§7.4) — `conformal_quantile` (weighted), `split_conformal_interval`, `cqr_interval`,
   `certify_conformal_interval` (`EMPIRICAL`, `query="see"` — no causal label is earned by residuals
   of a fitted prediction). Marginal coverage ≥ 1 − α. `conformal_action_value` is the off-policy
@@ -163,7 +167,8 @@ continuous mechanisms.
   forward, pure-NumPy `NUTSNoisePosterior`), `certify_nuts_counterfactual` (`EMPIRICAL`). Lazy
   duck-typed import; module coverage-omitted; own `nuts` CI lane (`ubuntu`/`3.11`, `--extra numpyro`).
   The extra is gated to `python_version < '3.14'` so the universal lock resolves.
-- **`estimate/sequential.py` (§7.2, numpy)** — `estimate_sequential_value` /
+- **`ope/sequential.py` (§7.2, numpy; was `estimate/sequential.py` before 3.0.0)** —
+  `estimate_sequential_value` /
   `certify_sequential_value`: ICE g-computation + cross-fitted sequentially doubly-robust (LTMLE)
   recursion under sequential ignorability (non-checkable assumption; per-stage overlap hedge, I3);
   reduces to single-stage DR at horizon 1. `sequential_ice_values` is the per-unit backbone.
@@ -197,11 +202,13 @@ numpy / pure-Python; no new dependencies.
   never imported) rolling any `ParallelEnv`-shaped object into a `TrajectoryLog` with `entity_id` =
   agent (acceptance a). Tested with a mock `ParallelEnv`. A file-level pyright directive silences the
   `reportUnknown*` family inherent to the `env: Any` duck-typed boundary.
-- **`meanfield/` (§8.2, EXPERIMENTAL/unstable)** — `MeanFieldGame` + `mean_field_equilibria` +
-  `certify_mean_field_equilibrium` (`EMPIRICAL`); reachable only as `causalrl.meanfield`, not in the
-  frozen top-level API (§14).
+- **`meanfield/` (§8.2, EXPERIMENTAL/unstable) — removed in 3.0.0.** Was `MeanFieldGame` +
+  `mean_field_equilibria` + `certify_mean_field_equilibrium` (`EMPIRICAL`), reachable only as
+  `causalrl.meanfield`, never in the frozen top-level API (§14). Deleted alongside the other
+  RL-recentering removals (plan `docs/rl_recentering/PLAN.md`): zero consumers outside its own test,
+  and no RL concept under `agents/`/`envs/` was an instance of it.
 
-The magames public API is lazily exported from `causalrl.__init__`; `meanfield` is intentionally not.
+The magames public API is lazily exported from `causalrl.__init__`.
 
 ## 12. Phase 3 — scale & data plane (v1.7.0)
 
@@ -210,19 +217,22 @@ core; the JAX backend is an optional accelerated mirror whose only hard duty is 
 
 - **Streaming accumulators (§9)** — `backends/streaming.py`: `StreamingMoments` (Chan parallel-merge
   count/mean/variance) and `WeightedStreamingRatio` (self-normalised Hájek value + one-pass
-  influence-function SE + Kish-ESS). `backends/quantile_sketch.py`: `GKQuantileSketch`
-  (Greenwald-Khanna, hard `ε·n` rank-error bound via `error_bound`, mergeable). Pure numpy, exact
-  vs one-shot; the JAX backend must agree with them within tolerance.
+  influence-function SE + Kish-ESS). Pure numpy, exact vs one-shot; the JAX backend must agree with
+  them within tolerance. `backends/quantile_sketch.py` (`GKQuantileSketch`, Greenwald-Khanna, hard
+  `ε·n` rank-error bound via `error_bound`, mergeable) is **removed in 3.0.0** along with its only
+  caller, below.
 - **Streaming join (§9)** — `data/streaming_join.py`: `iter_log_batches` (in-memory `scan()` or
   streamed Parquet via `TrajectoryLog.iter_parquet_batches`) + `KeyJoiner` (carry-over decision join,
   O(1) memory for a `sorted_by_key` log). Both additive `TrajectoryLog` methods live in
   `data/trajectory.py`.
-- **Streaming certificate kernels (§9)** — `estimate/streaming.py`: `stream_policy_value`
-  (IS off-policy value + CI, ESS overlap hedge — I3) and `stream_quantile_certificate` (GK tail
-  target, ε recorded — I8). `bounds/streaming.py`: `stream_msm_bounds` (streamed columns → exact Tan
-  closed form → `BOUNDED`). Each emits a unified `Certificate` over a log too large to hold. The
-  end-to-end acceptance (Phase-2 population env → Parquet → streamed OPE recovering the MC truth) is
-  in `tests/test_streaming_estimate.py`; lazily exported from `causalrl.__init__`.
+- **Streaming certificate kernels (§9)** — `ope/ipw.py` (was `estimate/streaming.py` before
+  3.0.0): `stream_policy_value`
+  (IS off-policy value + CI, ESS overlap hedge — I3). `bounds/streaming.py`: `stream_msm_bounds`
+  (streamed columns → exact Tan closed form → `BOUNDED`). Each emits a unified `Certificate` over a
+  log too large to hold. The end-to-end acceptance (Phase-2 population env → Parquet → streamed OPE
+  recovering the MC truth) is in `tests/test_streaming_estimate.py`; lazily exported from
+  `causalrl.__init__`. `stream_quantile_certificate` (GK tail target, ε recorded — I8) is **removed
+  in 3.0.0**: its own docstring said "not a causal effect."
 - **`backends/jax/` (§9, EXPERIMENTAL-adjacent, optional `[jax]` extra)** — `sample.py`
   (`vmap_sample_linear_gaussian`, `batched_do_linear_gaussian`; PRNG-key determinism) and
   `kernels.py` (`ipw_value_jax`) mirror the numpy core. `get_namespace` gains duck-typed dispatch
@@ -256,9 +266,9 @@ any external stack can drive the certificate layer. All additive pieces are nump
 - **`scale/d3rlpy.py` (§10)** — both-direction `TrajectoryLog` ↔ `MDPDataset` bridges,
   `policy_actions`, `certify_fqe` (`EMPIRICAL`), and the `as_certificate` retarget of
   `certify_policy`. d3rlpy stays lazy; `certify_fqe` / `policy_actions` never import it.
-- **Docs (§10)** — five CI-executed task guides (`examples/guides/`), `docs/migration-2.0.md`,
+- **Docs (§10)** — six CI-executed task guides (`examples/guides/`), `docs/migration-2.0.md`,
   `docs/assumptions.md`, `docs/guides.md`, an expanded `api.md`, and `paper/paper.md`.
-- **CI** — the `notebooks` lane runs the five guides + the columnar-sim example; new `scale` and
+- **CI** — the `notebooks` lane runs the six guides + the columnar-sim example; new `scale` and
   `interop` py3.11 lanes prove the fresh install of those extras resolves and imports (the adapters
   are also mock-tested on the main matrix). d3rlpy/dowhy/econml resolve in the universal lock
   alongside numpy 2.x, so a locked `uv sync --extra scale/interop` installs without re-resolving.

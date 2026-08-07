@@ -1,8 +1,9 @@
 # Task Guides
 
-Five runnable, end-to-end walkthroughs of the core workflows. Each is a self-contained script under
-`examples/guides/` that runs on the numpy core and is executed in CI, so the code here always works.
-Run any of them with `python examples/guides/<name>.py`.
+Six runnable, end-to-end walkthroughs of the core workflows — five that score a policy, and one that
+trains one. Each is a self-contained script under `examples/guides/` that is executed in CI, so the
+code here always works. Run any of them with `python examples/guides/<name>.py`. Guides 1-5 run on
+the numpy core; guide 6 plans inside fitted SCMs and needs the `causalrl[torch]` extra.
 
 ## 1. Evaluate a policy offline under confounding
 
@@ -84,7 +85,34 @@ Parquet path (`log.to_parquet(path)` then `stream_policy_value(path)`) and it st
 disk unchanged.
 
 ```python
-from causalrl.estimate.streaming import stream_policy_value
+from causalrl.ope.ipw import stream_policy_value
 
 cert = stream_policy_value(log, weight="weight", reward="reward", batch_size=100_000)
 ```
+
+## 6. Train an agent that learns its causal model while acting
+
+`examples/guides/06_learn_the_scm_while_acting.py`
+
+The only guide that *trains* something. `OnlineCausalMBRL` holds an interventional Markov
+equivalence class (I-MEC) — one fitted SCM per DAG still consistent with the data — refits it from
+its own experiments, and plans inside it. On a world where the observational contrast reverses the
+causal one, the log alone leaves six DAGs standing and five of them deploy the wrong action; the
+first randomized `do(A)` collapses the belief to one member and **regret goes to zero**. The loop
+branches on `structure_uncertain()`: probe for an experiment while the structure is undetermined,
+act once it is not.
+
+```python
+from causalrl import OnlineCausalMBRL
+
+agent = OnlineCausalMBRL(("Z", "A", "Y"), treatment="A", outcome="Y", actions=(0.0, 1.0))
+agent.ingest(offline_log)                        # off-policy rows it starts from
+agent.refit()                                    # -> the I-MEC belief
+target = agent.probe() if agent.structure_uncertain() else None   # what to experiment on
+agent.observe(row, intervention={"A": a})        # one transition of its own experiment
+agent.refit()
+agent.act()                                      # Thompson sampling over structure
+```
+
+`probe()` here names `Z`, the confounder — the most informative experiment is one this agent cannot
+run, because nothing it controls sets `Z`. The guide prints that rather than hiding it.
