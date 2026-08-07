@@ -626,3 +626,8 @@ one-call front door over the layers below.
 
 ::: causalrl.interop.pettingzoo.pettingzoo_to_trajectory_log
 
+::: causalrl.scm.bounded_fit.fit_scm_bounded
+
+::: causalrl.scm.bounded_fit.BoundedSCMFit
+
+::: causalrl.scm.bounded_fit.BoundedNodeFit

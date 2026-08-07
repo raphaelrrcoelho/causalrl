@@ -18,6 +18,9 @@ from causalrl.envs.registration import register_envs as _register_envs
 _register_envs()
 
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "BoundedNodeFit": ("causalrl.scm.bounded_fit", "BoundedNodeFit"),
+    "BoundedSCMFit": ("causalrl.scm.bounded_fit", "BoundedSCMFit"),
+    "fit_scm_bounded": ("causalrl.scm.bounded_fit", "fit_scm_bounded"),
     "CausalInterfaceUnavailableError": (
         "causalrl.exceptions",
         "CausalInterfaceUnavailableError",
@@ -455,6 +458,8 @@ API_TIERS: dict[str, tuple[str, ...]] = {
         "ANMFit",
         "AmortizedGaussianAbduction",
         "BayesianLinearFit",
+        "BoundedNodeFit",
+        "BoundedSCMFit",
         "CausalEnvProtocol",
         "ConditionalFlowMechanism",
         "ConfoundedTrajectoryDataset",
@@ -493,6 +498,7 @@ API_TIERS: dict[str, tuple[str, ...]] = {
         "certify_nuts_counterfactual",
         "conformal_quantile",
         "cqr_interval",
+        "fit_scm_bounded",
         "fit_scm_mec",
         "generate_logs",
         "split_conformal_interval",
@@ -672,6 +678,8 @@ __all__ = [
     "BehavioralCloning",
     "BenchmarkEstimate",
     "BoundedFittedQIteration",
+    "BoundedNodeFit",
+    "BoundedSCMFit",
     "BruteForceInterventionTS",
     "CCEPolytope",
     "CGFAAdvantages",
@@ -853,6 +861,7 @@ __all__ = [
     "factored_advantage",
     "finite_horizon_regret",
     "fit_scm",
+    "fit_scm_bounded",
     "fit_scm_mec",
     "from_causal_gym",
     "generate_logs",

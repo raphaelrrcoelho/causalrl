@@ -152,7 +152,9 @@ def fit_scm(
     saw; ``>= 1.0`` would leave a one-row training set.
 
     Raises :class:`NotIdentifiableError` on a graph with bidirected edges: under latent confounding
-    a node's mechanism is not recoverable by regression on its observed parents.
+    a node's mechanism is not recoverable by regression on its observed parents, so this function
+    has no single SCM to return. :func:`causalrl.fit_scm_bounded` takes that graph instead, fitting
+    the nodes whose own parents are unconfounded and bounding the rest.
     """
     if not 0.0 < holdout < 1.0:
         raise ValueError(
@@ -164,8 +166,9 @@ def fit_scm(
     if graph.has_bidirected_edges():
         raise NotIdentifiableError(
             "fit_scm cannot fit a graph with bidirected edges: under latent confounding a "
-            "mechanism is not identified by regression on observed parents. Fitting confounded "
-            "graphs needs the neural-causal-model construction (one latent per c-component).",
+            "mechanism is not identified by regression on observed parents, so there is no single "
+            "SCM to return. Use causalrl.fit_scm_bounded, which fits every node whose own parents "
+            "are unconfounded and reports a Manski interval at the rest.",
             witness=graph.bidirected_edges,
         )
     missing = [node for node in graph.nodes if node not in data]
