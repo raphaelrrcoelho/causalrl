@@ -64,6 +64,7 @@ import causal_hybrid_lm as hy  # SCM + prose generator, shared by the whole Act-
 NE = hy.NE
 SEEDS = [int(x) for x in os.environ.get("SEEDS", "0,1").split(",")]
 FAST = os.environ.get("FAST") == "1"
+ARMS = [a for a in os.environ.get("ARMS", "direct,joint,joint2x,decoupled").split(",") if a]
 
 # Vocab = the shared Act-4 vocab, EXTENDED with scratchpad punctuation. The base words keep their
 # ids (list prefix is preserved), so examples built by ``hy`` can be reused verbatim.
@@ -355,14 +356,19 @@ def run_seed(seed: int) -> dict:
     extra = hy.build(n, sizes=[2, 3], seed=seed + 900)
 
     out: dict[str, float] = {}
-    for arm in ("direct", "joint", "joint2x", "decoupled"):
+    for arm in ARMS:
         torch.manual_seed(seed)  # identical init across arms
         model = GPT2LMHeadModel(gpt2())
         src = train_data + extra if arm == "joint2x" else train_data
         corpus = build_corpus("joint" if arm == "joint2x" else arm, src, seed)
-        # DECOUPLED and JOINT-2X yield 2 items per example -> halve their epochs so every arm takes
-        # the SAME number of gradient steps (capacity/data/steps fixed; only the schedule varies).
-        ep = epochs // 2 if arm in ("decoupled", "joint2x") else epochs
+        # Fairness unit = epochs of supervision PER OBJECTIVE, not gradient steps. JOINT carries
+        # both losses on every item, so step-matching would hand DECOUPLED only half the answer
+        # supervision (that is exactly what sank the step-matched run: teacher-forced ceiling 0.596
+        # vs JOINT 0.871 -- see results/pure_twostage_stepmatched_s0.log). Every arm therefore gets
+        # `epochs` passes of each objective; DECOUPLED and JOINT-2X take 2x the gradient steps as a
+        # consequence, and JOINT-2X is the step-matched control that *also* gets 2x supervision --
+        # a deliberately conservative baseline for DECOUPLED to have to beat.
+        ep = epochs
         print(f"\n  training {arm.upper()} ({len(corpus)} items x {ep} epochs) ...", flush=True)
         train(model, corpus, epochs=ep, tag=arm)
         model.eval()
@@ -403,7 +409,7 @@ def main() -> None:
     print("  cause      = balanced causal query (constant-'no' scores ~0.500)")
     print("  BOTH must be high for the result to mean anything.\n")
     print(f"  {'arm':<12}{'conf s3':>16}{'conf s4':>16}{'cause s3':>16}{'cause s4':>16}")
-    for arm in ("direct", "joint", "joint2x", "decoupled"):
+    for arm in ARMS:
         cells = []
         for key in ("conf_s3", "conf_s4", "cause_s3", "cause_s4"):
             m, sd = agg(f"{arm}_{key}")
@@ -411,13 +417,13 @@ def main() -> None:
         print(f"  {arm.upper():<12}" + "".join(f"{c:>16}" for c in cells))
 
     print("\n  self-generated graph edge F1 (is a failure perception, or reasoning?)")
-    for arm in ("joint", "joint2x", "decoupled"):
+    for arm in [a for a in ARMS if a != "direct"]:
         m3, s3 = agg(f"{arm}_edgef1_s3")
         m4, s4 = agg(f"{arm}_edgef1_s4")
         print(f"  {arm.upper():<12}  s3 {m3:.3f}+/-{s3:.3f}   s4 {m4:.3f}+/-{s4:.3f}")
 
     print("\n  teacher-forced ceiling on `cause` (TRUE graph inserted -> answer)")
-    for arm in ("joint", "joint2x", "decoupled"):
+    for arm in [a for a in ARMS if a != "direct"]:
         m3, s3 = agg(f"{arm}_tf_cause_s3")
         m4, s4 = agg(f"{arm}_tf_cause_s4")
         print(f"  {arm.upper():<12}  s3 {m3:.3f}+/-{s3:.3f}   s4 {m4:.3f}+/-{s4:.3f}")

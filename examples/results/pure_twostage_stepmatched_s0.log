@@ -1,0 +1,67 @@
+PURE LM, decoupled vs joint schedule -- the missing cell of the 2x2
+  seeds [0]; answer is always the LM's own token
+
+  training DIRECT (8000 items x 12 epochs) ...
+    [direct] epoch 1/12  loss 0.5495
+    [direct] epoch 2/12  loss 0.4370
+    [direct] epoch 3/12  loss 0.4294
+    [direct] epoch 4/12  loss 0.4278
+    [direct] epoch 5/12  loss 0.4291
+    [direct] epoch 6/12  loss 0.3494
+    [direct] epoch 7/12  loss 0.3186
+    [direct] epoch 8/12  loss 0.2712
+    [direct] epoch 9/12  loss 0.2562
+    [direct] epoch 10/12  loss 0.2344
+    [direct] epoch 11/12  loss 0.2383
+    [direct] epoch 12/12  loss 0.2182
+
+  training JOINT (8000 items x 12 epochs) ...
+    [joint] epoch 1/12  loss 0.5586
+    [joint] epoch 2/12  loss 0.1726
+    [joint] epoch 3/12  loss 0.1494
+    [joint] epoch 4/12  loss 0.1314
+    [joint] epoch 5/12  loss 0.1182
+    [joint] epoch 6/12  loss 0.1066
+    [joint] epoch 7/12  loss 0.1001
+    [joint] epoch 8/12  loss 0.0896
+    [joint] epoch 9/12  loss 0.0838
+    [joint] epoch 10/12  loss 0.0786
+    [joint] epoch 11/12  loss 0.0751
+    [joint] epoch 12/12  loss 0.0688
+
+  training DECOUPLED (16000 items x 6 epochs) ...
+    [decoupled] epoch 1/6  loss 0.4205
+    [decoupled] epoch 2/6  loss 0.1682
+    [decoupled] epoch 3/6  loss 0.1471
+    [decoupled] epoch 4/6  loss 0.1371
+    [decoupled] epoch 5/6  loss 0.1328
+    [decoupled] epoch 6/6  loss 0.1290
+
+==============================================================================
+  confounded = correlated but NOT causal (all-negative set: constant-'no' scores 1.000)
+  cause      = balanced causal query (constant-'no' scores ~0.500)
+  BOTH must be high for the result to mean anything.
+
+  arm                  conf s3         conf s4        cause s3        cause s4
+  DIRECT         0.153+/-0.000   0.291+/-0.000   0.795+/-0.000   0.521+/-0.000
+  JOINT          0.331+/-0.000   0.226+/-0.000   0.871+/-0.000   0.621+/-0.000
+  DECOUPLED      0.000+/-0.000   0.000+/-0.000   0.596+/-0.000   0.513+/-0.000
+
+  self-generated graph edge F1 (is a failure perception, or reasoning?)
+  JOINT         s3 0.907+/-0.000   s4 0.540+/-0.000
+  DECOUPLED     s3 0.856+/-0.000   s4 0.574+/-0.000
+
+  teacher-forced ceiling on `cause` (TRUE graph inserted -> answer)
+  JOINT         s3 0.871+/-0.000   s4 0.603+/-0.000
+  DECOUPLED     s3 0.596+/-0.000   s4 0.513+/-0.000
+
+  reference: external-module route -- joint 0.43 vs two-stage 1.000/0.933 confounded
+
+  Reading: ONE GPT-2, same init/data/capacity/gradient-steps; only the loss mask (the
+  schedule) differs, and the answer is always the LM's own next token. If DECOUPLED clears
+  JOINT and DIRECT on confounded WHILE holding `cause` high, then the branch's canonical
+  negative ('a real LM does not internalise causal reasoning') was an artifact of the JOINT
+  schedule, not a capability limit -- and causal competence is installable in an LM's own
+  weights by training it differently, with no external reasoner. If DECOUPLED does NOT
+  clear them, the external routed module is genuinely load-bearing and the negative stands
+  on its own -- which sharpens the thesis rather than weakening it.
