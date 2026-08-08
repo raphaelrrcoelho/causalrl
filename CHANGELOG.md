@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`examples/rocketpy_crew.py`** — four agents composed on the rule every earlier attempt broke:
+  *a competitive architecture contains the best baseline as a component and spends its agents where
+  that baseline is silent*. A navigator identifies the closed form's one unknown (`Cd = 1.146` from
+  6 flights, true 1.2, pre-flight guess 0.6); guidance **is** the closed form, per tick over
+  `Continuous(0, ceiling)`; recovery owns the irreversible main release; and a safety officer holds
+  a veto expressed as `InterventionSpace.__and__` — it narrows what the mission agents may do rather
+  than adding a payoff to average, because averaging is how a broken airframe becomes a
+  half-success. When the decision is forced the domain becomes `Discrete((1.0,))`, a domain of one.
+  **Half the design works.** Guidance is competitive — 86.4 m apogee error against the learned
+  autopilot's 84.3 m — which is the gap every prior attempt failed to close, and containing the
+  baseline rather than replacing it is what closed it. **Safety costs more than it buys**: both are
+  safe (0/12, 0/8), so the veto protects against nothing the autopilot's flat 1.5 m/s margin did not
+  already cover, while charging 449 m of extra drift and 83 m of off-nominal apogee error — mission
+  score 0.516 against 0.630. The band is not mistuned but honest: split-conformal at 95% returns
+  **+2.12 m/s** where this file's first version used a hand-picked +0.76 and produced unsafe
+  landings the plain autopilot avoided, because a homoscedastic sigma is the wrong uncertainty model
+  for a constraint that is a cliff. The generalisable finding is about redundancy rather than
+  causality — **a safety layer over an already-conservative base policy pays full price and collects
+  nothing** — and demonstrating its value would need a base policy that actually fails.
 - **`examples/rocketpy_multiagent.py`** — the mission as a two-agent game rather than one pilot
   deciding twice, using `CausalGame` / `pure_nash_equilibria` / `run_no_regret` (the first use of
   `causalrl.magames` in the RocketPy set). The motivating defect is real: `rocketpy_autopilot.py`
