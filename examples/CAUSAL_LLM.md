@@ -90,12 +90,17 @@ The spine of the program, in the order it was discovered:
      the true graph given (`STRUCTONLY`), the LM still reaches only **cause 0.723 / confounded
      0.186** (s3), below the scaffold's struct-only 0.818.
 
+   - *not capacity* — a 4.4× bigger LM (8L/192d, **3.58M** params) reaches **0.745** on `cause`
+     (+0.02) and gets *worse* on confounded (0.186 → 0.088) while its training loss *falls*
+     (0.365 → 0.320): it memorizes harder without learning the algorithm.
+
    The comparator makes the point: on the *same* structure→answer function, same data and seed, a
    **11,857-parameter GNN scores 1.000 / 1.000** where the **809,344-parameter** transformer scores
-   0.723 / 0.186 — a 68× parameter advantage, losing badly. Multi-hop reachability over a
-   *serialized* graph is what transformer weights don't learn here, which is exactly the
-   `causal_graph_transformer.py` finding (shortcuts, not d-separation) seen from the other side, and
-   it explains why decoupling transfers to an external module but not into the weights.
+   0.723 / 0.186 — and at **302×** the GNN's parameters the transformer still cannot do it. Multi-hop
+   reachability over a *serialized* graph is what transformer weights don't learn here, which is
+   exactly the `causal_graph_transformer.py` finding (shortcuts, not d-separation) seen from the
+   other side, and it explains why decoupling transfers to an external module but not into the
+   weights.
 
    > Method note, kept because it nearly produced a false positive: the first run *step*-matched the
    > arms, which silently gave DECOUPLED half the answer supervision (JOINT carries both losses on
@@ -214,9 +219,9 @@ evidence `examples/results/d_mechanism_run.log`.) **Workshop-grade** today; see 
 - Tiny models, synthetic prose, CPU; held-out numbers drift run-to-run. GPU works for short bursts but
   a *sustained* training run wedged the WSL2 driver — the LM trainer now checkpoints/resumes.
 - **`causal_pure_twostage.py` is single-seed (seed 0) so far** — the effects are large (0.723 vs 1.000
-  on the same function) and the diagnostics are internally consistent, but the multi-seed replication
-  is still owed. Its capacity control (8L/192d, 3.58M params) is the one alternative explanation not
-  yet closed at the time of writing; the claim "architectural, not capacity" rests on it.
+  on the same function), the four diagnostics are internally consistent, and the capacity control is
+  **done** (4.4× params → +0.02, worse elsewhere, lower train loss), but multi-seed replication is
+  still owed.
 
 ---
 

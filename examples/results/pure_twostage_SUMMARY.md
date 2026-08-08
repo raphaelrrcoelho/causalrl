@@ -24,12 +24,16 @@ Every "a real LM does not internalise causal reasoning" result on this branch wa
 
 Same structure->answer function, same data and seed:
 
-| system | params | cause s3 | cause s4 | conf s3 | conf s4 |
-|---|---|---|---|---|---|
-| GNN reasoner on clean structure | **11,857** | **1.000** | 0.952 | **1.000** | 0.893 |
-| GPT-2 given the same clean structure as tokens | **809,344** | 0.723 | 0.579 | 0.186 | 0.249 |
+| system | params | cause s3 | cause s4 | conf s3 | conf s4 | final train loss |
+|---|---|---|---|---|---|---|
+| GNN reasoner on clean structure | **11,857** | **1.000** | 0.952 | **1.000** | 0.893 | - |
+| GPT-2 (4L/128d), same structure as tokens | **809,344** | 0.723 | 0.579 | 0.186 | 0.249 | 0.365 |
+| GPT-2 (8L/192d), capacity control | **3,583,296** | 0.745 | 0.563 | 0.088 | 0.020 | **0.320** |
 
-A 68x parameter advantage, losing badly. The wall is **multi-hop reachability over a serialized
+A 68x parameter advantage, losing badly -- and **capacity is not the explanation**: 4.4x more
+parameters bought +0.02 on `cause` and got *worse* on everything else, while the training loss
+*fell* (0.365 -> 0.320). The bigger model memorizes harder without learning the algorithm. At 302x
+the GNN's parameter count it still cannot do reachability. The wall is **multi-hop reachability over a serialized
 graph** in transformer weights — the same thing `causal_graph_transformer.py` found from the other
 side (shortcuts, not d-separation). This is why decoupling transfers to an external module but not
 into the weights.
@@ -49,9 +53,10 @@ into the weights.
 |---|---|
 | `pure_twostage_stepmatched_s0.log` | first run, step-matched (discarded, kept for lineage) |
 | `pure_twostage_decoupled_fair_s0.log` | DECOUPLED with full per-objective supervision — refutes undertraining |
-| `pure_twostage_structonly_s0.log` | STRUCTONLY — isolates the reasoning step |
+| `pure_twostage_structonly_s0.log` | STRUCTONLY (4L/128d) — isolates the reasoning step |
+| `pure_twostage_structonly_8L192d_s0.log` | STRUCTONLY at 4.4x capacity — rules out "too small" |
 
 ## Owed
 
-Multi-seed replication, and the capacity control (8L/192d, 3.58M params) that closes "architectural,
-not capacity".
+Multi-seed replication (all numbers here are seed 0). The capacity control is **done** and closes
+"architectural, not capacity": `pure_twostage_structonly_8L192d_s0.log`.
