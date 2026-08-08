@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`examples/rocketpy_baselines.py`** — the learned agent measured against the autopilot a real
+  team would actually fly, which is not another learned agent but the drag-limited coast prediction
+  every flight computer runs: `h_gain = ln(1 + k v^2/g) / 2k`. **The closed form wins, using zero
+  flights** — 17.1 m mean and 0.3 m median apogee error against the black-box response surface's
+  30.7 m and 5.1 m, and the surface costs 60 flights to be worse. Recorded rather than buried: for
+  a system whose physics you know, write down the physics, and an example that omitted the closed
+  form to flatter its agent would be worthless. The finding underneath is the useful one. A 2x
+  error in the brake's `Cd` — the one quantity a characterization campaign exists to measure —
+  costs *nothing* closed-loop (16.9 m against the oracle's 17.1 m), because the controller
+  re-measures and re-solves each tick, so a wrong parameter changes the path to the target and not
+  the target converged on. Freeze the first command and it inverts: open-loop, the same 2x error
+  costs **84.1 m** of median apogee against the oracle's 14.9 m, and six flights of calibration
+  recover it entirely (12.8 m). Estimation earns its keep exactly where feedback cannot rescue it —
+  decisions committed once and not revisited, which is the regime the rest of this library
+  addresses.
 - **`examples/rocketpy_sample_efficiency.py`** — measures where causal methods actually buy
   flights, against a reference slope of `-449.5 m` per unit deployment pinned by 120 paired
   flights. The finding worth the run is that **the naive estimator does not improve with data**:
