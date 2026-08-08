@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`examples/rocketpy_sample_efficiency.py`** — measures where causal methods actually buy
+  flights, against a reference slope of `-449.5 m` per unit deployment pinned by 120 paired
+  flights. The finding worth the run is that **the naive estimator does not improve with data**:
+  `464.4 → 473.4 → 439.4 m` of slope error at 10, 20 and 40 flights, against a true slope whose
+  magnitude is 449.5 — the estimate is essentially the wrong sign, and stays there. That is bias,
+  not variance, and no flight budget fixes it. Back-door adjustment on the recorded motor lot turns
+  the same logs into `105.0 → 91.6 → 91.5 m`, while randomizing gives `161.5 → 86.3 → 67.1 m`. So
+  the two cross over: **below ~20 flights, adjusting logs you already have beats running a small
+  experiment; beyond that, randomization wins**, because adjustment plateaus on a bias floor
+  (linear adjustment against a nonlinear response, on the thin overlap the reported diagnostic
+  shows — a crew jitter of ~0.11 is all the support there is) while randomization keeps converging.
+  Counterfactual pairing against independent sampling at equal flight count gives `1.7x / 1.5x /
+  3.2x`; the paired arm's RMSE falls cleanly as `1/sqrt(n)` (`56.8 → 38.6 → 22.3`) where the
+  independent arm does not (`96.6 → 59.3 → 70.4`), so the reliable reading is ~1.5-2x and the 3.2x
+  is inflated by replicate noise. Pairing is blocking — classical design — and is a simulator
+  privilege besides, since a burned motor cannot be re-flown; the adjustment result is the one with
+  no design escape.
 - **`examples/rocketpy_autopilot.py`** — one `InterventionalAgent` flying a whole mission, from rail
   departure to touchdown, with nothing scripted in between. RocketPy exposes exactly two in-flight
   levers (the air-brake `controller_function` and per-device parachute `trigger`s) and `RocketPilot`
