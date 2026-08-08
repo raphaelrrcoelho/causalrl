@@ -3,7 +3,10 @@
 > **Thesis.** Causal competence in a language model must be **installed** as explicit structure,
 > **routed through** (not merely encoded), and **decoupled** from perception in training. It does
 > *not* emerge from correlational next-token learning — and naive end-to-end training fails to learn
-> it even when every part is present.
+> it even when every part is present. The routing has to be an explicit **computational module**:
+> decoupling fixes the external-module route (0.43 → 1.000) but does **not** transfer into the LM's
+> own weights, where multi-hop reachability over a serialized graph stays unlearned even with 68× the
+> parameters of a GNN that solves it perfectly (`causal_pure_twostage.py`).
 
 **Start here.** This is the single source of truth for the causal-LLM side track (the `causal_*` and
 `rlvr_*` scripts in this folder). It tells the discovery as one arc, then maps every script to its
@@ -75,6 +78,31 @@ The spine of the program, in the order it was discovered:
 7. **The fix.** Decoupled **two-stage** training (perception on the edge loss; a structure-only GNN
    reasoner on clean structure; composed) → **1.000 ± 0.000** confounded in-dist / **0.933 ± 0.003**
    held-out, from prose, nothing hand-coded. `causal_hybrid_twostage.py`.
+8. **Does the fix transfer into the LM's own weights? No — and we now know why.** Every "an LM can't
+   internalise causal reasoning" result above (4, and the scaffold's CoT 0.655) was measured under
+   the **joint** schedule, and the fix in (7) routed the answer through an **external GNN**. That
+   left one cell of the 2×2 unrun: the *decoupled* schedule on the *pure* weights. Running it
+   (`causal_pure_twostage.py`, one GPT-2, answer always its own next token) gives a **localized
+   negative** — the wall is the **reasoning step**, not the schedule and not perception:
+   - *not perception* — self-generated edge F1 **0.940**;
+   - *not undertraining* — doubling answer supervision moved the ceiling **0.596 → 0.596**;
+   - *not the prose shortcut, nor the contradictory-prose design* — with the prose **deleted** and
+     the true graph given (`STRUCTONLY`), the LM still reaches only **cause 0.723 / confounded
+     0.186** (s3), below the scaffold's struct-only 0.818.
+
+   The comparator makes the point: on the *same* structure→answer function, same data and seed, a
+   **11,857-parameter GNN scores 1.000 / 1.000** where the **809,344-parameter** transformer scores
+   0.723 / 0.186 — a 68× parameter advantage, losing badly. Multi-hop reachability over a
+   *serialized* graph is what transformer weights don't learn here, which is exactly the
+   `causal_graph_transformer.py` finding (shortcuts, not d-separation) seen from the other side, and
+   it explains why decoupling transfers to an external module but not into the weights.
+
+   > Method note, kept because it nearly produced a false positive: the first run *step*-matched the
+   > arms, which silently gave DECOUPLED half the answer supervision (JOINT carries both losses on
+   > every item). The fairness unit has to be **epochs per objective**. The discarded run is kept in
+   > `results/pure_twostage_stepmatched_s0.log`. Note also that JOINT's teacher-forced ceiling
+   > (0.871) does **not** measure graph-reading: JOINT only ever sees the true graph, which agrees
+   > with the prose, and DIRECT already gets 0.795 from prose alone.
 
 L3 in a learned head: counterfactuals via twin-network abduction-action-prediction, climbing a
 crutch-removal ladder — fixed SCM (`causal_counterfactual_twin.py`, by-construction) → random
@@ -158,7 +186,11 @@ evidence `examples/results/d_mechanism_run.log`.) **Workshop-grade** today; see 
   the synthetic relabel as a faithful proxy (`causal_corr2cause_realood.py`, evidence in `results/`).
 - The **two-stage fix** — fully-learned, 1.0 / 0.93 confounded, stable (`causal_hybrid_twostage.py`).
 - **Learned reasoning is real** in-distribution (`causal_core_learned_reasoning.py`).
-- The **pure-path negative** — clean, multi-seed (`causal_pure_lm.py`).
+- The **pure-path negative** — clean, multi-seed (`causal_pure_lm.py`), and now **localized**: it is
+  the *reasoning* step, not the schedule or perception, and it survives the decoupled schedule that
+  fixed the external-module route (`causal_pure_twostage.py`). The 11.9K-param GNN vs 809K-param LM
+  comparison (1.000 vs 0.723 on the same function) is the sharpest statement of the architectural
+  gap this branch has.
 - **Counterfactual (L3) generalization** over random parameters (`causal_counterfactual_general.py`).
 - **Intellectual honesty as infrastructure** — an adversarial audit, negatives kept, multi-seed on
   load-bearing claims.
@@ -181,6 +213,10 @@ evidence `examples/results/d_mechanism_run.log`.) **Workshop-grade** today; see 
   gap, but it's untrainable on this box and shows the same OOD collapse.
 - Tiny models, synthetic prose, CPU; held-out numbers drift run-to-run. GPU works for short bursts but
   a *sustained* training run wedged the WSL2 driver — the LM trainer now checkpoints/resumes.
+- **`causal_pure_twostage.py` is single-seed (seed 0) so far** — the effects are large (0.723 vs 1.000
+  on the same function) and the diagnostics are internally consistent, but the multi-seed replication
+  is still owed. Its capacity control (8L/192d, 3.58M params) is the one alternative explanation not
+  yet closed at the time of writing; the claim "architectural, not capacity" rests on it.
 
 ---
 
@@ -303,6 +339,7 @@ true structure) · **honest-negative** (a kept negative result) · **fragile** (
 | `causal_hybrid_learned.py` | fully-learned hybrid FAILS confounding (0.43) | canonical (end-state superseded by two-stage) |
 | `causal_perception_bottleneck.py` | the 0.43 is joint TRAINING, not perception | canonical |
 | `causal_hybrid_twostage.py` | the FIX: decoupled two-stage → 1.0 in-dist | canonical |
+| `causal_pure_twostage.py` | the missing 2×2 cell: decoupling does NOT transfer into the LM's weights. Localized — not perception (edge F1 0.940), not undertraining (ceiling 0.596→0.596), not the shortcut (prose-free STRUCTONLY still 0.723/0.186); a 11.9K-param GNN gets 1.000 where the 809K-param LM gets 0.723 on the same function. Evidence in `results/` | canonical-negative · localizes the wall |
 | `causal_reasoner_prototype.py` | axiomatic d-sep rule from traces (didactic) | superseded→ `causal_reasoner_train.py` |
 | `causal_reasoner_train.py` | hardened, device-agnostic reasoner trainer | support/infra |
 
