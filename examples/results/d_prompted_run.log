@@ -1,0 +1,48 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Prompted head-to-head on Corr2Cause — N=150 (pos=27, 18%), seed=0, models=['mistral:7b', 'llama3.2:3b']
+cache=/mnt/c/Users/rapha/Documents/Code/causalrl/.hf_cache/prompted_cache.json
+
+>>> mistral:7b
+      [mistral:7b direct] 25/150  running F1=0.111
+      [mistral:7b direct] 50/150  running F1=0.408
+      [mistral:7b direct] 75/150  running F1=0.371
+      [mistral:7b direct] 100/150  running F1=0.388
+      [mistral:7b direct] 125/150  running F1=0.349
+      [mistral:7b direct] 150/150  running F1=0.354
+      [mistral:7b struct] 25/150  running F1=0.286
+      [mistral:7b struct] 50/150  running F1=0.500
+      [mistral:7b struct] 75/150  running F1=0.449
+      [mistral:7b struct] 100/150  running F1=0.421
+      [mistral:7b struct] 125/150  running F1=0.391
+      [mistral:7b struct] 150/150  running F1=0.393
+    (1247s)
+
+>>> llama3.2:3b
+      [llama3.2:3b direct] 25/150  running F1=0.000
+      [llama3.2:3b direct] 50/150  running F1=0.000
+      [llama3.2:3b direct] 75/150  running F1=0.000
+      [llama3.2:3b direct] 100/150  running F1=0.000
+      [llama3.2:3b direct] 125/150  running F1=0.000
+      [llama3.2:3b direct] 150/150  running F1=0.000
+      [llama3.2:3b struct] 25/150  running F1=0.286
+      [llama3.2:3b struct] 50/150  running F1=0.273
+      [llama3.2:3b struct] 75/150  running F1=0.182
+      [llama3.2:3b struct] 100/150  running F1=0.178
+      [llama3.2:3b struct] 125/150  running F1=0.179
+      [llama3.2:3b struct] 150/150  running F1=0.185
+    (1773s)
+
+=== PROMPTED HEAD-TO-HEAD (Corr2Cause, N=150 fixed sample, F1 on positive class) ===
+  system                                      P      R      F1
+  symbolic ceiling (our solver, same sample)  0.862  0.926  0.893   (coverage 100%)
+  mistral:7b — direct                         0.217  0.963  0.354
+  mistral:7b — structured                     0.263  0.778  0.393
+  llama3.2:3b — direct                        0.000  0.000  0.000
+  llama3.2:3b — structured                    0.158  0.222  0.185
+
+  Reference (full 1162-test, from this repo):
+  trained decoupled GNN (ours)                              0.927
+  converged distilbert (end-to-end LM, B1)                  0.523
+
+  Read: prompted structured thinking helps over direct, but a TRAINED decoupled reasoner
+  (and the exact solver) is far stronger — it's the training signal, not the prompt (Phase D).

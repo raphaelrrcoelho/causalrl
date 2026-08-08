@@ -1,0 +1,17 @@
+===== seed 0 START 15:50:52 =====
+===== seed 0 EXIT 0 16:44:33 =====
+===== seed 1 START 16:44:33 =====
+===== seed 1 EXIT 0 16:57:09 =====
+===== seed 2 START 16:57:09 =====
+===== seed 2 EXIT 0 17:14:11 =====
+===== seed 3 START 17:14:11 =====
+===== seed 3 EXIT 0 17:30:16 =====
+===== seed 4 START 17:30:16 =====
+===== seed 4 EXIT 0 17:45:37 =====
+===== ALL SEEDS DONE =====
+
+===== AGGREGATE (mean +/- std across seeds) =====
+  ceiling (upper ref)    n=5  mean=0.843  std=0.012  vals=[0.833, 0.843, 0.864, 0.843, 0.832]
+  DECOUPLED              n=5  mean=0.666  std=0.022  vals=[0.659, 0.626, 0.683, 0.688, 0.673]
+  JOINT                  n=5  mean=0.469  std=0.008  vals=[0.474, 0.474, 0.476, 0.453, 0.467]
+===== AGGREGATION DONE =====

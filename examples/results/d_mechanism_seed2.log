@@ -1,0 +1,57 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Mechanism ablation — same bert-tiny+GNN, SAME N=6000, vary only the schedule  (para_aug=0.0 relabel_aug=0.0)
+
+>>> DECOUPLED — perception supervised on structure + GNN on structure, composed
+Loading weights:   0%|          | 0/39 [00:00<?, ?it/s]Loading weights: 100%|██████████| 39/39 [00:00<00:00, 1211.68it/s]
+[transformers] [1mBertModel LOAD REPORT[0m from: google/bert_uncased_L-2_H-128_A-2
+Key                                        | Status     |  | 
+-------------------------------------------+------------+--+-
+cls.predictions.bias                       | UNEXPECTED |  | 
+cls.predictions.transform.dense.weight     | UNEXPECTED |  | 
+cls.seq_relationship.bias                  | UNEXPECTED |  | 
+cls.predictions.transform.LayerNorm.weight | UNEXPECTED |  | 
+cls.seq_relationship.weight                | UNEXPECTED |  | 
+cls.predictions.transform.dense.bias       | UNEXPECTED |  | 
+cls.predictions.transform.LayerNorm.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+  [perc] train google/bert_uncased_L-2_H-128_A-2 on 6000 premises x 4 ep (paraphrase-aug p=0.0, relabel-aug p=0.0)
+    epoch 1/4  loss=0.9953  clean edge-acc S=0.752 D=0.883
+    epoch 2/4  loss=0.7269  clean edge-acc S=0.800 D=0.912
+    epoch 3/4  loss=0.6240  clean edge-acc S=0.825 D=0.921
+    epoch 4/4  loss=0.5521  clean edge-acc S=0.851 D=0.930
+  [gnn] train on 6000 parsed rows (pos=1070), 30 epochs
+    epoch  1  loss=1.0158  train-gate F1=0.479
+    epoch 10  loss=0.3965  train-gate F1=0.767
+    epoch 20  loss=0.2861  train-gate F1=0.814
+    epoch 30  loss=0.1955  train-gate F1=0.884
+
+>>> JOINT — same perception+GNN trained end-to-end on text->label (no structure sup)
+Loading weights:   0%|          | 0/39 [00:00<?, ?it/s]Loading weights: 100%|██████████| 39/39 [00:00<00:00, 1659.81it/s]
+[transformers] [1mBertModel LOAD REPORT[0m from: google/bert_uncased_L-2_H-128_A-2
+Key                                        | Status     |  | 
+-------------------------------------------+------------+--+-
+cls.predictions.bias                       | UNEXPECTED |  | 
+cls.predictions.transform.dense.weight     | UNEXPECTED |  | 
+cls.seq_relationship.bias                  | UNEXPECTED |  | 
+cls.predictions.transform.LayerNorm.weight | UNEXPECTED |  | 
+cls.seq_relationship.weight                | UNEXPECTED |  | 
+cls.predictions.transform.dense.bias       | UNEXPECTED |  | 
+cls.predictions.transform.LayerNorm.bias   | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+  [joint] end-to-end perception+GNN on 6000 (text->label, NO structure sup) x 5 ep
+    [joint] epoch 1/5  loss=1.0838  97s
+    [joint] epoch 2/5  loss=0.9000  87s
+    [joint] epoch 3/5  loss=0.8536  92s
+    [joint] epoch 4/5  loss=0.8231  85s
+    [joint] epoch 5/5  loss=0.8197  88s
+
+=== MECHANISM (real Corr2Cause, same bert-tiny+GNN, N=6000) — clean test F1 ===
+  reasoner given regex structure (upper ref)   : 0.864
+  DECOUPLED (structure-supervised, two-stage)  : 0.683
+  JOINT (end-to-end, label-only)               : 0.476
+  Reading: joint << decoupled at EQUAL capacity/data/architecture ⇒ the bottleneck is the
+  TRAINING SCHEDULE (structure supervision), not capacity — the thesis, on real data.

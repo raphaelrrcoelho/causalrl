@@ -155,12 +155,19 @@ just prose): `examples/results/b1_distilbert_*` + `causal_corr2cause_b1_lm.py`.
 *different* systems, so the schedule claim was still an inference. D nails it down by running **one
 architecture** (the bert-tiny perception → GNN of Phase 2b) under two schedules with *everything else
 fixed* (same model, same N=6000, same regex query extraction): **DECOUPLED** (structure-supervised,
-two-stage) vs **JOINT** (the same model end-to-end on text→label, no structure supervision). Result —
-ceiling-given-structure **0.833**, **decoupled 0.692**, **joint 0.474**: same capacity/data/architecture,
-only the schedule differs, decoupled beats joint by **+0.22 F1**, and joint *converges* yet plateaus
-(loss 1.06→0.81). So the bottleneck is the **schedule (structure supervision), not capacity** — the
-real-data echo of the synthetic two-stage finding (joint 0.43 → decoupled 1.0). (`causal_corr2cause_mechanism.py`;
-evidence `examples/results/d_mechanism_run.log`.) **Workshop-grade** today; see **Roadmap**.
+two-stage) vs **JOINT** (the same model end-to-end on text→label, no structure supervision). Result,
+now **multi-seed (n=5)** — ceiling-given-structure **0.843 ± 0.012**, **decoupled 0.666 ± 0.022**,
+**joint 0.469 ± 0.008**: same capacity/data/architecture, only the schedule differs, decoupled beats
+joint by **+0.20 F1 (9× the larger std)**, and joint *converges* yet plateaus (loss 1.06→0.81). So the
+bottleneck is the **schedule (structure supervision), not capacity** — the real-data echo of the
+synthetic two-stage finding (joint 0.43 → decoupled 1.0). (`causal_corr2cause_mechanism.py`; evidence
+`examples/results/d_mechanism_seed{0..4}.log` + `d_mechanism_multiseed.log`; single-seed reference
+`d_mechanism_run.log`.) **Part 2 — prompted vs trained:** reimplementing the *prompted* decoupling
+(arXiv 2505.18034: emit the graph as JSON, then answer) on a fixed N=150 sample, structured prompting
+helps over direct (Mistral-7B 0.354 → 0.393; Llama-3.2-3B 0.000 → 0.185) but stays far below the
+symbolic ceiling on the *same* sample (0.893) and the trained decoupled GNN (0.927 full test) — the
+training signal, not the prompt (`causal_corr2cause_prompted.py`; `results/d_prompted_run.log`).
+**Workshop-grade** today; see **Roadmap**. Paper draft: [`../docs/causal_llm/PAPER.md`](../docs/causal_llm/PAPER.md).
 
 ---
 
@@ -168,10 +175,12 @@ evidence `examples/results/d_mechanism_run.log`.) **Workshop-grade** today; see 
 
 **Strong (genuinely learned, multi-seed, defensible):**
 - **The mechanism, controlled (D — the differentiating result)** — one architecture (bert-tiny+GNN),
-  same data/query extraction, varying **only** the schedule: decoupled **0.692** vs joint end-to-end
-  **0.474** (+0.22 F1), joint converges yet plateaus ⇒ the bottleneck is the **training schedule
-  (structure supervision), not capacity** — real-data echo of the synthetic two-stage finding
-  (`causal_corr2cause_mechanism.py`, `results/d_mechanism_run.log`).
+  same data/query extraction, varying **only** the schedule: decoupled **0.666 ± 0.022** vs joint
+  end-to-end **0.469 ± 0.008** (+0.20 F1, 5 seeds), joint converges yet plateaus ⇒ the bottleneck is
+  the **training schedule (structure supervision), not capacity** — real-data echo of the synthetic
+  two-stage finding (`causal_corr2cause_mechanism.py`, `results/d_mechanism_seed{0..4}.log`). The
+  *prompted* counterpart (arXiv 2505.18034 reimpl) confirms the positioning: structured prompting
+  buys +0.04–0.19 F1, a trained decoupling ~0.93 (`results/d_prompted_run.log`).
 - **Real-benchmark keystone** — exact structure-routing solves Corr2Cause at **F1 0.92** (full test)
   vs GPT-4 0.29; the thesis transfers off synthetic data (`causal_corr2cause_solver.py`).
 - **Phase-2 learned decoupling (real data)** — a trained parse→GNN reasoner *matches the symbolic
@@ -279,13 +288,16 @@ realistic.)
   LM (RoBERTa-large) is untested. **Read: solid contribution; conference-plausible if the paraphrase gap
   is tightened + a RoBERTa-large i.i.d. point added; strong workshop as-is.**
   **Leaning workshop-strong / conference-plausible**; don't spend D–E before closing those two.
-- **D — Mechanism + positioning (days).** ✅ *ablation done* — the **training-schedule ablation** is now
-  controlled on real Corr2Cause (`causal_corr2cause_mechanism.py`): one bert-tiny+GNN, same data/query
-  extraction, vary **only** the schedule → decoupled **0.692** vs joint end-to-end **0.474** (+0.22 F1),
-  joint converges yet plateaus ⇒ the bottleneck is the schedule, not capacity (real-data echo of the
-  synthetic two-stage 0.43→1.0). Evidence `results/d_mechanism_run.log`. *Remaining:* run the *prompted*
-  method (arXiv 2505.18034; Mistral/Qwen → JSON graph) as a head-to-head baseline, positioning us as the
-  *trained/mechanistic* counterpart.
+- **D — Mechanism + positioning (days).** ✅ *done, both parts* — the **training-schedule ablation** is
+  controlled on real Corr2Cause and now **multi-seed** (`causal_corr2cause_mechanism.py`): one
+  bert-tiny+GNN, same data/query extraction, vary **only** the schedule → decoupled **0.666 ± 0.022**
+  vs joint end-to-end **0.469 ± 0.008** (+0.20 F1 over 5 seeds; ceiling 0.843 ± 0.012), joint converges
+  yet plateaus ⇒ the bottleneck is the schedule, not capacity (real-data echo of the synthetic
+  two-stage 0.43→1.0). Evidence `results/d_mechanism_seed{0..4}.log` + `d_mechanism_multiseed.log`.
+  ✅ *prompted head-to-head done* — the *prompted* decoupling (arXiv 2505.18034 reimpl, N=150 fixed
+  sample, cached): direct → structured lifts Mistral-7B 0.354 → 0.393 and Llama-3.2-3B 0.000 → 0.185,
+  vs symbolic ceiling 0.893 on the same sample and trained decoupled GNN 0.927 (full test) — we are the
+  *trained/mechanistic* counterpart (`causal_corr2cause_prompted.py`; `results/d_prompted_run.log`).
 - **E — Scale & breadth (1–2 wk, compute).** Bigger models, multiple seeds + error bars, a 2nd real
   benchmark.
 - **F — Write-up.** Workshop after A–B; conference draft after the gate passes.
@@ -369,7 +381,8 @@ true structure) · **honest-negative** (a kept negative result) · **fragile** (
 | `causal_mec_scaling.py` | Phase 2c/B2: size extrapolation N4→N9 — GNN 0.93 > fair graph transformer 0.86 (B2) > MLP strawman 0.41; dogfoods causalrl Meek + d-sep | canonical · size leg |
 | `causal_corr2cause_b1_lm.py` | Phase B1: CONVERGED strong distilbert end-to-end LM (clean 0.523 / relabel 0.154 / paraphrase 0.546) — GNN wins i.i.d. too; mem-minimal learning-exact (grad-ckpt + accum). Evidence in `results/` | canonical · fair-baseline |
 | `causal_corr2cause_realood.py` | Phase C: REAL de-circularized OOD on Jin et al.'s published perturbation_by_refactorization — decoupled symbolic refactor-INVARIANT (0.92→0.92) vs distilbert COLLAPSE (0.52→0.20); validates the synthetic relabel proxy. Evidence in `results/` | canonical · real-OOD |
-| `causal_corr2cause_mechanism.py` | Phase D: the TRAINING-SCHEDULE mechanism, controlled — same bert-tiny+GNN / data / query extraction, vary only the schedule → decoupled 0.692 vs joint end-to-end 0.474 (+0.22 F1), joint converges yet plateaus ⇒ schedule, not capacity. Evidence in `results/` | canonical · mechanism (differentiator) |
+| `causal_corr2cause_mechanism.py` | Phase D: the TRAINING-SCHEDULE mechanism, controlled + multi-seed — same bert-tiny+GNN / data / query extraction, vary only the schedule → decoupled 0.666±0.022 vs joint end-to-end 0.469±0.008 (+0.20 F1, 5 seeds), joint converges yet plateaus ⇒ schedule, not capacity. Evidence in `results/` | canonical · mechanism (differentiator) |
+| `causal_corr2cause_prompted.py` | Phase D part 2: PROMPTED structured-thinking head-to-head (arXiv 2505.18034 reimpl, Ollama, N=150 cached) — structured helps over direct (0.354→0.393 Mistral-7B) but ≪ trained decoupled GNN 0.927 / same-sample ceiling 0.893 ⇒ training signal, not the prompt. Evidence in `results/d_prompted_run.log` | canonical · prompted-vs-trained |
 
 ---
 
@@ -389,6 +402,8 @@ held-out numbers drift run-to-run (CPU nondeterminism).
   constraints, current state, next steps, and the traps that have already cost us once each.
 - **This file** — canonical program (thesis, arc, map, roadmap).
 - [`PHASE01_RESULTS.md`](PHASE01_RESULTS.md) — detailed, reproducible results log.
+- [`../docs/causal_llm/PAPER.md`](../docs/causal_llm/PAPER.md) — the workshop paper draft ("It's the
+  Schedule, Not the Size"); narrative source of truth for the write-up (roadmap F).
 - [`AUDIT.md`](AUDIT.md) — independent adversarial audit.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — the embedded-core design blueprint.
 - `CAUSAL_LLM_RESEARCH.md`, `FRONTIER_PROPOSAL.md`, `FRONTIER_PROPOSAL_v2.md` — **archived** framing
