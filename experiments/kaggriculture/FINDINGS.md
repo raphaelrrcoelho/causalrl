@@ -263,3 +263,51 @@ the referee too.
 should be imported from it, and only genuinely new quantities — here, per-day drain rates and
 per-tile yield rates, which the referee models step-by-step rather than as rates — belong in
 `economics.py`.
+
+## 11. Livestock: the largest single gain, and it needed feed
+
+§10's audit found five of eight revenue lines unbuilt, with milk ranked second by $/tile/day and
+drained faster than the board can supply. Building it:
+
+| | vs `starter` (8 seeds) | self-play |
+| --- | --- | --- |
+| crops only | $31,499 | $17,410 |
+| **with 6 cows** | **$35,948** (median $35,753, range $31,642–$39,987) | **$26,599** |
+
+**+14% against `starter`, +53% in self-play.** The self-play gain is the larger one and the more
+meaningful: milk is the line the town under-supplies, so it holds its price even when both sellers
+are working it — exactly what §4 predicted and the opposite of melon's behaviour.
+
+Worst turn is 0.39 ms against the 1,000 ms budget.
+
+### Feed is not optional
+
+The first livestock version scored **$15,478 — worse than no animals at all.** Cows were bought,
+placed, went unfed for two days and escaped, at $400 a head. The cause was that the crop planner
+never planted wheat: `FEED` takes wheat from the *unit's* inventory (`_inv_take(inv, "WHEAT", 1)` in
+the referee), and the farm had none to carry. Feed now outranks even melon in the planting order
+while the herd is short of it, at 1.25 wheat tiles per head.
+
+### The herd size is sharply peaked
+
+| cows | | cows | |
+| --- | --- | --- | --- |
+| 0 | $31,803 | 7 | $30,778 |
+| 3 | $30,615 | 8 | $28,812 |
+| **6** | **$35,759** | 10 | $16,685 |
+| | | 14 | $9,463 |
+
+Past six, the pastures plus their feed tiles crowd out the crops and the labour needed to service
+both. Cow beats sheep ($32,631) and beats goose badly ($17,009) — a goose caps at 4 unharvested
+units and produces daily, so it costs the most labour per dollar earned.
+
+Melon is now flat between 10 and 15 tiles ($35,759 vs $35,761); the equilibrium cap of 10 is kept,
+since §8 showed it is the value that survives a melon-growing opponent.
+
+### Where this leaves us
+
+Against the town's whole-season absorption of $210,262 (about $105,131 per seller), $35,948 is
+**~34% of the available money**, up from 30%. Three lines remain unbuilt — strawberry ($28.80/tile/
+day), wool ($29.63) and tomato ($19.80) — plus greedy routing that still thrashes and an untuned
+opening. This is a stronger prototype. It is not yet evidence of a competitive entry, and nothing
+here has been measured against a single real leaderboard agent.

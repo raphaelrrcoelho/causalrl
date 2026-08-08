@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from kaggle_environments.envs.kaggriculture.kaggriculture import CROPS, LAND_PRICES
+from kaggle_environments.envs.kaggriculture.kaggriculture import ANIMALS, CROPS, LAND_PRICES
 
 #: Crop timings, read from the referee rather than copied. A transcribed copy of these tables in
 #: `economics.py` went stale between env versions and moved a headline conclusion by 30%; the agent
@@ -84,8 +84,52 @@ all. The share is what lets income outrun expenditure.
 """
 
 MAX_HANDS = 7
-SELL_RESERVE = {"WHEAT": 12}
+
+ANIMAL = "COW"
+"""Which animal to keep. Cow pays the most per head: 0.5 milk/day at a $160 base is $80/day
+against a $400 purchase, so it clears its own cost in five producing days -- and FINDINGS §4 shows
+milk is drained faster than a third of the board can supply, so it sells ABOVE base all season."""
+
+ANIMAL_TARGET = 6
+"""Head of livestock to run -- measured, and sharply peaked.
+
+Each head needs a pasture tile plus ~1.25 tiles of wheat to feed it, so the herd competes with the
+crops for both land and labour. Measured against `starter`:
+
+    0 cows  $31,803      7 cows  $30,778
+    3 cows  $30,615      8 cows  $28,812
+    6 cows  $35,759     10 cows  $16,685
+                        14 cows  $ 9,463
+
+Cow beats sheep ($32,631) and beats goose badly ($17,009): goose caps at 4 unharvested units and
+produces daily, so it demands the most labour per dollar of the three.
+"""
+
+WHEAT_CARRY = 4
+"""Wheat a unit picks up per shed trip. FEED takes wheat from the UNIT's inventory, not the shed
+(`_inv_take(inv, "WHEAT", 1)` in the referee), so feeding is a logistics problem, not a lookup."""
+
+SELL_RESERVE = {"WHEAT": 30}
 """Wheat held back rather than sold: it is animal feed first and a cash crop a distant second."""
+
+
+def _shed_cells(board: int) -> list[tuple[int, int]]:
+    """The four centre tiles from which the shed can be reached (PICKUP/DROP adjacency)."""
+    h = board // 2
+    return [(h - 1, h - 1), (h, h - 1), (h - 1, h), (h, h)]
+
+
+def _count_tiles(farm: dict[str, Any], kind: str, *, occupied: bool | None = None) -> int:
+    n = 0
+    for row in farm["tiles"]:
+        for tile in row:
+            if (
+                isinstance(tile, dict)
+                and tile.get("kind") == kind
+                and (occupied is None or bool(tile.get("animal")) == occupied)
+            ):
+                n += 1
+    return n
 
 
 def _half(board: int) -> int:
@@ -102,13 +146,27 @@ def _plantable(day: int, crop: str, season: int = 30) -> bool:
     return day + CROP_SPEC[crop]["first"] < season
 
 
-def _crop_for(day: int, melon_planted: int, money: float) -> str | None:
-    """What to plant now, given the bank.
+def _wheat_tiles_needed(animals: int) -> int:
+    """Wheat tiles that keep ``animals`` fed: 1 wheat/head/day at 0.80 wheat/tile/day.
 
-    Melon only once the farm can afford to wait ten days for it; carrot otherwise, because a
-    three-day turnaround is what funds everything else. Falls through to wheat when even carrot can
-    no longer reach a yield before the season ends.
+    Not optional. The first version of the livestock code planted none, so every cow bought was
+    placed, went unfed for two days and escaped -- $400 each, straight out of the bank, measured at
+    $31,499 -> $15,478. Feed is not a nice-to-have; an unfed animal is worse than no animal.
     """
+    return int(animals * 1.25 + 0.999) if animals else 0
+
+
+def _crop_for(
+    day: int, melon_planted: int, money: float, *, wheat_planted: int = 0, animals: int = 0
+) -> str | None:
+    """What to plant now, given the bank and how many mouths there are to feed.
+
+    Feed first: livestock that starves is a pure loss, so wheat outranks even melon while the herd
+    is short of it. Then melon up to the contested-line cap, then carrot for its three-day
+    turnaround, which is what funds everything else.
+    """
+    if wheat_planted < _wheat_tiles_needed(animals) and _plantable(day, "WHEAT"):
+        return "WHEAT"
     if (
         melon_planted < MELON_TILES
         and _plantable(day, "MELON")
@@ -143,11 +201,18 @@ def _tile_tasks(
                     tasks.append((0, (x, y), "HARVEST"))
                 elif not tile.get("watered_today"):
                     tasks.append((1, (x, y), "WATER"))
-            elif kind in ("COOP", "PASTURE") and tile.get("animal"):
-                if not tile.get("fed_today"):
-                    tasks.append((1, (x, y), "FEED"))
-                elif tile.get("yield_units", 0) > 0:
+            elif kind in ("COOP", "PASTURE"):
+                if not tile.get("animal"):
+                    continue  # an empty structure is filled by the PLACE path, not here
+                if tile.get("yield_units", 0) > 0:
                     tasks.append((0, (x, y), "HARVEST"))
+                if not tile.get("fed_today"):
+                    # Only a unit already carrying wheat can do this; the caller filters.
+                    tasks.append((1, (x, y), "FEED"))
+                elif not tile.get("cared_today"):
+                    tasks.append((4, (x, y), "CARE"))
+                if tile.get("fertilizer_available"):
+                    tasks.append((4, (x, y), "COLLECT_FERTILIZER"))
     return tasks
 
 
@@ -175,43 +240,97 @@ def _step_toward(at: tuple[int, int], goal: tuple[int, int]) -> list[str]:
 
 def _assign(
     units: list[tuple[int, int]],
+    inventories: list[dict[str, int]],
     tasks: list[tuple[int, tuple[int, int], str]],
     plantable: list[tuple[int, int]],
     crop: str | None,
     seeds_available: int,
+    board: int,
+    *,
+    empty_structures: list[tuple[int, int]],
+    want_structures: int,
+    animals_in_shed: int,
+    need_wheat: bool,
 ) -> list[list[str]]:
-    """Greedy nearest-work matching: each unit takes the closest unclaimed task, then plants."""
+    """Match each unit to its nearest admissible work, then to logistics, then to planting.
+
+    Admissibility is per unit, not global: FEED needs wheat in *this* unit's inventory and PLACE
+    needs the animal in it, so a task can be available to one unit and not another. The shed trips
+    that make those possible are themselves tasks, which is why they are scheduled here rather than
+    bolted on -- a unit with no wheat and animals to feed should walk to the shed, not idle.
+    """
     ordered = sorted(tasks, key=lambda t: t[0])
     claimed: set[tuple[int, int]] = set()
     actions: list[list[str]] = []
     seeds_left = seeds_available
-    for unit in units:
+    structures_left = want_structures
+    animals_left = animals_in_shed
+    shed = _shed_cells(board)
+
+    for index, unit in enumerate(units):
+        inv = inventories[index] if index < len(inventories) else {}
+        carrying_wheat = inv.get("WHEAT", 0) > 0
+        carrying_animal = inv.get(ANIMAL, 0) > 0
         target: tuple[tuple[int, int], str] | None = None
         best = None
         for _priority, cell, op in ordered:
             if cell in claimed:
+                continue
+            if op == "FEED" and not carrying_wheat:
                 continue
             d = abs(cell[0] - unit[0]) + abs(cell[1] - unit[1])
             if best is None or d < best:
                 best, target = d, (cell, op)
             if d == 0:
                 break
+
+        if target is None and carrying_animal:
+            # Carrying livestock: walk to the nearest unoccupied structure and put it down there.
+            free = [c for c in empty_structures if c not in claimed]
+            if free:
+                cell = min(free, key=lambda c: abs(c[0] - unit[0]) + abs(c[1] - unit[1]))
+                target = (cell, "PLACE")
+
+        if target is None and (animals_left > 0 or (need_wheat and not carrying_wheat)):
+            cell = min(shed, key=lambda c: abs(c[0] - unit[0]) + abs(c[1] - unit[1]))
+            item = ANIMAL if animals_left > 0 else "WHEAT"
+            if item == ANIMAL:
+                animals_left -= 1
+            target = (cell, f"PICKUP:{item}")
+
+        if target is None and structures_left > 0:
+            free = [c for c in plantable if c not in claimed]
+            if free:
+                cell = min(free, key=lambda c: abs(c[0] - unit[0]) + abs(c[1] - unit[1]))
+                claimed.add(cell)
+                structures_left -= 1
+                move = _step_toward(unit, cell)
+                actions.append(move if move else ["BUILD_PASTURE"])
+                continue
+
         if target is None and crop is not None and seeds_left > 0:
             free = [c for c in plantable if c not in claimed]
             if free:
                 cell = min(free, key=lambda c: abs(c[0] - unit[0]) + abs(c[1] - unit[1]))
                 target = (cell, "PLANT")
                 seeds_left -= 1
+
         if target is None:
             actions.append(["PASS"])
             continue
+
         cell, op = target
         claimed.add(cell)
         move = _step_toward(unit, cell)
         if move:
             actions.append(move)
+        elif op == "PLACE":
+            actions.append(["PLACE", ANIMAL])
         elif op == "PLANT":
             actions.append(["PLANT", crop])
+        elif op.startswith("PICKUP:"):
+            item = op.split(":", 1)[1]
+            actions.append(["PICKUP", item, 1 if item == ANIMAL else WHEAT_CARRY])
         else:
             actions.append([op])
     return actions
@@ -264,14 +383,45 @@ def act(obs: dict[str, Any], config: dict[str, Any] | None = None) -> dict[str, 
         }:
             market.append(["SELL", item, count - keep])
 
+    units = units_positions(farm)
+    inventories = [dict(i) for i in (private.get("inventories") or [])]
+    while len(inventories) < len(units):
+        inventories.append({})
+
+    # --- livestock: the lines the town drains faster than the board can supply (FINDINGS §4) ----
+    structures = _count_tiles(farm, "PASTURE")
+    placed = _count_tiles(farm, "PASTURE", occupied=True)
+    in_shed = shed.get(ANIMAL, 0)
+    carried = sum(i.get(ANIMAL, 0) for i in inventories)
+    owned = placed + in_shed + carried
+    want_structures = max(0, min(ANIMAL_TARGET, owned + 1) - structures)
+    if owned < ANIMAL_TARGET and money >= ANIMALS[ANIMAL]["cost"] + 400:
+        market.append(["BUY_ANIMAL", ANIMAL, 1])
+        money -= ANIMALS[ANIMAL]["cost"]
+    empty_structures = [
+        (x, y)
+        for y, row in enumerate(farm["tiles"])
+        for x, t in enumerate(row)
+        if isinstance(t, dict) and t.get("kind") == "PASTURE" and not t.get("animal")
+    ]
+    need_wheat = placed > 0 and shed.get("WHEAT", 0) > 0
+
     # --- seeds: keep enough to fill the free tiles this turn's units can reach ------------------
-    melon_planted = sum(
-        1
-        for row in farm["tiles"]
-        for t in row
-        if isinstance(t, dict) and t.get("kind") == "PLANT" and t.get("crop") == "MELON"
+    def _planted(crop_name: str) -> int:
+        return sum(
+            1
+            for row in farm["tiles"]
+            for t in row
+            if isinstance(t, dict) and t.get("kind") == "PLANT" and t.get("crop") == crop_name
+        )
+
+    crop = _crop_for(
+        day,
+        _planted("MELON"),
+        money,
+        wheat_planted=_planted("WHEAT"),
+        animals=placed + in_shed + carried,
     )
-    crop = _crop_for(day, melon_planted, money)
     free = _empty_tiles(farm)
     if crop is not None and free:
         # Enough seed to keep every unit planting, but spend only a SHARE of the surplus: buying
@@ -286,9 +436,20 @@ def act(obs: dict[str, Any], config: dict[str, Any] | None = None) -> dict[str, 
         if buy:
             market.append(["BUY_SEED", crop, buy])
 
-    units = units_positions(farm)
     tasks = _tile_tasks(farm, day, board)
-    assigned = _assign(units, tasks, free, crop, seeds.get(crop, 0) if crop else 0)
+    assigned = _assign(
+        units,
+        inventories,
+        tasks,
+        free,
+        crop,
+        seeds.get(crop, 0) if crop else 0,
+        board,
+        empty_structures=empty_structures,
+        want_structures=want_structures,
+        animals_in_shed=in_shed,
+        need_wheat=need_wheat,
+    )
     return {
         "farmer": assigned[0] if assigned else ["PASS"],
         "hands": assigned[1:],
