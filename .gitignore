@@ -22,4 +22,9 @@ papers/*.pdf
 # published library repo. Untracked here; prior versions remain in git history.
 docs/frontier/
 docs/superpowers/
-experiments/
+# Blanket-ignore experiment scratch, but track the Kaggriculture study: it is a
+# reproducible artifact (a transcribed model plus its findings), not scratch.
+# `experiments/*` rather than `experiments/` so the negation can re-include a child --
+# git cannot re-include anything under an excluded DIRECTORY.
+experiments/*
+!experiments/kaggriculture/
