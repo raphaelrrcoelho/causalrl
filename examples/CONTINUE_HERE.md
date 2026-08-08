@@ -36,75 +36,75 @@ Read `CAUSAL_LLM.md` for the full arc (Acts 0–6). The short version:
   *routed through* it.
 - **The training schedule is the bottleneck, not capacity.** Decoupled (structure-supervised)
   training beats joint end-to-end at equal capacity/data/architecture: synthetic 0.43 → 1.000
-  (`causal_hybrid_twostage.py`), real Corr2Cause 0.474 → 0.692 (`causal_corr2cause_mechanism.py`,
-  Phase D — the differentiating result).
+  (`causal_hybrid_twostage.py`), real Corr2Cause **0.666 ± 0.022 vs 0.469 ± 0.008 (5 seeds)**
+  (`causal_corr2cause_mechanism.py`, Phase D — the differentiating result, now with error bars).
+- **Prompted vs trained decoupling measured** (`causal_corr2cause_prompted.py`): structured
+  prompting lifts Mistral-7B only 0.354 → 0.393 (Llama-3.2-3B 0.000 → 0.185) vs the trained
+  decoupled GNN's 0.927 and the same-sample symbolic ceiling 0.893 — the training signal, not the
+  prompt.
 - **Real benchmark contact:** exact structure solver F1 **0.923** on the full Corr2Cause test vs
   GPT-4 ~0.29; a learned parse→GNN reasoner **matches the oracle at 0.927**; a converged distilbert
   reaches only 0.523 i.i.d. and collapses to 0.154/0.195 under relabel/refactor.
-- **The routing must be an explicit computational module** — see §4, this session's addition.
+- **The routing must be an explicit computational module** — the pure-weights cell of the 2×2 is a
+  **multi-seed localized negative** (see §4).
+- A workshop paper draft exists: [`../docs/causal_llm/PAPER.md`](../docs/causal_llm/PAPER.md)
+  ("It's the Schedule, Not the Size"), every table filled from committed artifacts.
 
 **Weak / by-construction / owed:** much of the early "core" reasoning was hand-coded (the audit's
 decisive finding); learned size-extrapolation is unsolved (0.8–0.9, not 1.0); grounding (DAS/IIT)
 and active discovery are **oracle-fed**; observational discovery from raw data is fragile.
 
-## 4. What the most recent session added
-
-**The missing cell of the 2×2.** Every "an LM can't internalise causal reasoning" result had been
-measured under the **joint** schedule — the one Phase D proved deficient — while the fix that worked
-routed the answer through an **external GNN**. So the negative was confounded with its schedule.
+## 4. The pure-weights negative — now multi-seed (this session's close)
 
 `causal_pure_twostage.py` runs the decoupled schedule on the **pure weights** (one GPT-2, answer
-always its own next token, nothing hand-coded). The negative **survives**, and is now localized —
-four probes, each closing one explanation:
+always its own next token, nothing hand-coded). The negative **replicates over SEEDS=0,1,2**, at
+both capacities — four probes, each closing one explanation:
 
-| probe | result | rules out |
+| probe | mean ± std (3 seeds) | rules out |
 |---|---|---|
-| self-generated edge F1 | **0.940** | perception |
-| 2× answer supervision | ceiling **0.596 → 0.596** | undertraining |
-| prose deleted, true graph given (`STRUCTONLY`) | **0.723** cause / 0.186 conf | the prose shortcut |
-| 4.4× bigger model (8L/192d) | **0.745**, worse elsewhere, **lower** train loss | capacity |
+| self-generated edge F1 | **0.942 ± 0.023** | perception |
+| teacher-forced ceiling | **0.594 ± 0.012** (2× supervision: 0.596 → 0.596 at s0) | undertraining |
+| prose deleted, true graph given (`STRUCTONLY`) | **0.731 ± 0.094** cause / **0.190 ± 0.150** conf | the prose shortcut |
+| 4.4× bigger model (8L/192d) | **0.753 ± 0.018** cause / **0.196 ± 0.094** conf | capacity |
 
-Headline comparator — same function, same data, same seed:
+Headline comparator — same function, same data:
 
 | system | params | cause s3 | conf s3 |
 |---|---|---|---|
 | GNN reasoner on clean structure | **11,857** | **1.000** | **1.000** |
-| GPT-2 given the same structure as tokens | **809,344** | 0.723 | 0.186 |
-| GPT-2 capacity control | **3,583,296** | 0.745 | 0.088 |
+| GPT-2 given the same structure as tokens | **809,344** | 0.731 ± 0.094 | 0.190 ± 0.150 |
+| GPT-2 capacity control | **3,583,296** | 0.753 ± 0.018 | 0.196 ± 0.094 |
 
-At **302×** the GNN's parameters the transformer still cannot compute reachability over a serialized
-graph — while fitting the training set *better* (loss 0.365 → 0.320). Memorization rising as
-generalization falls is what an architectural mismatch looks like.
+Across all six trainings the best single run on `cause` is 0.828 and `conf` never exceeds 0.28 —
+the GNN gap holds in every run. Two seed-0 sub-claims were **retired by replication**: the
+"< scaffold's 0.818" comparison (a *same-seed* rerun drifted 0.723 → 0.828) and the
+"train loss falls while generalization worsens" nuance (4L/8L loss ranges overlap). Evidence:
+`results/pure_twostage_SUMMARY.md`.
 
-**Conclusion:** the thesis tightens rather than breaks. Decoupling fixes the *external-module* route
-but does **not** transfer into LM weights. Multi-hop reachability over a serialized graph is the
-wall — the same thing `causal_graph_transformer.py` found from the other side (shortcuts, not
-d-separation).
-
-**Owed:** all of §4 is **seed 0 only**. Multi-seed replication is the one open gap.
+**Conclusion (now solid):** decoupling fixes the *external-module* route but does **not** transfer
+into LM weights. Multi-hop reachability over a serialized graph is the wall — the same thing
+`causal_graph_transformer.py` found from the other side.
 
 ## 5. What to do next (priority order)
 
-1. **Multi-seed `causal_pure_twostage.py`** (`SEEDS=0,1,2`). Cheap, and it is the only thing standing
-   between the §4 negative and a solid claim. If the 0.723-vs-1.000 gap holds, it's real; if it
-   moves a lot, weaken the conclusion in `CAUSAL_LLM.md` accordingly.
-2. **The HF-dependent Act-6 leg** — `causal_corr2cause_{solver,learned,perception,realood,mechanism,b1_lm}.py`.
-   These need `huggingface.co` (dataset `causalnlp/corr2cause` + pretrained models) and were blocked
-   by egress policy on the cloud box. They ran fine previously.
-3. **The two named gate blockers** (from `CAUSAL_LLM.md`'s roadmap): tighten the paraphrase axis
+1. **The HF-dependent Act-6 leg** — `causal_corr2cause_{solver,learned,perception,realood,mechanism,b1_lm}.py`.
+   These need `huggingface.co` (dataset `causalnlp/corr2cause` + pretrained models). They run fine
+   on the user's local box (the Phase-D multiseed and prompted runs prove egress works there); they
+   were blocked only on the cloud box by egress policy.
+2. **The two named gate blockers** (from `CAUSAL_LLM.md`'s roadmap): tighten the paraphrase axis
    (held-out 0.48 vs clean 0.61) and add a **RoBERTa-large i.i.d. point** (Jin et al. report ~0.8;
    ours is distilbert 0.523). Both need a real GPU.
-4. **Phase D's remaining item** — run the *prompted* decoupling method (arXiv 2505.18034;
-   Mistral/Qwen → JSON graph) head-to-head, positioning us as the *trained/mechanistic* counterpart.
-   Needs a local 7B.
-5. **Roadmap items 2/3/5** — close learned size-extrapolation (0.8–0.9 → 1.0); perception from messy
+3. **Paper (roadmap F):** `docs/causal_llm/PAPER.md` is complete as a draft — compile to LaTeX /
+   distill to a post when the user wants to move on venue.
+4. **Roadmap items 2/3/5** — close learned size-extrapolation (0.8–0.9 → 1.0); perception from messy
    text rather than SVO templates; unify the RLVR causal verifier as a *reward signal* for the LM
    (today `rlvr_causal_verifier.py` is orthogonal to the LM arc).
 
 An honest strategic note the user should weigh: the differentiated, publishable claim is the
 **training-schedule mechanism** ("causal reasoning in LMs is gated by training schedule, not capacity
 or perception"), because "decouple to generalize on Corr2Cause" is already occupied by prompted prior
-work. §4 adds a real boundary condition to that claim: the decoupling has to terminate in a
+work — which we have now also **measured** head-to-head (weak: +0.04 F1) rather than merely cited.
+The multi-seed §4 adds the boundary condition with error bars: the decoupling has to terminate in a
 computational module.
 
 ## 6. Traps — each of these has already cost us once
@@ -127,9 +127,21 @@ computational module.
 - **Keep negatives; do not tune them away.** `phase3b` (co-training collapses), the curriculum
   failure, the pure-path negative, and §4 are all *kept*. Freezing being load-bearing was learned
   from a kept negative.
-- **Multi-seed anything load-bearing.** Held-out numbers drift run-to-run on CPU.
+- **Multi-seed anything load-bearing — and treat CPU numbers as a band, not a point.** A *same-seed*
+  rerun of `causal_pure_twostage.py` moved STRUCTONLY `cause` 0.723 → 0.828 (thread-order
+  nondeterminism). Sub-claims that lean on a single run's second decimal will not survive; two of
+  ours didn't (see §4).
 - **Don't route around blocked egress.** If `huggingface.co` 403s through the agent proxy, report it;
   don't disable TLS or unset `HTTPS_PROXY`.
+- **The venv can be silently corrupted.** A killed/concurrent sync once left transformers 5.9.0
+  missing 276 files vs its own wheel RECORD (`from transformers import GPT2Config` died deep in a
+  GGUF lazy import). Diagnose by diffing RECORD vs disk; fix with
+  `uv sync --extra torch --reinstall-package transformers`.
+- **The working directory is SHARED across sessions.** Mid-run, another session checked this repo
+  out to a different branch — tracked files vanished from the tree under our feet (untracked result
+  logs and running jobs with absolute paths survived). If the tree is contested: park your branch in
+  a git worktree (`git worktree add .claude/worktrees/<name> <branch>`) and commit/push from there;
+  never `git checkout` over someone else's live session.
 
 ## 7. Environment
 
@@ -138,7 +150,7 @@ uv sync --extra torch
 uv run --extra torch python examples/<script>.py
 ```
 
-Knobs on the newest script: `SEEDS`, `ARMS` (`direct,joint,joint2x,decoupled,structonly`),
+Knobs on `causal_pure_twostage.py`: `SEEDS`, `ARMS` (`direct,joint,joint2x,decoupled,structonly`),
 `LAYERS`/`EMBD`/`HEADS`, `FAST=1` (~3 min smoke).
 
 Ruff line-length 100; `src`/`tests` are the actual quality gate, `examples/` is held looser (long

@@ -1,4 +1,4 @@
-# STATUS: research · Act 4 Coupling — the MISSING CELL: decoupled schedule for the PURE LM  ·  map: CAUSAL_LLM.md
+# STATUS: canonical-negative · multi-seed (3 seeds, both capacities) · Act 4 Coupling — the MISSING CELL: decoupled schedule for the PURE LM  ·  map: CAUSAL_LLM.md
 """Can a real LM internalise causal reasoning *in its own weights* if we fix the training SCHEDULE?
 
 The branch's canonical negative is "a real GPT-2 does NOT internalise the causal computation"

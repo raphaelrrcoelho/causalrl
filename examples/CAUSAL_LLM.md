@@ -83,31 +83,36 @@ The spine of the program, in the order it was discovered:
    the **joint** schedule, and the fix in (7) routed the answer through an **external GNN**. That
    left one cell of the 2×2 unrun: the *decoupled* schedule on the *pure* weights. Running it
    (`causal_pure_twostage.py`, one GPT-2, answer always its own next token) gives a **localized
-   negative** — the wall is the **reasoning step**, not the schedule and not perception:
-   - *not perception* — self-generated edge F1 **0.940**;
-   - *not undertraining* — doubling answer supervision moved the ceiling **0.596 → 0.596**;
+   negative** — the wall is the **reasoning step**, not the schedule and not perception. All four
+   probes now **multi-seed (SEEDS=0,1,2)**:
+   - *not perception* — self-generated edge F1 **0.942 ± 0.023**;
+   - *not undertraining* — the teacher-forced ceiling is a stable wall, **0.594 ± 0.012** across
+     seeds (and doubling answer supervision moved it 0.596 → 0.596 at seed 0);
    - *not the prose shortcut, nor the contradictory-prose design* — with the prose **deleted** and
-     the true graph given (`STRUCTONLY`), the LM still reaches only **cause 0.723 / confounded
-     0.186** (s3), below the scaffold's struct-only 0.818.
+     the true graph given (`STRUCTONLY`), the LM reaches only **cause 0.731 ± 0.094 / confounded
+     0.190 ± 0.150** (s3);
+   - *not capacity* — a 4.4× bigger LM (8L/192d, **3.58M** params) reaches **cause 0.753 ± 0.018 /
+     confounded 0.196 ± 0.094**: +0.02 on `cause` (within seed noise), `confounded` still broken.
 
-   - *not capacity* — a 4.4× bigger LM (8L/192d, **3.58M** params) reaches **0.745** on `cause`
-     (+0.02) and gets *worse* on confounded (0.186 → 0.088) while its training loss *falls*
-     (0.365 → 0.320): it memorizes harder without learning the algorithm.
-
-   The comparator makes the point: on the *same* structure→answer function, same data and seed, a
+   The comparator makes the point: on the *same* structure→answer function, same data, a
    **11,857-parameter GNN scores 1.000 / 1.000** where the **809,344-parameter** transformer scores
-   0.723 / 0.186 — and at **302×** the GNN's parameters the transformer still cannot do it. Multi-hop
-   reachability over a *serialized* graph is what transformer weights don't learn here, which is
-   exactly the `causal_graph_transformer.py` finding (shortcuts, not d-separation) seen from the
-   other side, and it explains why decoupling transfers to an external module but not into the
-   weights.
+   0.73 ± 0.09 / 0.19 ± 0.15 — and at **302×** the GNN's parameters the transformer still cannot do
+   it. Across all six trainings (two capacities × three seeds) the best single run on `cause` is
+   0.828 and `confounded` never exceeds 0.28. Multi-hop reachability over a *serialized* graph is
+   what transformer weights don't learn here, which is exactly the `causal_graph_transformer.py`
+   finding (shortcuts, not d-separation) seen from the other side, and it explains why decoupling
+   transfers to an external module but not into the weights.
 
    > Method note, kept because it nearly produced a false positive: the first run *step*-matched the
    > arms, which silently gave DECOUPLED half the answer supervision (JOINT carries both losses on
    > every item). The fairness unit has to be **epochs per objective**. The discarded run is kept in
    > `results/pure_twostage_stepmatched_s0.log`. Note also that JOINT's teacher-forced ceiling
    > (0.871) does **not** measure graph-reading: JOINT only ever sees the true graph, which agrees
-   > with the prose, and DIRECT already gets 0.795 from prose alone.
+   > with the prose, and DIRECT already gets 0.795 from prose alone. Two seed-0 sub-claims did
+   > **not** survive replication and are retired: "STRUCTONLY (0.723) sits below the scaffold's
+   > struct-only 0.818" (a same-seed rerun drifted 0.723 → 0.828 — CPU runs are a band, not a
+   > point) and the "bigger model fits train better while generalizing worse" loss nuance (the
+   > 4L/8L loss ranges overlap across seeds). The headline gap to the GNN survives in every run.
 
 L3 in a learned head: counterfactuals via twin-network abduction-action-prediction, climbing a
 crutch-removal ladder — fixed SCM (`causal_counterfactual_twin.py`, by-construction) → random
@@ -200,11 +205,12 @@ training signal, not the prompt (`causal_corr2cause_prompted.py`; `results/d_pro
   the synthetic relabel as a faithful proxy (`causal_corr2cause_realood.py`, evidence in `results/`).
 - The **two-stage fix** — fully-learned, 1.0 / 0.93 confounded, stable (`causal_hybrid_twostage.py`).
 - **Learned reasoning is real** in-distribution (`causal_core_learned_reasoning.py`).
-- The **pure-path negative** — clean, multi-seed (`causal_pure_lm.py`), and now **localized**: it is
-  the *reasoning* step, not the schedule or perception, and it survives the decoupled schedule that
-  fixed the external-module route (`causal_pure_twostage.py`). The 11.9K-param GNN vs 809K-param LM
-  comparison (1.000 vs 0.723 on the same function) is the sharpest statement of the architectural
-  gap this branch has.
+- The **pure-path negative** — clean, multi-seed (`causal_pure_lm.py`), and now **localized and
+  replicated**: it is the *reasoning* step, not the schedule or perception, and it survives the
+  decoupled schedule that fixed the external-module route (`causal_pure_twostage.py`, all probes
+  over 3 seeds). The 11.9K-param GNN vs 809K-param LM comparison (1.000 vs 0.73 ± 0.09 on the same
+  function; best single run 0.828) is the sharpest statement of the architectural gap this branch
+  has.
 - **Counterfactual (L3) generalization** over random parameters (`causal_counterfactual_general.py`).
 - **Intellectual honesty as infrastructure** — an adversarial audit, negatives kept, multi-seed on
   load-bearing claims.
@@ -227,10 +233,11 @@ training signal, not the prompt (`causal_corr2cause_prompted.py`; `results/d_pro
   gap, but it's untrainable on this box and shows the same OOD collapse.
 - Tiny models, synthetic prose, CPU; held-out numbers drift run-to-run. GPU works for short bursts but
   a *sustained* training run wedged the WSL2 driver — the LM trainer now checkpoints/resumes.
-- **`causal_pure_twostage.py` is single-seed (seed 0) so far** — the effects are large (0.723 vs 1.000
-  on the same function), the four diagnostics are internally consistent, and the capacity control is
-  **done** (4.4× params → +0.02, worse elsewhere, lower train loss), but multi-seed replication is
-  still owed.
+- **`causal_pure_twostage.py` numbers drift run-to-run on CPU** — replication (3 seeds, both
+  capacities) confirms the localized negative, but a *same-seed* rerun moved STRUCTONLY `cause`
+  0.723 → 0.828, so treat any single number from this substrate as a band of roughly ± 0.1. Two
+  seed-0 sub-claims were retired by replication (the "< scaffold's 0.818" comparison and the
+  train-loss-falls nuance); the GNN gap is what survives, in every run.
 
 ---
 
@@ -356,7 +363,7 @@ true structure) · **honest-negative** (a kept negative result) · **fragile** (
 | `causal_hybrid_learned.py` | fully-learned hybrid FAILS confounding (0.43) | canonical (end-state superseded by two-stage) |
 | `causal_perception_bottleneck.py` | the 0.43 is joint TRAINING, not perception | canonical |
 | `causal_hybrid_twostage.py` | the FIX: decoupled two-stage → 1.0 in-dist | canonical |
-| `causal_pure_twostage.py` | the missing 2×2 cell: decoupling does NOT transfer into the LM's weights. Localized — not perception (edge F1 0.940), not undertraining (ceiling 0.596→0.596), not the shortcut (prose-free STRUCTONLY still 0.723/0.186); a 11.9K-param GNN gets 1.000 where the 809K-param LM gets 0.723 on the same function. Evidence in `results/` | canonical-negative · localizes the wall |
+| `causal_pure_twostage.py` | the missing 2×2 cell: decoupling does NOT transfer into the LM's weights. Localized + multi-seed (3 seeds) — not perception (edge F1 0.942±0.023), not undertraining (ceiling 0.594±0.012), not the shortcut (prose-free STRUCTONLY 0.731±0.094 / 0.190±0.150), not capacity (8L/192d 0.753±0.018); a 11.9K-param GNN gets 1.000/1.000 where the 809K-param LM gets ~0.73/0.19 on the same function. Evidence in `results/pure_twostage_SUMMARY.md` | canonical-negative · localizes the wall |
 | `causal_reasoner_prototype.py` | axiomatic d-sep rule from traces (didactic) | superseded→ `causal_reasoner_train.py` |
 | `causal_reasoner_train.py` | hardened, device-agnostic reasoner trainer | support/infra |
 
