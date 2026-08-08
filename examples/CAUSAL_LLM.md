@@ -385,6 +385,8 @@ take a `SEEDS` env var (e.g. `SEEDS=0` for a fast smoke). Headlines reproduce in
 held-out numbers drift run-to-run (CPU nondeterminism).
 
 ## Document index
+- [`CONTINUE_HERE.md`](CONTINUE_HERE.md) — **start here when resuming or handing off**: intent,
+  constraints, current state, next steps, and the traps that have already cost us once each.
 - **This file** — canonical program (thesis, arc, map, roadmap).
 - [`PHASE01_RESULTS.md`](PHASE01_RESULTS.md) — detailed, reproducible results log.
 - [`AUDIT.md`](AUDIT.md) — independent adversarial audit.
