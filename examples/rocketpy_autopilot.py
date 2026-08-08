@@ -17,6 +17,16 @@ steers the rocket -- it cannot, and neither can anything else in RocketPy -- but
 the vehicle admits is the agent's, taken live, under a wall-clock budget, from a model it learned
 from flight logs.
 
+**What this example is, and is not.** It is a demonstration that one agent can hold every decision
+of a real flight under a wall-clock budget, with the phase structure carried by the type system. It
+is **not** evidence that learning beats classical control here, and the numbers it prints must not
+be read that way: about 91% of its margin over the best fixed schedule is ordinary closed-loop
+apogee targeting, which a closed form does better for zero flights
+(``examples/rocketpy_baselines.py`` beats this agent's response surface 17x on median error).
+Swapping the learned brake for that closed form changes the score by -0.001. What the agent
+contributes on top is the main-release decision and, mostly, not needing to know the right release
+altitude in advance. Step 3 prints the decomposition rather than leaving it to be discovered.
+
 **Why this needs an agent rather than a schedule.** The two levers are coupled through the mission
 score and pull against each other:
 
@@ -523,6 +533,18 @@ def main() -> None:
             f"   {name:24s} {np.mean(scores):7.3f} {np.mean(errors):9.1f} m "
             f"{np.mean(drifts):7.1f} m {unsafe:5d}/{len(lots)}"
         )
+
+    print()
+    print("   Read that table with the decomposition, not without it. Replacing the schedule with")
+    print("   a CLOSED-FORM brake controller and a fixed main recovers 0.629 of the autopilot's")
+    print("   0.642 on its own -- about 91% of the margin over the best schedule is plain")
+    print("   closed-loop apogee targeting, which needs no learning and no flights. Swapping the")
+    print("   learned brake model for that closed form costs -0.001. What the agent adds beyond it")
+    print("   is the main-release choice: +0.016 score and 63 m of drift, and the far larger win")
+    print("   of not having to know in advance that 400 m was the right constant -- the same")
+    print("   schedule at 120 m scores 0.000 with 12/12 unsafe landings.")
+    print("   See examples/rocketpy_baselines.py: the closed form beats this agent's response")
+    print("   surface 17x on median apogee error, for zero flights.")
 
 
 if __name__ == "__main__":
