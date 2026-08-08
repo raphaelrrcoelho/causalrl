@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`examples/rocketpy_multiagent.py`** — the mission as a two-agent game rather than one pilot
+  deciding twice, using `CausalGame` / `pure_nash_equilibria` / `run_no_regret` (the first use of
+  `causalrl.magames` in the RocketPy set). The motivating defect is real: `rocketpy_autopilot.py`
+  resolves its levers greedily and in order, so the brake targets apogee and recovery makes the
+  best of what it is handed — discarding the fact that braking also shortens the descent and cuts
+  the drift recovery is judged on. **The result is a negative one and is kept as such.** Greedy,
+  selfish-Nash and team-optimal play are indistinguishable here — identical profiles at the probe
+  context, `0.569 / 0.569 / 0.568` mission score in flight — because wherever the brake is worth
+  using for drift it is already wanted for apogee, so the agents never disagree at the optimum. The
+  gap that exists is elsewhere: the single sequential pilot scores `0.642`, and since `greedy` *is*
+  its decomposition at coarser granularity, the difference is resolution and feedback (continuous
+  per-tick search versus one banded commitment), not coordination. No-regret play converges
+  (external regret `2.98e-04`), so the machinery is exercised and working. What it tells you is
+  what would have to change for a game formulation to earn its keep: payoffs that genuinely
+  conflict at the optimum, not objectives that merely differ in name.
+
+### Added
 - **`examples/rocketpy_baselines.py`** — the learned agent measured against the autopilot a real
   team would actually fly, which is not another learned agent but the drag-limited coast prediction
   every flight computer runs: `h_gain = ln(1 + k v^2/g) / 2k`. **The closed form wins, using zero
