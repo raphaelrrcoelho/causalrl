@@ -65,6 +65,11 @@ NE = hy.NE
 SEEDS = [int(x) for x in os.environ.get("SEEDS", "0,1").split(",")]
 FAST = os.environ.get("FAST") == "1"
 ARMS = [a for a in os.environ.get("ARMS", "direct,joint,joint2x,decoupled").split(",") if a]
+# Capacity knobs -- used to test whether a weak STRUCTONLY is an architectural limit or just a
+# too-small model (raise these and see whether reachability-over-tokens actually improves).
+LAYERS = int(os.environ.get("LAYERS", "4"))
+EMBD = int(os.environ.get("EMBD", "128"))
+HEADS = int(os.environ.get("HEADS", "4"))
 
 # Vocab = the shared Act-4 vocab, EXTENDED with scratchpad punctuation. The base words keep their
 # ids (list prefix is preserved), so examples built by ``hy`` can be reused verbatim.
@@ -81,9 +86,9 @@ def gpt2():
         vocab_size=len(WORDS),
         n_positions=MAXLEN + 2,
         n_ctx=MAXLEN + 2,
-        n_embd=128,
-        n_layer=4,
-        n_head=4,
+        n_embd=EMBD,
+        n_layer=LAYERS,
+        n_head=HEADS,
         bos_token_id=PAD,
         eos_token_id=PAD,
     )

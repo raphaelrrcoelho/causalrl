@@ -1,0 +1,39 @@
+PURE LM, decoupled vs joint schedule -- the missing cell of the 2x2
+  seeds [0]; answer is always the LM's own token
+
+  training STRUCTONLY (8000 items x 12 epochs) ...
+    [structonly] epoch 1/12  loss 0.5567
+    [structonly] epoch 2/12  loss 0.4394
+    [structonly] epoch 3/12  loss 0.4317
+    [structonly] epoch 4/12  loss 0.4304
+    [structonly] epoch 5/12  loss 0.4285
+    [structonly] epoch 6/12  loss 0.4264
+    [structonly] epoch 7/12  loss 0.4265
+    [structonly] epoch 8/12  loss 0.4248
+    [structonly] epoch 9/12  loss 0.4225
+    [structonly] epoch 10/12  loss 0.4187
+    [structonly] epoch 11/12  loss 0.3980
+    [structonly] epoch 12/12  loss 0.3653
+
+==============================================================================
+  confounded = correlated but NOT causal (all-negative set: constant-'no' scores 1.000)
+  cause      = balanced causal query (constant-'no' scores ~0.500)
+  BOTH must be high for the result to mean anything.
+
+  arm                  conf s3         conf s4        cause s3        cause s4
+  STRUCTONLY     0.186+/-0.000   0.249+/-0.000   0.723+/-0.000   0.579+/-0.000
+
+  self-generated graph edge F1 (is a failure perception, or reasoning?)
+
+  teacher-forced ceiling on `cause` (TRUE graph inserted -> answer)
+
+  reference: external-module route -- joint 0.43 vs two-stage 1.000/0.933 confounded
+
+  Reading: ONE GPT-2, same init/data/capacity/gradient-steps; only the loss mask (the
+  schedule) differs, and the answer is always the LM's own token. If DECOUPLED clears
+  JOINT and DIRECT on confounded WHILE holding `cause` high, then the branch's canonical
+  negative ('a real LM does not internalise causal reasoning') was a JOINT-schedule
+  artifact, not a capability limit -- causal competence is installable in an LM's own
+  weights by training it differently, with no external reasoner. If DECOUPLED does NOT
+  clear them, the external routed module is genuinely load-bearing and the negative
+  stands on its own -- which sharpens the thesis rather than weakening it.
