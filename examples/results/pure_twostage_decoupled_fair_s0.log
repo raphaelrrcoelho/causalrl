@@ -1,0 +1,41 @@
+PURE LM, decoupled vs joint schedule -- the missing cell of the 2x2
+  seeds [0]; answer is always the LM's own token
+
+  training DECOUPLED (16000 items x 12 epochs) ...
+    [decoupled] epoch 1/12  loss 0.4205
+    [decoupled] epoch 2/12  loss 0.1682
+    [decoupled] epoch 3/12  loss 0.1471
+    [decoupled] epoch 4/12  loss 0.1371
+    [decoupled] epoch 5/12  loss 0.1328
+    [decoupled] epoch 6/12  loss 0.1290
+    [decoupled] epoch 7/12  loss 0.1168
+    [decoupled] epoch 8/12  loss 0.1157
+    [decoupled] epoch 9/12  loss 0.1146
+    [decoupled] epoch 10/12  loss 0.1051
+    [decoupled] epoch 11/12  loss 0.1047
+    [decoupled] epoch 12/12  loss 0.1017
+
+==============================================================================
+  confounded = correlated but NOT causal (all-negative set: constant-'no' scores 1.000)
+  cause      = balanced causal query (constant-'no' scores ~0.500)
+  BOTH must be high for the result to mean anything.
+
+  arm                  conf s3         conf s4        cause s3        cause s4
+  DECOUPLED      0.000+/-0.000   0.002+/-0.000   0.596+/-0.000   0.471+/-0.000
+
+  self-generated graph edge F1 (is a failure perception, or reasoning?)
+  DECOUPLED     s3 0.940+/-0.000   s4 0.589+/-0.000
+
+  teacher-forced ceiling on `cause` (TRUE graph inserted -> answer)
+  DECOUPLED     s3 0.596+/-0.000   s4 0.515+/-0.000
+
+  reference: external-module route -- joint 0.43 vs two-stage 1.000/0.933 confounded
+
+  Reading: ONE GPT-2, same init/data/capacity/gradient-steps; only the loss mask (the
+  schedule) differs, and the answer is always the LM's own token. If DECOUPLED clears
+  JOINT and DIRECT on confounded WHILE holding `cause` high, then the branch's canonical
+  negative ('a real LM does not internalise causal reasoning') was a JOINT-schedule
+  artifact, not a capability limit -- causal competence is installable in an LM's own
+  weights by training it differently, with no external reasoner. If DECOUPLED does NOT
+  clear them, the external routed module is genuinely load-bearing and the negative
+  stands on its own -- which sharpens the thesis rather than weakening it.

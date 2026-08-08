@@ -144,6 +144,27 @@ def seq_direct(e):
     return ids, sup
 
 
+def split_query(e):
+    """Split ``e['ids']`` into (prose, query). The query starts at the 'does'/'are' token."""
+    ids = list(e["ids"])
+    for i in range(len(ids) - 1, -1, -1):
+        if ids[i] in (V["does"], V["are"]):
+            return ids[:i], ids[i:]
+    return [], ids
+
+
+def seq_structonly(e):
+    """``query <g> TRUE graph </g> <ans>`` -- NO prose at all, so the answer can ONLY come from
+    reachability over the graph tokens. The in-model analogue of the scaffold's struct-only 0.818,
+    and the decisive isolation of DECOUPLED's failing component."""
+    k = sum(e["present"])
+    _prose, query = split_query(e)
+    g = graph_tokens(e["adj"], e["entw"], k)
+    ids = query + [GO] + g + [GC] + [YES if e["label"] else NO]
+    sup = [False] * (len(ids) - 1) + [True]
+    return ids, sup
+
+
 def seq_scratch(e, adj, label, sup_graph, sup_ans):
     """``prose ? <g> graph </g> <ans>`` with selectable supervision over each region."""
     k = sum(e["present"])
@@ -187,7 +208,9 @@ def build_corpus(arm, data, seed):
     out = []
     for e in data:
         k = sum(e["present"])
-        if arm == "direct":
+        if arm == "structonly":
+            out.append(seq_structonly(e))
+        elif arm == "direct":
             out.append(seq_direct(e))
         elif arm == "joint":
             out.append(seq_scratch(e, e["adj"], e["label"], sup_graph=True, sup_ans=True))
@@ -331,6 +354,27 @@ def acc_teacher_forced(model, data) -> float:
     return float(((m > 0) == (lab > 0.5)).float().mean())
 
 
+@torch.no_grad()
+def acc_structonly(model, data) -> float:
+    """Answer read after ``query <g> TRUE graph </g>`` with the prose removed entirely."""
+    if not data:
+        return float("nan")
+    seqs = [seq_structonly(e) for e in data]
+    prompts = [s[0][:-1] for s in seqs]  # drop the gold answer token
+    width = max(len(p) for p in prompts)
+    ids = torch.full((len(prompts), width), PAD, dtype=torch.long)
+    attn = torch.zeros(len(prompts), width, dtype=torch.long)
+    last = torch.tensor([len(p) - 1 for p in prompts])
+    for j, p in enumerate(prompts):
+        ids[j, : len(p)] = torch.tensor(p)
+        attn[j, : len(p)] = 1
+    logits = model(input_ids=ids, attention_mask=attn).logits
+    row = logits[torch.arange(len(prompts)), last]
+    m = row[:, YES] - row[:, NO]
+    lab = torch.tensor([float(e["label"]) for e in data])
+    return float(((m > 0) == (lab > 0.5)).float().mean())
+
+
 def confounded(data):
     """Correlated but NOT causal, asked causally. NB: all labels are 0 (see module docstring)."""
     return [dict(e, is_causal=1, label=e["cause"]) for e in data if e["corr"] and not e["cause"]]
@@ -373,7 +417,12 @@ def run_seed(seed: int) -> dict:
         train(model, corpus, epochs=ep, tag=arm)
         model.eval()
 
-        if arm == "direct":
+        if arm == "structonly":
+            out["structonly_conf_s3"] = acc_structonly(model, c3)
+            out["structonly_conf_s4"] = acc_structonly(model, c4)
+            out["structonly_cause_s3"] = acc_structonly(model, cause3)
+            out["structonly_cause_s4"] = acc_structonly(model, cause4)
+        elif arm == "direct":
             out["direct_conf_s3"] = acc_direct(model, c3)
             out["direct_conf_s4"] = acc_direct(model, c4)
             out["direct_cause_s3"] = acc_direct(model, cause3)
@@ -417,13 +466,13 @@ def main() -> None:
         print(f"  {arm.upper():<12}" + "".join(f"{c:>16}" for c in cells))
 
     print("\n  self-generated graph edge F1 (is a failure perception, or reasoning?)")
-    for arm in [a for a in ARMS if a != "direct"]:
+    for arm in [a for a in ARMS if a not in ("direct", "structonly")]:
         m3, s3 = agg(f"{arm}_edgef1_s3")
         m4, s4 = agg(f"{arm}_edgef1_s4")
         print(f"  {arm.upper():<12}  s3 {m3:.3f}+/-{s3:.3f}   s4 {m4:.3f}+/-{s4:.3f}")
 
     print("\n  teacher-forced ceiling on `cause` (TRUE graph inserted -> answer)")
-    for arm in [a for a in ARMS if a != "direct"]:
+    for arm in [a for a in ARMS if a not in ("direct", "structonly")]:
         m3, s3 = agg(f"{arm}_tf_cause_s3")
         m4, s4 = agg(f"{arm}_tf_cause_s4")
         print(f"  {arm.upper():<12}  s3 {m3:.3f}+/-{s3:.3f}   s4 {m4:.3f}+/-{s4:.3f}")
