@@ -4,6 +4,9 @@ A study of the [Kaggriculture](https://www.kaggle.com/competitions/kaggriculture
 competition: an economic model read from the referee, a two-seller game analysis, a playable agent,
 and an opponent pool to measure against. Findings and their evidence are in **[FINDINGS.md](FINDINGS.md)**.
 
+Handing this to a coding agent rather than running it yourself? Point it at **[AGENTS.md](AGENTS.md)**,
+which carries the invariants, the dead ends already explored, and the ranked next steps.
+
 ## Setup
 
 ```bash
@@ -128,3 +131,4 @@ Kaggle is unreachable from the environment this was developed in.
 | `opponents.py` | the six-strategy reference pool |
 | `run.py` | the command line above |
 | `FINDINGS.md` | every result and the errors made getting there |
+| `AGENTS.md` | handoff brief for a coding agent continuing the work |
