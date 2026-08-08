@@ -1,0 +1,57 @@
+PURE LM, decoupled vs joint schedule -- the missing cell of the 2x2
+  seeds [0]; answer is always the LM's own token
+
+  training TRACE (8000 items x 12 epochs) ...
+    [trace] epoch 1/12  loss 0.7379
+    [trace] epoch 2/12  loss 0.2586
+    [trace] epoch 3/12  loss 0.1751
+    [trace] epoch 4/12  loss 0.1450
+    [trace] epoch 5/12  loss 0.1265
+    [trace] epoch 6/12  loss 0.1178
+    [trace] epoch 7/12  loss 0.1028
+    [trace] epoch 8/12  loss 0.1002
+    [trace] epoch 9/12  loss 0.0977
+    [trace] epoch 10/12  loss 0.0892
+    [trace] epoch 11/12  loss 0.0876
+    [trace] epoch 12/12  loss 0.0820
+
+  training TRACEV (8000 items x 12 epochs) ...
+    [tracev] epoch 1/12  loss 0.8401
+    [tracev] epoch 2/12  loss 0.2531
+    [tracev] epoch 3/12  loss 0.1770
+    [tracev] epoch 4/12  loss 0.1431
+    [tracev] epoch 5/12  loss 0.1157
+    [tracev] epoch 6/12  loss 0.0940
+    [tracev] epoch 7/12  loss 0.0816
+    [tracev] epoch 8/12  loss 0.0708
+    [tracev] epoch 9/12  loss 0.0648
+    [tracev] epoch 10/12  loss 0.0591
+    [tracev] epoch 11/12  loss 0.0533
+    [tracev] epoch 12/12  loss 0.0493
+
+==============================================================================
+  confounded = correlated but NOT causal (all-negative set: constant-'no' scores 1.000)
+  cause      = balanced causal query (constant-'no' scores ~0.500)
+  BOTH must be high for the result to mean anything.
+
+  arm                  conf s3         conf s4        cause s3        cause s4
+  TRACE          0.379+/-0.000   0.351+/-0.000   0.784+/-0.000   0.585+/-0.000
+  TRACEV         0.398+/-0.000   0.423+/-0.000   0.697+/-0.000   0.572+/-0.000
+
+  final-frontier F1 on `cause` (model's last written step vs the true closure;
+  inductive format only -- localizes failure to trace-following vs answer-reading)
+  TRACE         s3 0.981+/-0.000   s4 0.762+/-0.000
+
+  R2 reference: R4's STRUCTONLY (no trace) = 0.731+/-0.094 s3 / 0.581+/-0.084 s4;
+  GNN on the same function = 1.000 s3 / 0.952 s4. Headline = s4 extrapolation.
+
+  reference: external-module route -- joint 0.43 vs two-stage 1.000/0.933 confounded
+
+  Reading: ONE GPT-2, same init/data/capacity/gradient-steps; only the loss mask (the
+  schedule) differs, and the answer is always the LM's own token. If DECOUPLED clears
+  JOINT and DIRECT on confounded WHILE holding `cause` high, then the branch's canonical
+  negative ('a real LM does not internalise causal reasoning') was a JOINT-schedule
+  artifact, not a capability limit -- causal competence is installable in an LM's own
+  weights by training it differently, with no external reasoner. If DECOUPLED does NOT
+  clear them, the external routed module is genuinely load-bearing and the negative
+  stands on its own -- which sharpens the thesis rather than weakening it.

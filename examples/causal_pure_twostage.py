@@ -495,23 +495,39 @@ def gen_trace(model, data, verbose):
                 break
             step = torch.where(done, torch.full_like(nxt, TC), nxt)
             cur = torch.cat([cur, step.unsqueeze(1)], 1)
-        cur = torch.cat([cur, torch.full((len(idxs), 1), TC, dtype=torch.long)], 1)
-        final = model(input_ids=cur).logits[:, -1, :]
-        margin = final[:, YES] - final[:, NO]
+        # Clean re-read: re-encode ``prompt + own trace + single </t>`` and read the answer there.
+        # Reading off the incremental buffer instead is subtly OFF-distribution -- rows that finish
+        # early get padded with repeated </t> while the rest of the group generates, and training
+        # only ever shows ONE closer before the answer. That artifact depressed teacher-free
+        # accuracy by ~0.3 while the tftr/cons diagnostics showed the model reads clean traces
+        # fine -- kept in results/pure_twostage_tracediag_s*.log as the record of the catch.
+        seqs = [prompts[i] + gen[j] + [TC] for j, i in enumerate(idxs)]
+        width = max(len(s) for s in seqs)
+        ids = torch.full((len(seqs), width), PAD, dtype=torch.long)
+        attn = torch.zeros(len(seqs), width, dtype=torch.long)
+        last = torch.tensor([len(s) - 1 for s in seqs])
+        for j, s in enumerate(seqs):
+            ids[j, : len(s)] = torch.tensor(s)
+            attn[j, : len(s)] = 1
+        final = model(input_ids=ids, attention_mask=attn).logits
+        row = final[torch.arange(len(seqs)), last]
+        margin = row[:, YES] - row[:, NO]
         for j, i in enumerate(idxs):
             res[i] = (float(margin[j]), gen[j])
     return [res[i] for i in range(len(data))]
 
 
 def acc_trace(model, data, verbose):
-    """R2 accuracy + final-frontier F1 (the model's last written step vs the true closure).
-    Final-set F1 is only well-defined for the inductive format (verbose interleaves the adjacency
-    into every step, making the last-step parse ambiguous) -- nan there. Eval sets are all causal
-    queries, so the expected trace is a single closure segment from Y."""
+    """R2 accuracy + three diagnostics that decompose WHERE a failure lives (inductive only):
+    - final-frontier F1: the model's last written step vs the true closure (writing quality);
+    - trace-answer acc: the answer IMPLIED by the model's own written set (X ∈ set?) vs the label;
+    - self-consistency: does the model's emitted yes/no agree with its own written set?
+    Verbose interleaves the adjacency into every step (last-step parse ambiguous) -> nan there.
+    Eval sets are all causal queries, so the expected trace is a single closure segment from Y."""
     if not data:
-        return float("nan"), float("nan")
+        return float("nan"), float("nan"), float("nan"), float("nan")
     outs = gen_trace(model, data, verbose)
-    ok = 0
+    ok = tans = cons = 0
     tp = fp = fn = 0
     for e, (margin, toks) in zip(data, outs, strict=True):
         ok += int((margin > 0) == (e["label"] > 0.5))
@@ -524,12 +540,44 @@ def acc_trace(model, data, verbose):
             tp += len(pred & true_set)
             fp += len(pred - true_set)
             fn += len(true_set - pred)
+            implied = int(e["xs"] in pred)
+            tans += int(implied == int(e["label"]))
+            cons += int((margin > 0) == bool(implied))
+    n = len(data)
     if verbose:
-        return ok / len(data), float("nan")
+        return ok / n, float("nan"), float("nan"), float("nan")
     prec = tp / (tp + fp) if tp + fp else float("nan")
     rec = tp / (tp + fn) if tp + fn else float("nan")
     f1 = 2 * prec * rec / (prec + rec) if prec + rec else float("nan")
-    return ok / len(data), f1
+    return ok / n, f1, tans / n, cons / n
+
+
+@torch.no_grad()
+def acc_trace_tf(model, data):
+    """Teacher-forced R2 control: the TRUE trace inserted, answer read after a single ``</t>`` --
+    the exact training distribution. High here + low teacher-free = the failure is in generation
+    dynamics; low here = the model genuinely cannot read a trace it is handed."""
+    if not data:
+        return float("nan")
+    seqs = []
+    for e in data:
+        k = sum(e["present"])
+        _prose, query = split_query(e)
+        tr, _ans = trace_and_answer(e, False)
+        ids = query + [GO] + graph_tokens(e["adj"], e["entw"], k) + [GC, TO] + tr + [TC]
+        seqs.append(ids)
+    width = max(len(s) for s in seqs)
+    ids = torch.full((len(seqs), width), PAD, dtype=torch.long)
+    attn = torch.zeros(len(seqs), width, dtype=torch.long)
+    last = torch.tensor([len(s) - 1 for s in seqs])
+    for j, s in enumerate(seqs):
+        ids[j, : len(s)] = torch.tensor(s)
+        attn[j, : len(s)] = 1
+    logits = model(input_ids=ids, attention_mask=attn).logits
+    row = logits[torch.arange(len(seqs)), last]
+    m = row[:, YES] - row[:, NO]
+    lab = torch.tensor([float(e["label"]) for e in data])
+    return float(((m > 0) == (lab > 0.5)).float().mean())
 
 
 def confounded(data):
@@ -582,12 +630,19 @@ def run_seed(seed: int) -> dict:
             out["structonly_cause_s4"] = acc_structonly(model, cause4)
         elif arm in ("trace", "tracev"):
             vb = arm == "tracev"
-            out[f"{arm}_conf_s3"], _ = acc_trace(model, c3, vb)
-            out[f"{arm}_conf_s4"], _ = acc_trace(model, c4, vb)
-            out[f"{arm}_cause_s3"], f3 = acc_trace(model, cause3, vb)
-            out[f"{arm}_cause_s4"], f4 = acc_trace(model, cause4, vb)
+            out[f"{arm}_conf_s3"], _, _, _ = acc_trace(model, c3, vb)
+            out[f"{arm}_conf_s4"], _, _, _ = acc_trace(model, c4, vb)
+            out[f"{arm}_cause_s3"], f3, t3, n3 = acc_trace(model, cause3, vb)
+            out[f"{arm}_cause_s4"], f4, t4, n4 = acc_trace(model, cause4, vb)
             out[f"{arm}_fset_s3"] = f3
             out[f"{arm}_fset_s4"] = f4
+            if not vb:
+                out[f"{arm}_tans_s3"] = t3
+                out[f"{arm}_tans_s4"] = t4
+                out[f"{arm}_cons_s3"] = n3
+                out[f"{arm}_cons_s4"] = n4
+                out[f"{arm}_tftr_s3"] = acc_trace_tf(model, cause3)
+                out[f"{arm}_tftr_s4"] = acc_trace_tf(model, cause4)
         elif arm == "direct":
             out["direct_conf_s3"] = acc_direct(model, c3)
             out["direct_conf_s4"] = acc_direct(model, c4)
@@ -655,6 +710,16 @@ def main() -> None:
             m3, s3 = agg(f"{arm}_fset_s3")
             m4, s4 = agg(f"{arm}_fset_s4")
             print(f"  {arm.upper():<12}  s3 {m3:.3f}+/-{s3:.3f}   s4 {m4:.3f}+/-{s4:.3f}")
+            for key, label in (
+                ("tans", "answer IMPLIED by the model's own written set vs label"),
+                ("cons", "self-consistency: emitted yes/no vs own written set"),
+                ("tftr", "teacher-forced read: TRUE trace inserted -> answer"),
+            ):
+                m3, s3 = agg(f"{arm}_{key}_s3")
+                m4, s4 = agg(f"{arm}_{key}_s4")
+                print(
+                    f"    {key:<10}s3 {m3:.3f}+/-{s3:.3f}   s4 {m4:.3f}+/-{s4:.3f}   ({label})"
+                )
         print("\n  R2 reference: R4's STRUCTONLY (no trace) = 0.731+/-0.094 s3 / 0.581+/-0.084 s4;")
         print("  GNN on the same function = 1.000 s3 / 0.952 s4. Headline = s4 extrapolation.")
 
