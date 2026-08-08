@@ -216,3 +216,50 @@ where the causal-RL library did something a spreadsheet could not.
 - **Opening.** Days 0–10 are cash- and growth-constrained and were tuned by sweep, not solved.
 - **Self-play is ~55% of the score against `starter`**, which is the shared market biting exactly
   as §6 says it should. Every number in §1–§5 remains single-seller.
+
+## 10. Correction: the model was transcribed when it should have been imported
+
+`economics.py` originally copied `MARKET_PARAMS`, `SHOPS`, the crop/animal tables and the price
+function out of a reading of the env source. That was wrong in two ways, and the second one moved a
+headline number.
+
+**Redundant.** The referee exposes `market_price` publicly. The reimplementation agreed with it at
+54 of 54 checked points — correct, and pointless.
+
+**Stale.** Between kaggle-environments 1.32.4 (the version first read) and 1.32.6 (the version that
+actually runs), the town centre changed from consuming every 12 turns with a multiplier rising to 4x
+after day 20, to consuming every 24 turns with **no multiplier at all** — up to 8x less demand. Shops
+also began being drawn *with replacement*, so one can unlock twice and consume twice. A transcription
+cannot notice either change.
+
+Everything is now imported. The corrected demand table:
+
+| day | tiles of demand (corrected) | (stale figure) |
+| --- | --- | --- |
+| 10 | 170 | 245 |
+| 20 | 315 | 491 |
+| 29 | 460 | 588 |
+
+**§1 survives.** Demand still runs to 170–460 tiles against a 100-tile board, so land still does not
+saturate for most products — the conclusion held, at ~30% lower magnitude.
+
+**§3 does not.** Melon appears in **no shop**, so its only drain is the town centre: 1 unit/day flat.
+Sustainable melon is **1.8 tiles**, not the 7.3 first reported. The solo optimum moves from 20 tiles
+to 15.
+
+**§6 and §8 survive unchanged.** Re-running the two-seller game on the corrected drain gives the
+same interior equilibrium of **10 melon tiles** (regret 0.0025). The equilibrium is robust to a
+change that moved the solo optimum by a third — which is the more useful of the two numbers to be
+robust. The head-to-head in §8 tested 10 against 20; under the corrected model 20 is still
+over-committed (the solo optimum is 15), so the result stands, though "solo optimum" is now the
+wrong label for the 20-tile arm.
+
+The agent scores **$31,499 — identical before and after** de-duplication, since its own copied crop
+table happened to match. That is luck, not vindication: it is exactly the kind of copy that would
+have silently drifted at the next env release. `agent.py` now reads `CROPS` and `LAND_PRICES` from
+the referee too.
+
+**The lesson generalises past this study.** The simulator is provided; anything derived from it
+should be imported from it, and only genuinely new quantities — here, per-day drain rates and
+per-tile yield rates, which the referee models step-by-step rather than as rates — belong in
+`economics.py`.

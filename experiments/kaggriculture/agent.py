@@ -19,15 +19,22 @@ from __future__ import annotations
 
 from typing import Any
 
+from kaggle_environments.envs.kaggriculture.kaggriculture import CROPS, LAND_PRICES
+
+#: Crop timings, read from the referee rather than copied. A transcribed copy of these tables in
+#: `economics.py` went stale between env versions and moved a headline conclusion by 30%; the agent
+#: runs inside `kaggle_environments`, so the import is always available where it matters.
 CROP_SPEC = {
-    "WHEAT": {"seed": 10, "first": 2, "max_day": 4, "ongoing": False},
-    "CARROT": {"seed": 20, "first": 2, "max_day": 3, "ongoing": False},
-    "MELON": {"seed": 80, "first": 10, "max_day": 12, "ongoing": False},
-    "TOMATO": {"seed": 50, "first": 8, "max_day": 8, "ongoing": True},
-    "STRAWBERRY": {"seed": 100, "first": 10, "max_day": 10, "ongoing": True},
+    name: {
+        "seed": spec["seed"],
+        "first": spec["first_yield_day"],
+        "max_day": spec["max_yield_day"],
+        "ongoing": spec["ongoing"],
+    }
+    for name, spec in CROPS.items()
 }
 
-LAND_COST = {1: 1000, 2: 2000, 3: 4000}
+LAND_COST = dict(enumerate(LAND_PRICES, start=1))
 MAX_QUADRANTS = 2
 """How many quadrants to own -- measured, and it contradicts the paper economics.
 
