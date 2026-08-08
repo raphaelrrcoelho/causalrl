@@ -140,3 +140,79 @@ opportunity cost, an extra tile is weakly profitable even at the $1 price floor,
 degenerates. Charging a diverted tile the forgone `MILK` revenue ($35.56/tile/day) makes the
 trade-off real and the equilibrium interior. Worth recording because the symptom pointed at
 resolution and the cause was specification.
+
+## 7. Playing it: where the paper economics were wrong
+
+`agent.py` is a submittable agent built from §1–§6; `harness.py` evaluates it across seeds with
+paired comparisons. Against the shipped `starter` agent over 8 seeds:
+
+| | final bank |
+| --- | --- |
+| `starter` (baseline) | $3,510 |
+| **this agent** | **$31,499** (median $31,603, range $28,718–$33,618, sd $1,728) |
+| self-play | $17,410 |
+
+**9.0x the baseline.** Decision time is 0.07 ms mean / 0.41 ms worst against a 1,000 ms budget, so
+the turn limit is nowhere near binding.
+
+Two things only running it could show.
+
+### Land does *not* bind — labour does
+
+§1 concluded that town demand outruns a full board several times over, so every quadrant should be
+bought. Measured, that is simply false:
+
+| quadrants | tiles | final bank |
+| --- | --- | --- |
+| 1 | 25 | $31,298 |
+| **2** | **50** | **$31,793** |
+| 3 | 75 | $29,433 |
+| 4 | 100 | $24,970 |
+
+Buying the whole board is *worse than buying none of it past the second quadrant*. Land is only
+worth what the labour can service, and hands are Fibonacci-priced (§5), so a full board cannot be
+staffed. Tiles bought past that point cost twice: $7,000 in purchase, and the unwatered plants on
+them decay into weeds that then consume actions to clear. §5 priced labour correctly and still drew
+the wrong conclusion, because it costed the hands without asking whether they could reach the work.
+
+### Melon is the whole game
+
+| melon tiles (of 50) | final bank |
+| --- | --- |
+| 0 | $5,948 |
+| 5 | $19,501 |
+| **10** | **$31,803** |
+| 15 | $28,878 |
+| 20 | $30,714 |
+
+Dropping melon costs 5x. The measured optimum is 10 tiles — the same number §6's equilibrium
+analysis produced, arrived at independently.
+
+## 8. The equilibrium prediction, tested
+
+§6 predicted that playing the *solo* optimum (20 melon tiles) against an opponent who also grows
+melon costs $4,713. That is a falsifiable claim about the real simulator, so: two copies of this
+agent, one capped at the equilibrium 10 and one at the solo 20, played against each other across 6
+seeds in both seats.
+
+| | mean final bank |
+| --- | --- |
+| **melon = 10 (equilibrium)** | **$20,179** |
+| melon = 20 (solo optimum) | $12,334 |
+| paired delta | **+$7,845, winning 12 of 12** |
+
+The direction and order of magnitude hold; the real penalty is larger than the model's $4,713,
+which is expected, since the closed-form game abstracts away the labour contention that makes extra
+melon tiles cost more than their seed. **A game-theoretic analysis of an abstraction predicted a
+result in the full simulator, and won every paired matchup.** That is the one place in this study
+where the causal-RL library did something a spreadsheet could not.
+
+## 9. What is still open
+
+- **Animals.** Not implemented. §2 ranks milk second by $/tile/day and §4 shows milk, wool and
+  strawberry selling *above* base all season, so the animal lines are the obvious next gain.
+- **Routing.** The `~9 tiles per unit` estimate in §5 was never confirmed; the agent uses greedy
+  nearest-work matching, which thrashes when two units want the same tile.
+- **Opening.** Days 0–10 are cash- and growth-constrained and were tuned by sweep, not solved.
+- **Self-play is ~55% of the score against `starter`**, which is the shared market biting exactly
+  as §6 says it should. Every number in §1–§5 remains single-seller.
