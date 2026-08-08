@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`examples/rocketpy_autopilot.py`** — one `InterventionalAgent` flying a whole mission, from rail
+  departure to touchdown, with nothing scripted in between. RocketPy exposes exactly two in-flight
+  levers (the air-brake `controller_function` and per-device parachute `trigger`s) and `RocketPilot`
+  owns both; the claim is not that the agent steers — RocketPy models a passively stable vehicle
+  with no thrust-vector or fin control — but that every choice the vehicle admits is the agent's,
+  taken live under a wall-clock budget. The levers are coupled: braking lowers apogee *and* shortens
+  the descent, cutting wind drift, while releasing the main low cuts drift further but raises impact
+  speed off a cliff (13.9 m/s at 150 m against 5.9 m/s at 400 m), so the best release altitude
+  depends on the apogee the brakes actually achieved — which depends on a motor lot nobody measured
+  until the vehicle was flying. This is what `InterventionSpace`-per-decision is for: each phase of
+  flight *is* a different space (`{}` under thrust, `Continuous(0.0, 0.75)` coasting up,
+  `Discrete((0.0, 1.0))` on drogue), and the pilot never asks which phase it is in because the space
+  it was handed carries that. Autonomously it lands 2.4 m from an 1850 m target, pulls the main at
+  342 m by solving its own safety constraint in flight, and touches down at 5.98 m/s; across 12
+  motor lots it scores 0.642 against 0.461 for the best pre-rail schedule, halving apogee error
+  (149 m vs 300 m) while staying safe on 12/12 where the aggressive schedule is unsafe on 12/12.
+  Searching decisions run at 2.40 ms median, 4.19 ms worst, against a 100 ms tick.
 - **`examples/rocketpy_airbrakes.py`** and the `rocketpy` extra — a continuous action, chosen
   against a wall-clock budget, from confounded logs, driven end to end against a 6-DOF flight
   simulator. RocketPy's one in-flight actuator is an air-brake `controller_function` called at a
