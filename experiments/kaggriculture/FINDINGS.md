@@ -311,3 +311,79 @@ Against the town's whole-season absorption of $210,262 (about $105,131 per selle
 day), wool ($29.63) and tomato ($19.80) — plus greedy routing that still thrashes and an untuned
 opening. This is a stronger prototype. It is not yet evidence of a competitive entry, and nothing
 here has been measured against a single real leaderboard agent.
+
+## 12. A real comparable: an opponent pool, and the meta-game over it
+
+kaggle.com is unreachable from this environment (all hosts return `000`, a network-level block, not
+a 403), so the real ladder and the public `episodes.csv` are both out of reach. The substitute is
+`opponents.py`: six coherent, *different* strategies, a full round-robin, and the equilibrium over
+the resulting empirical game.
+
+**What the pool can and cannot measure.** Every bot shares `agent.py`'s routing and market
+plumbing and differs in portfolio and selling policy — genuinely where this game's strategy lives,
+but it means the pool says nothing about whether that shared implementation is any good. A real
+competitor with better routing could beat all six. This measures strategy, not craft.
+
+### Round-robin (mean bank, row playing column, 3 seeds, both seats)
+
+| | balanced | melon_rush | volume | rancher | metered | smallholder | **avg** |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| balanced | 27,187 | 30,702 | 37,066 | 33,342 | 30,734 | 21,595 | 30,104 |
+| melon_rush | 7,936 | 9,135 | 26,620 | 16,181 | 15,204 | 8,956 | 14,005 |
+| volume | 426 | 1,716 | 10 | 1,762 | 426 | 1,275 | 936 |
+| rancher | 20,890 | 16,744 | 17,444 | 18,063 | 22,258 | 9,340 | 17,456 |
+| metered | 23,888 | 23,655 | 37,179 | 31,846 | 27,336 | 21,752 | 27,609 |
+| **smallholder** | 35,147 | 35,352 | 40,651 | 36,653 | 35,147 | 33,107 | **36,010** |
+
+`smallholder` — one quadrant, four hands, two cows, eight melon — **beats all five others**, and the
+tuned `balanced` config that §11 shipped comes second. Metering premium sales is roughly neutral
+(`metered` 27,609 vs `balanced` 30,104), so the burst-harvest price walk is not worth holding stock
+against the 100-item shed cap.
+
+### The equilibrium is pure
+
+Feeding the payoff matrix to `run_no_regret` as an empirical game gives weight **1.000 on
+`smallholder`** at measured regret 0.0012, and `certify_cce_do` returns a *degenerate* interval:
+
+```
+[BOUNDED] time-averaged functional ... | value=[33.11, 33.11]
+```
+
+A single point, not a range — `smallholder` strictly dominates in this pool, so every no-regret
+outcome lands on the same value. That is the empirical-game analysis earning its keep: a
+round-robin table shows who wins most cells, the equilibrium shows there is nothing to mix.
+
+### Re-tuning around the winner
+
+Coordinate sweeps against `smallholder` itself (the strongest known opponent, not `starter`):
+
+| knob | best | note |
+| --- | --- | --- |
+| quadrants | **1** | 2 quadrants costs $2,876 |
+| melon tiles | **8** | 12 is within noise at $30,463 |
+| cows | **2** | 0 costs $6,480; 6 costs $3,220 |
+| hands | **6** | +$4,208 over 4; 8 is identical, the hire rule caps first |
+
+New defaults: **1 quadrant, 8 melon, 2 cows, 6 hands.** Against the previous default it wins
+**8 of 8, +$16,347 ± 757**. Against `smallholder` it wins 6 of 8 at **+$2,781 ± 2,009 — inside the
+noise**, so it is *not* established as better than the pool's best; it is established as better than
+what §11 shipped.
+
+| | vs `starter` | self-play |
+| --- | --- | --- |
+| §11 config | $35,948 | $26,599 |
+| **§12 config** | **$42,177** | **$29,285** |
+
+### The land error, twice
+
+§7 concluded 2 quadrants beat 4; §12 concludes 1 beats 2. Both sweeps were right about their own
+setup and both under-corrected in the same direction. §7 measured against `starter` and without
+livestock; adding either changes how much labour a tile competes for. **Small and fully serviced
+beats large and half-tended**, and the paper economics in §1 — which said buy everything — were
+wrong by two full revisions in one direction.
+
+### Still not a competitiveness claim
+
+$42,177 is ~40% of the ~$105,131 per-seller share of the town's absorption. Strawberry, wool and
+tomato remain unbuilt, routing still thrashes, and **no real leaderboard agent has ever been played
+against**. The pool makes improvements *measurable*; it does not make them *competitive*.

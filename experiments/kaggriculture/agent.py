@@ -35,7 +35,7 @@ CROP_SPEC = {
 }
 
 LAND_COST = dict(enumerate(LAND_PRICES, start=1))
-MAX_QUADRANTS = 2
+MAX_QUADRANTS = 1
 """How many quadrants to own -- measured, and it contradicts the paper economics.
 
 FINDINGS §1 concluded that land binds and should all be bought: town demand outruns a full board
@@ -49,10 +49,15 @@ several times over. Playing it says otherwise. Measured against `starter`, 5 see
 Land is only worth what the labour can service, and hands are priced on a Fibonacci curve, so the
 farm cannot staff a full board. Tiles bought past that point are dead capital twice over -- $7,000
 spent, and the unwatered plants on them turn to weeds that then cost actions to dig out.
+
+**Revised down to 1 after the opponent pool (FINDINGS §12).** That sweep was against `starter` and
+without livestock; once both were fixed, a one-quadrant farm strictly dominated the whole pool.
+Small and fully serviced beats large and half-tended, and the direction of the error was the same
+both times -- overvaluing land.
 """
 QUADRANT_ORDER = ("NE", "SW", "SE")
 
-MELON_TILES = 10
+MELON_TILES = 8
 """Contested-line cap, from the two-seller equilibrium in FINDINGS §6 -- not the solo optimum.
 
 A lone seller maximises melon revenue at ~20 tiles. Against a co-player who also grows melon that
@@ -83,14 +88,14 @@ one quadrant bought all season and $2,079 final, against $25,202 for a version w
 all. The share is what lets income outrun expenditure.
 """
 
-MAX_HANDS = 7
+MAX_HANDS = 6
 
 ANIMAL = "COW"
 """Which animal to keep. Cow pays the most per head: 0.5 milk/day at a $160 base is $80/day
 against a $400 purchase, so it clears its own cost in five producing days -- and FINDINGS §4 shows
 milk is drained faster than a third of the board can supply, so it sells ABOVE base all season."""
 
-ANIMAL_TARGET = 6
+ANIMAL_TARGET = 2
 """Head of livestock to run -- measured, and sharply peaked.
 
 Each head needs a pasture tile plus ~1.25 tiles of wheat to feed it, so the herd competes with the
@@ -108,6 +113,14 @@ produces daily, so it demands the most labour per dollar of the three.
 WHEAT_CARRY = 4
 """Wheat a unit picks up per shed trip. FEED takes wheat from the UNIT's inventory, not the shed
 (`_inv_take(inv, "WHEAT", 1)` in the referee), so feeding is a logistics problem, not a lookup."""
+
+SELL_METER = 0
+"""Units of a premium product to hold back each turn rather than sell as harvested.
+
+Melon's only drain is the town centre at 1 unit/day (FINDINGS §10), so a burst harvest walks its
+price down the `sq` curve one unit at a time. Metering trades getting paid now for a better average
+price later, bounded by the 100-item shed cap that makes hoarding impossible.
+"""
 
 SELL_RESERVE = {"WHEAT": 30}
 """Wheat held back rather than sold: it is animal feed first and a cash crop a distant second."""
@@ -368,8 +381,11 @@ def act(obs: dict[str, Any], config: dict[str, Any] | None = None) -> dict[str, 
             market.append(["HIRE"])
 
     # --- sell: land binds rather than demand, so hold nothing back except feed wheat -----------
+    premium = {"MELON", "STRAWBERRY", "WOOL", "MILK"}
     for item, count in sorted(shed.items()):
         keep = SELL_RESERVE.get(item, 0)
+        if SELL_METER and item in premium:
+            keep = max(keep, count - SELL_METER)  # release at most SELL_METER units this turn
         if count > keep and item in {
             "WHEAT",
             "CARROT",
