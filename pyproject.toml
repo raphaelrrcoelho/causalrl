@@ -78,6 +78,11 @@ interop = [
 scale = [
     "d3rlpy>=2.6",
 ]
+rocketpy = [
+    # examples/rocketpy_airbrakes.py only. RocketPy is a worked example of the columnar-simulator
+    # contract, never a dependency of the library — nothing under src/ imports it.
+    "rocketpy>=1.13",
+]
 data = [
     "pyarrow>=15",
 ]

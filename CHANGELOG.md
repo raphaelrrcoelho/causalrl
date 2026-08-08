@@ -5,6 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`examples/rocketpy_airbrakes.py`** and the `rocketpy` extra — a continuous action, chosen
+  against a wall-clock budget, from confounded logs, driven end to end against a 6-DOF flight
+  simulator. RocketPy's one in-flight actuator is an air-brake `controller_function` called at a
+  fixed sampling rate that sets `deployment_level` in `[0, 1]`, which makes it the smallest honest
+  control problem the 3.0 surface can be pointed at. The example flies a confounded campaign (a
+  crew that has seen the motor lot brakes harder on the lots it knows fly high; the lot is not
+  logged), shows the naive slope claiming the brakes *raise* apogee by +396 m when the truth is
+  −395 m, has `certify_policy` refuse it, runs the randomization that refusal calls for, and only
+  then fits a value model — gating it with `certify_fitted_query`, whose hedge above the tested
+  ceiling is what bounds the controller's `InterventionSpace` to `Continuous(0.0, 0.75)` rather
+  than the actuator's physical 1.0. The closed-loop flight lands 12 m from a 1700 m target using
+  `AnytimeInterventionSearch` under `Deadline.after(1 / sampling_rate)` at ~2.8 ms per 100 ms tick,
+  and re-flying it on an impossible 1 ms budget still returns a usable answer while reporting every
+  search as truncated rather than exhaustive. Logging runs through `TrajectoryLogBuilder` from
+  inside the controller callback — the producer that could not have been written before 3.0.
+  RocketPy is never imported by `src/`.
+
+### Fixed
+- **`certify_policy` refuses instead of crashing when the target policy matches no logged action.**
+  Every MSM quantity averages over the decisions the target policy would have taken, so with none
+  the bound reduced over an empty index set and surfaced as a numpy `zero-size array to reduction
+  operation minimum` several frames below the call. It now returns an uncertified
+  `DecisionCertificate` whose summary says no sensitivity layer ran, and names the cause a caller
+  is most likely to have hit: after 3.0 made action domains continuous, `matches` still asks
+  whether the target policy would take the logged action *exactly*, which two floats from an
+  interval essentially never do. The fix precedes the `alpha` gate, so `conformal_lcb` stays `None`
+  rather than reporting a bound that could not have been calibrated.
+
 ## [3.0.0] - 2026-08-07
 
 ### Added

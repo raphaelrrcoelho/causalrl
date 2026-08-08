@@ -68,6 +68,8 @@ def certify_policy(
     outcomes = list(dataset.outcomes())
     e0 = list(dataset.logging_propensities())
     target_on = [1.0 if m else 0.0 for m in dataset.matches(target_actions)]
+    if not any(target_on):
+        return _no_overlap(len(outcomes), target_actions)
     contrast = PolicyValueContrast(
         outcomes=outcomes,
         logging_propensities=e0,
@@ -88,4 +90,37 @@ def certify_policy(
     )
     return cert._replace(
         certified=cert.certified and passed, conformal_lcb=band.lower, summary=summary
+    )
+
+
+def _no_overlap(n: int, target_actions: Sequence[object]) -> DecisionCertificate:
+    """Refuse when the target policy reproduced none of the logged actions.
+
+    Every quantity the MSM layer forms is an average over the decisions the target policy would
+    have taken, so with no such decision there is no evidence about ``V(pi)`` at all — not a weak
+    contrast, none. Reaching the bound anyway reduces over an empty index set, which is where this
+    used to surface as a numpy ``zero-size array`` error several frames below the call. Refusing
+    here keeps the library's rule that absent evidence is reported, not computed around.
+
+    The overwhelmingly common cause is a **continuous action domain**.
+    :meth:`~causalrl.data.logged.LoggedDecisions.matches` asks whether the target policy would take
+    the logged action *exactly*, which is the right question for an arm index and the wrong one for
+    a real number: two floats drawn from an interval essentially never coincide. Band the action
+    into levels for the certification step -- which leaves the decision itself continuous -- so that
+    "the same action" means "the same band".
+    """
+    example = next((repr(a) for a in target_actions), "<none>")
+    return DecisionCertificate(
+        decision="indifferent",
+        naive_contrast=0.0,
+        certified=False,
+        pivotality=None,
+        tipping_gamma=None,
+        msm_certified=None,
+        summary=(
+            f"REFUSED: the target policy reproduced none of the {n} logged actions, so the log "
+            f"carries no evidence about its value (first target action: {example}). No sensitivity "
+            "layer ran. If the action domain is continuous, exact-match is the wrong comparison — "
+            "band the action into levels for certification."
+        ),
     )

@@ -159,3 +159,61 @@ def test_a_zero_propensity_decision_is_refused_at_construction() -> None:
 def test_an_empty_feature_log_is_refused() -> None:
     with pytest.raises(ValueError, match="at least one"):
         FeatureDecisionLog([])
+
+
+def test_a_policy_matching_no_logged_action_is_refused_not_crashed() -> None:
+    """No overlap is no evidence, and must be reported rather than reduced over an empty set.
+
+    Every MSM quantity averages over the decisions the target policy would have taken. With none,
+    the bound used to reach a numpy ``zero-size array`` reduction several frames below the call --
+    an opaque failure where the library's rule requires a refusal.
+    """
+    log, _ = _dose_log(n=200)
+    unreachable = [{"dose": -1.0}] * len(log)
+
+    assert not any(log.matches(unreachable))
+    cert = certify_policy(log, unreachable)
+
+    assert cert.certified is False
+    assert cert.recommendation == "abstain"
+    assert cert.msm_certified is None, "no sensitivity layer can run without a matched decision"
+    assert cert.tipping_gamma is None
+    assert "REFUSED" in cert.summary and "none of the 200 logged actions" in cert.summary
+
+
+def test_the_no_overlap_refusal_names_continuous_actions_as_the_likely_cause() -> None:
+    """A continuous target never matches a logged float exactly; the message must say so.
+
+    This is the failure a caller actually hits after 3.0 made action domains continuous: the
+    decision layer hands back a real number and the certificate layer asks whether it equals the
+    logged one. The refusal has to point at banding rather than leave the caller reading frames.
+    """
+    rng = np.random.default_rng(3)
+    decisions: list[LoggedDecision[Intervention]] = [
+        LoggedDecision(
+            state=np.array([float(i)]),
+            action={"deployment": float(rng.uniform())},
+            reward=float(rng.normal()),
+            propensity=0.5,
+        )
+        for i in range(50)
+    ]
+    log: FeatureDecisionLog[Intervention] = FeatureDecisionLog(decisions)
+    # A continuous policy: the same value to nine decimal places is still not the same float.
+    nudged = [{"deployment": d.action["deployment"] + 1e-9} for d in decisions]
+
+    cert = certify_policy(log, nudged)
+
+    assert cert.certified is False
+    assert "continuous" in cert.summary and "band" in cert.summary
+
+
+def test_the_alpha_gate_also_refuses_rather_than_crashing_without_overlap() -> None:
+    """The conformal gate is downstream of the same empty set, so the guard must precede it."""
+    log, _ = _dose_log(n=120)
+    unreachable = [{"dose": 7.0}] * len(log)
+
+    cert = certify_policy(log, unreachable, alpha=0.1)
+
+    assert cert.certified is False
+    assert cert.conformal_lcb is None, "the gate cannot have run: it had nothing to calibrate on"
