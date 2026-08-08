@@ -87,25 +87,28 @@ into LM weights. Multi-hop reachability over a serialized graph is the wall — 
 
 ## 5. What to do next (priority order)
 
-1. **The HF-dependent Act-6 leg** — `causal_corr2cause_{solver,learned,perception,realood,mechanism,b1_lm}.py`.
-   These need `huggingface.co` (dataset `causalnlp/corr2cause` + pretrained models). They run fine
-   on the user's local box (the Phase-D multiseed and prompted runs prove egress works there); they
-   were blocked only on the cloud box by egress policy.
-2. **The two named gate blockers** (from `CAUSAL_LLM.md`'s roadmap): tighten the paraphrase axis
-   (held-out 0.48 vs clean 0.61) and add a **RoBERTa-large i.i.d. point** (Jin et al. report ~0.8;
-   ours is distilbert 0.523). Both need a real GPU.
-3. **Paper (roadmap F):** `docs/causal_llm/PAPER.md` is complete as a draft — compile to LaTeX /
-   distill to a post when the user wants to move on venue.
-4. **Roadmap items 2/3/5** — close learned size-extrapolation (0.8–0.9 → 1.0); perception from messy
-   text rather than SVO templates; unify the RLVR causal verifier as a *reward signal* for the LM
-   (today `rlvr_causal_verifier.py` is orthogonal to the LM arc).
+**The spine is now the internalization ladder — read
+[`../docs/causal_llm/LADDER.md`](../docs/causal_llm/LADDER.md) (approved 2026-08-08)**: where must
+causal computation live (external solver → external GNN → token trace → looped weights → one-shot
+weights), with the decoupled schedule as the invariant lever. In order:
 
-An honest strategic note the user should weigh: the differentiated, publishable claim is the
-**training-schedule mechanism** ("causal reasoning in LMs is gated by training schedule, not capacity
-or perception"), because "decouple to generalize on Corr2Cause" is already occupied by prompted prior
-work — which we have now also **measured** head-to-head (weak: +0.04 F1) rather than merely cited.
-The multi-seed §4 adds the boundary condition with error bars: the decoupling has to terminate in a
-computational module.
+1. **R2 `trace`/`tracev` arms** of `causal_pure_twostage.py` — trained backward-closure traces on
+   the STRUCTONLY substrate, inductive vs verbose designs, 3 seeds, **s4 extrapolation is the
+   headline metric** (in-dist trace success is already known in the lit).
+2. **R3 looped arm + the R2-vs-R3 head-to-head** — token tape vs latent tape on the same causal
+   substrate (the centerpiece; a formal separation exists, arXiv:2605.30757, but no causal
+   instance).
+3. **Decoupled RLVR** — verifiable *structure* rewards via the `causalrl` oracle + identifiability-
+   gated abstention (outcome-only RLVR is known insufficient, arXiv:2604.22074); unifies the
+   orphaned Act-5 thread with the LM arc.
+4. **GPU-gated cell** (when hardware exists): decoupled schedule at 1–7B, plus the two old gate
+   blockers (paraphrase 0.48 < 0.61; RoBERTa-large i.i.d. point).
+5. **Paper track:** `docs/causal_llm/PAPER.md` (Paper 1, schedule) is draft-complete — LaTeX when
+   the user wants venue; the ladder results accumulate into Paper 2.
+
+Explicitly deprioritized: building another "LLM calls a causal library" agent (space occupied —
+CausalAgent / causalNLP CAIS / CausalDS); re-running the HF Act-6 leg for its own sake (it runs
+fine on this local box; it was only ever blocked on the cloud box).
 
 ## 6. Traps — each of these has already cost us once
 

@@ -242,6 +242,15 @@ training signal, not the prompt (`causal_corr2cause_prompted.py`; `results/d_pro
 ---
 
 ## Roadmap (the compass)
+
+> **2026-08-08 — the spine going forward is the internalization ladder:**
+> [`../docs/causal_llm/LADDER.md`](../docs/causal_llm/LADDER.md). One axis — where the causal
+> computation lives (exact solver → learned module → token trace → looped weights → one-shot
+> weights, i.e. R0–R4) — with the decoupled schedule as the invariant lever at every rung. R4 is
+> the multi-seed negative above; R2 (trained traces, inductive vs verbose) and R3 (looped
+> weights), and their head-to-head, are the next experiments; decoupled RLVR (structure-verified
+> rewards) is the RL instantiation of the schedule thesis and folds Act 5 into the arc. The
+> numbered items below remain valid as sub-goals and feed that spine.
 1. **Real benchmark — Corr2Cause.** ✅ *Phase 1 + 2 done.* Symbolic ceiling 0.92; the learned parse→GNN
    reasoner matches it (0.927); OOD robustness + learned perception + size extrapolation measured. The
    conference path is the dedicated plan below.

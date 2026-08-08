@@ -1,0 +1,41 @@
+PURE LM, decoupled vs joint schedule -- the missing cell of the 2x2
+  seeds [0]  [FAST smoke]; answer is always the LM's own token
+
+  training TRACE (2000 items x 4 epochs) ...
+    [trace] epoch 1/4  loss 1.6489
+    [trace] epoch 2/4  loss 0.5771
+    [trace] epoch 3/4  loss 0.3826
+    [trace] epoch 4/4  loss 0.3325
+
+  training TRACEV (2000 items x 4 epochs) ...
+    [tracev] epoch 1/4  loss 1.7608
+    [tracev] epoch 2/4  loss 0.7519
+    [tracev] epoch 3/4  loss 0.4788
+    [tracev] epoch 4/4  loss 0.3683
+
+==============================================================================
+  confounded = correlated but NOT causal (all-negative set: constant-'no' scores 1.000)
+  cause      = balanced causal query (constant-'no' scores ~0.500)
+  BOTH must be high for the result to mean anything.
+
+  arm                  conf s3         conf s4        cause s3        cause s4
+  TRACE          0.011+/-0.000   0.178+/-0.000   0.605+/-0.000   0.500+/-0.000
+  TRACEV         0.103+/-0.000   0.234+/-0.000   0.530+/-0.000   0.490+/-0.000
+
+  final-frontier F1 on `cause` (model's last written step vs the true closure;
+  inductive format only -- localizes failure to trace-following vs answer-reading)
+  TRACE         s3 0.841+/-0.000   s4 0.663+/-0.000
+
+  R2 reference: R4's STRUCTONLY (no trace) = 0.731+/-0.094 s3 / 0.581+/-0.084 s4;
+  GNN on the same function = 1.000 s3 / 0.952 s4. Headline = s4 extrapolation.
+
+  reference: external-module route -- joint 0.43 vs two-stage 1.000/0.933 confounded
+
+  Reading: ONE GPT-2, same init/data/capacity/gradient-steps; only the loss mask (the
+  schedule) differs, and the answer is always the LM's own token. If DECOUPLED clears
+  JOINT and DIRECT on confounded WHILE holding `cause` high, then the branch's canonical
+  negative ('a real LM does not internalise causal reasoning') was a JOINT-schedule
+  artifact, not a capability limit -- causal competence is installable in an LM's own
+  weights by training it differently, with no external reasoner. If DECOUPLED does NOT
+  clear them, the external routed module is genuinely load-bearing and the negative
+  stands on its own -- which sharpens the thesis rather than weakening it.

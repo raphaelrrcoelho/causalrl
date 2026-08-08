@@ -1,4 +1,4 @@
-# STATUS: canonical-negative · multi-seed (3 seeds, both capacities) · Act 4 Coupling — the MISSING CELL: decoupled schedule for the PURE LM  ·  map: CAUSAL_LLM.md
+# STATUS: canonical-negative · multi-seed (3 seeds, both capacities) · Act 4 Coupling — the MISSING CELL: decoupled schedule for the PURE LM · + R2 trace arms (research, ladder): docs/causal_llm/LADDER.md  ·  map: CAUSAL_LLM.md
 """Can a real LM internalise causal reasoning *in its own weights* if we fix the training SCHEDULE?
 
 The branch's canonical negative is "a real GPT-2 does NOT internalise the causal computation"
@@ -34,6 +34,15 @@ Essentially only the *loss mask* differs, i.e. only the schedule:
              is identical to JOINT so the two halves compose at test time.
 
 At test every arm is teacher-free: the model emits its own graph, then its own answer.
+
+R2 (the internalization ladder, docs/causal_llm/LADDER.md): two TRACE arms on the STRUCTONLY
+substrate — ``query <g> true graph </g> <t> trace </t> <ans>`` with loss on trace+answer. The trace
+is the backward (ancestor) closure written as frontier steps; the answer is DERIVED from the trace
+and asserted equal to the substrate label at corpus build. ``trace`` = inductive (state-only steps;
+predicted to extrapolate, per the globality-barrier theory), ``tracev`` = verbose (adjacency
+reprinted before every step; history-dependent, predicted to fail extrapolation). Headline metric =
+size-4 extrapolation, NOT in-dist (trace-solves-reachability in-dist is already known in the lit).
+Trace arms use a longer position table (NPOS_TRACE) — +~20K params vs the R4 arms, noted honestly.
 
 Honest metric note: the ``confounded`` set (correlated but NOT causal) is **all-negative**, so a
 constant-"no" model scores 1.000 on it. We therefore ALWAYS report the balanced ``cause`` query
@@ -72,20 +81,23 @@ EMBD = int(os.environ.get("EMBD", "128"))
 HEADS = int(os.environ.get("HEADS", "4"))
 
 # Vocab = the shared Act-4 vocab, EXTENDED with scratchpad punctuation. The base words keep their
-# ids (list prefix is preserved), so examples built by ``hy`` can be reused verbatim.
-WORDS = hy.WORDS + ["<g>", "</g>", "->", ";"]
+# ids (list prefix is preserved), so examples built by ``hy`` can be reused verbatim. The trace
+# markers are appended AFTER the graph markers, so all previously recorded runs' ids still hold.
+WORDS = hy.WORDS + ["<g>", "</g>", "->", ";"] + ["<t>", "</t>", "|"]
 V = {w: i for i, w in enumerate(WORDS)}
 GO, GC, ARROW, SEMI = V["<g>"], V["</g>"], V["->"], V[";"]
+TO, TC, BAR = V["<t>"], V["</t>"], V["|"]
 YES, NO, PAD = V["yes"], V["no"], V["<pad>"]
 MAXLEN = 96
+NPOS_TRACE = 256  # trace arms need room for the written closure (verbose s4 worst case ~240)
 IGN = -100  # cross-entropy ignore_index
 
 
-def gpt2():
+def gpt2(npos=MAXLEN + 2):
     return GPT2Config(
         vocab_size=len(WORDS),
-        n_positions=MAXLEN + 2,
-        n_ctx=MAXLEN + 2,
+        n_positions=npos,
+        n_ctx=npos,
         n_embd=EMBD,
         n_layer=LAYERS,
         n_head=HEADS,
@@ -170,6 +182,74 @@ def seq_structonly(e):
     return ids, sup
 
 
+# ------------------------------------------------------------------ R2: trained closure traces
+def closure_steps(adj, k, t):
+    """Backward (ancestor) closure from slot t as growing frontier steps. anc*(t) includes t.
+    State-only recursion: each next step depends only on the current frontier set."""
+    cur = {t}
+    steps = [sorted(cur)]
+    while True:
+        nxt = cur | {u for u in range(k) for v in cur if adj[u][v]}
+        if nxt == cur:
+            return steps, cur
+        cur = nxt
+        steps.append(sorted(cur))
+
+
+def render_steps(steps, entw, adj=None, k=0):
+    """Frontier steps as tokens, ';'-separated. Verbose mode (adj given) reprints the adjacency
+    before every step — deliberately history/global-dependent (the globality-barrier ablation)."""
+    out = []
+    for i, s in enumerate(steps):
+        if i:
+            out.append(SEMI)
+        if adj is not None:
+            out += graph_tokens(adj, entw, k)
+        out += [entw[v] for v in s]
+    return out
+
+
+def trace_and_answer(e, verbose):
+    """The supervised trace for this example's query, and the answer DERIVED from that trace.
+
+    cause(X,Y)  =  X ∈ anc*(Y)                          -> one closure segment (from Y)
+    corr(X,Y)   =  X ∈ anc*(Y)  or  Y ∈ anc*(X)  or  (anc*(X) ∩ anc*(Y)) \\ {X,Y} nonempty
+                                                        -> two segments + intersection, '|'-separated
+    """
+    k = sum(e["present"])
+    xs, ys = e["xs"], e["ys"]
+    va = e["adj"] if verbose else None
+    steps_b, anc_y = closure_steps(e["adj"], k, ys)
+    if e["is_causal"]:
+        toks = render_steps(steps_b, e["entw"], va, k)
+        ans = int(xs in anc_y)
+    else:
+        steps_a, anc_x = closure_steps(e["adj"], k, xs)
+        inter = sorted((anc_x & anc_y) - {xs, ys})
+        toks = (
+            render_steps(steps_a, e["entw"], va, k)
+            + [BAR]
+            + render_steps(steps_b, e["entw"], va, k)
+            + [BAR]
+            + [e["entw"][v] for v in inter]
+        )
+        ans = int((xs in anc_y) or (ys in anc_x) or bool(inter))
+    return toks, ans
+
+
+def seq_trace(e, verbose):
+    """``query <g> TRUE graph </g> <t> trace </t> <ans>`` -- loss on trace + answer only. The
+    answer comes from the trace's own logic and MUST agree with the substrate label (audit rule)."""
+    k = sum(e["present"])
+    _prose, query = split_query(e)
+    g = graph_tokens(e["adj"], e["entw"], k)
+    tr, ans = trace_and_answer(e, verbose)
+    assert ans == int(e["label"]), "trace-derived answer disagrees with substrate label"
+    ids = query + [GO] + g + [GC] + [TO] + tr + [TC] + [YES if ans else NO]
+    sup = [False] * (len(query) + 1 + len(g) + 1 + 1) + [True] * (len(tr) + 1) + [True]
+    return ids, sup
+
+
 def seq_scratch(e, adj, label, sup_graph, sup_ans):
     """``prose ? <g> graph </g> <ans>`` with selectable supervision over each region."""
     k = sum(e["present"])
@@ -215,6 +295,8 @@ def build_corpus(arm, data, seed):
         k = sum(e["present"])
         if arm == "structonly":
             out.append(seq_structonly(e))
+        elif arm in ("trace", "tracev"):
+            out.append(seq_trace(e, verbose=arm == "tracev"))
         elif arm == "direct":
             out.append(seq_direct(e))
         elif arm == "joint":
@@ -380,6 +462,76 @@ def acc_structonly(model, data) -> float:
     return float(((m > 0) == (lab > 0.5)).float().mean())
 
 
+@torch.no_grad()
+def gen_trace(model, data, verbose):
+    """Teacher-free R2 eval: prompt ``query <g> TRUE graph </g> <t>``, the model writes its own
+    trace to ``</t>``, then the answer is read from the yes/no margin. Grouped by prompt length."""
+    prompts = []
+    for e in data:
+        k = sum(e["present"])
+        _prose, query = split_query(e)
+        prompts.append(query + [GO] + graph_tokens(e["adj"], e["entw"], k) + [GC, TO])
+    order = sorted(range(len(data)), key=lambda i: len(prompts[i]))
+    groups: dict[int, list[int]] = {}
+    for i in order:
+        groups.setdefault(len(prompts[i]), []).append(i)
+    max_new = 200 if verbose else 48
+    res = {}
+    for _plen, idxs in groups.items():
+        cur = torch.tensor([prompts[i] for i in idxs])
+        done = torch.zeros(len(idxs), dtype=torch.bool)
+        gen = [[] for _ in idxs]
+        for _ in range(max_new):
+            logits = model(input_ids=cur).logits[:, -1, :]
+            nxt = logits.argmax(-1)
+            for j in range(len(idxs)):
+                if not done[j]:
+                    t = int(nxt[j])
+                    if t == TC:
+                        done[j] = True
+                    else:
+                        gen[j].append(t)
+            if bool(done.all()) or cur.size(1) >= NPOS_TRACE - 2:
+                break
+            step = torch.where(done, torch.full_like(nxt, TC), nxt)
+            cur = torch.cat([cur, step.unsqueeze(1)], 1)
+        cur = torch.cat([cur, torch.full((len(idxs), 1), TC, dtype=torch.long)], 1)
+        final = model(input_ids=cur).logits[:, -1, :]
+        margin = final[:, YES] - final[:, NO]
+        for j, i in enumerate(idxs):
+            res[i] = (float(margin[j]), gen[j])
+    return [res[i] for i in range(len(data))]
+
+
+def acc_trace(model, data, verbose):
+    """R2 accuracy + final-frontier F1 (the model's last written step vs the true closure).
+    Final-set F1 is only well-defined for the inductive format (verbose interleaves the adjacency
+    into every step, making the last-step parse ambiguous) -- nan there. Eval sets are all causal
+    queries, so the expected trace is a single closure segment from Y."""
+    if not data:
+        return float("nan"), float("nan")
+    outs = gen_trace(model, data, verbose)
+    ok = 0
+    tp = fp = fn = 0
+    for e, (margin, toks) in zip(data, outs, strict=True):
+        ok += int((margin > 0) == (e["label"] > 0.5))
+        if not verbose:
+            k = sum(e["present"])
+            slot = {t: s for s, t in enumerate(e["entw"][:k])}
+            last = toks[len(toks) - toks[::-1].index(SEMI) :] if SEMI in toks else toks
+            pred = {slot[t] for t in last if t in slot}
+            _steps, true_set = closure_steps(e["adj"], k, e["ys"])
+            tp += len(pred & true_set)
+            fp += len(pred - true_set)
+            fn += len(true_set - pred)
+    if verbose:
+        return ok / len(data), float("nan")
+    prec = tp / (tp + fp) if tp + fp else float("nan")
+    rec = tp / (tp + fn) if tp + fn else float("nan")
+    f1 = 2 * prec * rec / (prec + rec) if prec + rec else float("nan")
+    return ok / len(data), f1
+
+
 def confounded(data):
     """Correlated but NOT causal, asked causally. NB: all labels are 0 (see module docstring)."""
     return [dict(e, is_causal=1, label=e["cause"]) for e in data if e["corr"] and not e["cause"]]
@@ -407,7 +559,8 @@ def run_seed(seed: int) -> dict:
     out: dict[str, float] = {}
     for arm in ARMS:
         torch.manual_seed(seed)  # identical init across arms
-        model = GPT2LMHeadModel(gpt2())
+        npos = NPOS_TRACE if arm in ("trace", "tracev") else MAXLEN + 2
+        model = GPT2LMHeadModel(gpt2(npos))
         src = train_data + extra if arm == "joint2x" else train_data
         corpus = build_corpus("joint" if arm == "joint2x" else arm, src, seed)
         # Fairness unit = epochs of supervision PER OBJECTIVE, not gradient steps. JOINT carries
@@ -427,6 +580,14 @@ def run_seed(seed: int) -> dict:
             out["structonly_conf_s4"] = acc_structonly(model, c4)
             out["structonly_cause_s3"] = acc_structonly(model, cause3)
             out["structonly_cause_s4"] = acc_structonly(model, cause4)
+        elif arm in ("trace", "tracev"):
+            vb = arm == "tracev"
+            out[f"{arm}_conf_s3"], _ = acc_trace(model, c3, vb)
+            out[f"{arm}_conf_s4"], _ = acc_trace(model, c4, vb)
+            out[f"{arm}_cause_s3"], f3 = acc_trace(model, cause3, vb)
+            out[f"{arm}_cause_s4"], f4 = acc_trace(model, cause4, vb)
+            out[f"{arm}_fset_s3"] = f3
+            out[f"{arm}_fset_s4"] = f4
         elif arm == "direct":
             out["direct_conf_s3"] = acc_direct(model, c3)
             out["direct_conf_s4"] = acc_direct(model, c4)
@@ -470,17 +631,32 @@ def main() -> None:
             cells.append(f"{m:.3f}+/-{sd:.3f}")
         print(f"  {arm.upper():<12}" + "".join(f"{c:>16}" for c in cells))
 
-    print("\n  self-generated graph edge F1 (is a failure perception, or reasoning?)")
-    for arm in [a for a in ARMS if a not in ("direct", "structonly")]:
-        m3, s3 = agg(f"{arm}_edgef1_s3")
-        m4, s4 = agg(f"{arm}_edgef1_s4")
-        print(f"  {arm.upper():<12}  s3 {m3:.3f}+/-{s3:.3f}   s4 {m4:.3f}+/-{s4:.3f}")
+    graph_arms = [a for a in ARMS if a not in ("direct", "structonly", "trace", "tracev")]
+    if graph_arms:
+        print("\n  self-generated graph edge F1 (is a failure perception, or reasoning?)")
+        for arm in graph_arms:
+            m3, s3 = agg(f"{arm}_edgef1_s3")
+            m4, s4 = agg(f"{arm}_edgef1_s4")
+            print(f"  {arm.upper():<12}  s3 {m3:.3f}+/-{s3:.3f}   s4 {m4:.3f}+/-{s4:.3f}")
 
-    print("\n  teacher-forced ceiling on `cause` (TRUE graph inserted -> answer)")
-    for arm in [a for a in ARMS if a not in ("direct", "structonly")]:
-        m3, s3 = agg(f"{arm}_tf_cause_s3")
-        m4, s4 = agg(f"{arm}_tf_cause_s4")
-        print(f"  {arm.upper():<12}  s3 {m3:.3f}+/-{s3:.3f}   s4 {m4:.3f}+/-{s4:.3f}")
+        print("\n  teacher-forced ceiling on `cause` (TRUE graph inserted -> answer)")
+        for arm in graph_arms:
+            m3, s3 = agg(f"{arm}_tf_cause_s3")
+            m4, s4 = agg(f"{arm}_tf_cause_s4")
+            print(f"  {arm.upper():<12}  s3 {m3:.3f}+/-{s3:.3f}   s4 {m4:.3f}+/-{s4:.3f}")
+
+    trace_arms = [a for a in ARMS if a in ("trace", "tracev")]
+    if trace_arms:
+        print("\n  final-frontier F1 on `cause` (model's last written step vs the true closure;")
+        print("  inductive format only -- localizes failure to trace-following vs answer-reading)")
+        for arm in trace_arms:
+            if arm == "tracev":
+                continue
+            m3, s3 = agg(f"{arm}_fset_s3")
+            m4, s4 = agg(f"{arm}_fset_s4")
+            print(f"  {arm.upper():<12}  s3 {m3:.3f}+/-{s3:.3f}   s4 {m4:.3f}+/-{s4:.3f}")
+        print("\n  R2 reference: R4's STRUCTONLY (no trace) = 0.731+/-0.094 s3 / 0.581+/-0.084 s4;")
+        print("  GNN on the same function = 1.000 s3 / 0.952 s4. Headline = s4 extrapolation.")
 
     print("\n  reference: external-module route -- joint 0.43 vs two-stage 1.000/0.933 confounded")
     print(
