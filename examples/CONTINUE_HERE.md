@@ -92,12 +92,17 @@ into LM weights. Multi-hop reachability over a serialized graph is the wall — 
 causal computation live (external solver → external GNN → token trace → looped weights → one-shot
 weights), with the decoupled schedule as the invariant lever. In order:
 
-1. **R2 `trace`/`tracev` arms** of `causal_pure_twostage.py` — trained backward-closure traces on
-   the STRUCTONLY substrate, inductive vs verbose designs, 3 seeds, **s4 extrapolation is the
-   headline metric** (in-dist trace success is already known in the lit).
-2. **R3 looped arm + the R2-vs-R3 head-to-head** — token tape vs latent tape on the same causal
-   substrate (the centerpiece; a formal separation exists, arXiv:2605.30757, but no causal
-   instance).
+1. ✅ **R2 done (2026-08-08, 3 seeds, both formats)** — the token tape lifts `cause` in-dist
+   0.731 → **0.926 ± 0.009** (much of R4's wall was one-shot answering; format irrelevant) but s4
+   stays ~0.7 (writing AND clean reading decay OOD) and the **confounded trap survives (0.421)**:
+   the shortcut corrupts the written computation itself (own-trace implies "no" only 0.562 on
+   confounded pairs) and at s4 overrides even the TRUE trace (0.416 teacher-forced on an all-"no"
+   set). Results + method note in `LADDER.md` §R2-RESULTS and `results/pure_twostage_SUMMARY.md`.
+2. **R3 looped arm + the R2-vs-R3 head-to-head — NOW THE FRONT ITEM.** Token tape vs latent tape
+   on the same causal substrate (formal separation exists, arXiv:2605.30757; no causal instance).
+   R2 sharpened the question: does latent iteration share the tape's two weaknesses (OOD decay in
+   both stages; shortcut-corrupted computation on confounded pairs), or is the symbolic tape the
+   problem?
 3. **Decoupled RLVR** — verifiable *structure* rewards via the `causalrl` oracle + identifiability-
    gated abstention (outcome-only RLVR is known insufficient, arXiv:2604.22074); unifies the
    orphaned Act-5 thread with the LM arc.
@@ -145,6 +150,11 @@ fine on this local box; it was only ever blocked on the cloud box).
   logs and running jobs with absolute paths survived). If the tree is contested: park your branch in
   a git worktree (`git worktree add .claude/worktrees/<name> <branch>`) and commit/push from there;
   never `git checkout` over someone else's live session.
+- **A generative eval must re-encode before it reads.** Reading the answer off the incremental
+  generation buffer exposed the model to repeated-closer padding it never saw in training and
+  silently depressed R2's teacher-free accuracy by ~0.25. The decomposition metrics (teacher-forced
+  read + self-consistency) are what caught it — build those diagnostics BEFORE trusting any
+  teacher-free number, and always re-encode `prompt + generation + single closer` for the read.
 
 ## 7. Environment
 

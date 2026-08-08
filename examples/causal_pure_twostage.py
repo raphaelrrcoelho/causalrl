@@ -630,8 +630,8 @@ def run_seed(seed: int) -> dict:
             out["structonly_cause_s4"] = acc_structonly(model, cause4)
         elif arm in ("trace", "tracev"):
             vb = arm == "tracev"
-            out[f"{arm}_conf_s3"], _, _, _ = acc_trace(model, c3, vb)
-            out[f"{arm}_conf_s4"], _, _, _ = acc_trace(model, c4, vb)
+            out[f"{arm}_conf_s3"], cf3, ct3, cn3 = acc_trace(model, c3, vb)
+            out[f"{arm}_conf_s4"], cf4, ct4, cn4 = acc_trace(model, c4, vb)
             out[f"{arm}_cause_s3"], f3, t3, n3 = acc_trace(model, cause3, vb)
             out[f"{arm}_cause_s4"], f4, t4, n4 = acc_trace(model, cause4, vb)
             out[f"{arm}_fset_s3"] = f3
@@ -643,6 +643,12 @@ def run_seed(seed: int) -> dict:
                 out[f"{arm}_cons_s4"] = n4
                 out[f"{arm}_tftr_s3"] = acc_trace_tf(model, cause3)
                 out[f"{arm}_tftr_s4"] = acc_trace_tf(model, cause4)
+                # the same decomposition on the CONFOUNDED trap (is its failure writing/reading?)
+                out[f"{arm}_cfset_s3"], out[f"{arm}_cfset_s4"] = cf3, cf4
+                out[f"{arm}_ctans_s3"], out[f"{arm}_ctans_s4"] = ct3, ct4
+                out[f"{arm}_ccons_s3"], out[f"{arm}_ccons_s4"] = cn3, cn4
+                out[f"{arm}_ctftr_s3"] = acc_trace_tf(model, c3)
+                out[f"{arm}_ctftr_s4"] = acc_trace_tf(model, c4)
         elif arm == "direct":
             out["direct_conf_s3"] = acc_direct(model, c3)
             out["direct_conf_s4"] = acc_direct(model, c4)
@@ -714,6 +720,10 @@ def main() -> None:
                 ("tans", "answer IMPLIED by the model's own written set vs label"),
                 ("cons", "self-consistency: emitted yes/no vs own written set"),
                 ("tftr", "teacher-forced read: TRUE trace inserted -> answer"),
+                ("cfset", "CONFOUNDED: final-frontier F1"),
+                ("ctans", "CONFOUNDED: answer implied by own written set vs label"),
+                ("ccons", "CONFOUNDED: self-consistency"),
+                ("ctftr", "CONFOUNDED: teacher-forced read of the TRUE trace"),
             ):
                 m3, s3 = agg(f"{arm}_{key}_s3")
                 m4, s4 = agg(f"{arm}_{key}_s4")

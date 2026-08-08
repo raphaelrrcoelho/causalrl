@@ -114,6 +114,21 @@ The spine of the program, in the order it was discovered:
    > point) and the "bigger model fits train better while generalizing worse" loss nuance (the
    > 4L/8L loss ranges overlap across seeds). The headline gap to the GNN survives in every run.
 
+9. **R2 (the ladder): give the LM a token tape — reachability becomes learnable in-weights,
+   confounding discipline does not.** Training the same STRUCTONLY substrate to *write the
+   computation* (a supervised backward-closure trace, answer derived from the written trace) lifts
+   `cause` s3 **0.731 → 0.926 ± 0.009** (3 seeds, teacher-free, trace format irrelevant) and s4 to
+   0.68–0.72 — much of the R4 wall was one-shot answering. But the GNN gap survives where it
+   matters: s4 stays ~0.25 below (both trace-*writing* 0.982→0.777 and clean trace-*reading*
+   0.951→0.703 decay OOD), and the **confounded trap stays broken (0.421 vs 1.000)** for a sharp
+   reason the decomposition isolates: the correlational shortcut invades the *computation* — on
+   confounded pairs the model's own written closure implies the right "no" only **0.562** of the
+   time (it hallucinates X into anc*(Y) exactly when a confounder correlates the pair), and at s4
+   it answers "yes" against even the TRUE trace (teacher-forced 0.416 on an all-"no" set). Full
+   design + results: [`../docs/causal_llm/LADDER.md`](../docs/causal_llm/LADDER.md); evidence
+   `results/pure_twostage_trace*.log` (an eval-harness artifact was caught by the tftr/cons
+   diagnostics and fixed — superseded logs kept).
+
 L3 in a learned head: counterfactuals via twin-network abduction-action-prediction, climbing a
 crutch-removal ladder — fixed SCM (`causal_counterfactual_twin.py`, by-construction) → random
 parameters (`causal_counterfactual_general.py`, genuine generalization) → random topologies
@@ -372,7 +387,7 @@ true structure) · **honest-negative** (a kept negative result) · **fragile** (
 | `causal_hybrid_learned.py` | fully-learned hybrid FAILS confounding (0.43) | canonical (end-state superseded by two-stage) |
 | `causal_perception_bottleneck.py` | the 0.43 is joint TRAINING, not perception | canonical |
 | `causal_hybrid_twostage.py` | the FIX: decoupled two-stage → 1.0 in-dist | canonical |
-| `causal_pure_twostage.py` | the missing 2×2 cell: decoupling does NOT transfer into the LM's weights. Localized + multi-seed (3 seeds) — not perception (edge F1 0.942±0.023), not undertraining (ceiling 0.594±0.012), not the shortcut (prose-free STRUCTONLY 0.731±0.094 / 0.190±0.150), not capacity (8L/192d 0.753±0.018); a 11.9K-param GNN gets 1.000/1.000 where the 809K-param LM gets ~0.73/0.19 on the same function. Evidence in `results/pure_twostage_SUMMARY.md` | canonical-negative · localizes the wall |
+| `causal_pure_twostage.py` | the missing 2×2 cell: decoupling does NOT transfer into the LM's weights. Localized + multi-seed (3 seeds) — not perception (edge F1 0.942±0.023), not undertraining (ceiling 0.594±0.012), not the shortcut (prose-free STRUCTONLY 0.731±0.094 / 0.190±0.150), not capacity (8L/192d 0.753±0.018); a 11.9K-param GNN gets 1.000/1.000 where the 809K-param LM gets ~0.73/0.19 on the same function. **+ R2 trace arms**: a supervised token tape lifts cause to 0.926±0.009 in-dist but leaves s4 at ~0.7 and the confounded trap at 0.42 — the shortcut invades the written computation itself (own-trace implies "no" only 0.562 on confounded; overrides the TRUE trace at s4, 0.416). Evidence in `results/pure_twostage_SUMMARY.md` + `docs/causal_llm/LADDER.md` | canonical-negative · localizes the wall · + R2 (ladder) |
 | `causal_reasoner_prototype.py` | axiomatic d-sep rule from traces (didactic) | superseded→ `causal_reasoner_train.py` |
 | `causal_reasoner_train.py` | hardened, device-agnostic reasoner trainer | support/infra |
 

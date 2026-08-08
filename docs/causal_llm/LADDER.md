@@ -78,10 +78,55 @@ no silent divergence between trace logic and ground truth).
 vs the true closure (localizes failures to trace-following vs answer-reading). Multi-seed
 (SEEDS=0,1,2) from day one; CPU numbers are a ±0.1 band (see `CONTINUE_HERE.md` traps).
 
-**Outcome branches:** `trace` passes s4 → the wall was one-shot answering, and "supervise the
-computation" completes the schedule thesis downward. Both pass → tape location doesn't matter at
-this scale. Both fail s4 → the globality barrier survives the token tape on causal semantics — a
-keepable negative that sharpens R1's module as load-bearing.
+**Outcome branches (pre-registered):** `trace` passes s4 → the wall was one-shot answering, and
+"supervise the computation" completes the schedule thesis downward. Both pass → tape location
+doesn't matter at this scale. Both fail s4 → the globality barrier survives the token tape on
+causal semantics — a keepable negative that sharpens R1's module as load-bearing.
+
+### R2 RESULTS (2026-08-08, 3 seeds, fixed harness — see the method note below)
+
+| metric | TRACE | TRACEV | R4 no-trace | GNN (R1 function) |
+|---|---|---|---|---|
+| `cause` s3 | **0.926 ± 0.009** | 0.930 ± 0.041 | 0.731 ± 0.094 | 1.000 |
+| `cause` s4 | 0.681 ± 0.014 | 0.723 ± 0.051 | 0.581 ± 0.084 | 0.952 |
+| `conf` s3 | 0.421 ± 0.018 | 0.377 ± 0.045 | 0.190 ± 0.150 | **1.000** |
+| `conf` s4 | 0.190 ± 0.031 | 0.342 ± 0.039 | 0.160 ± 0.133 | 0.893 |
+
+Decomposition (TRACE; frontier-F1 = writing / tans = answer implied by own writes / tftr =
+teacher-forced read of the TRUE trace / cons = follows own writes):
+
+| set | fset s3→s4 | tans s3→s4 | tftr s3→s4 | cons s3→s4 |
+|---|---|---|---|---|
+| `cause` | 0.982→0.777 | 0.979→0.720 | 0.951→0.703 | 0.937→0.594 |
+| `confounded` | 0.804→0.746 | **0.562**→0.700 | 0.860→**0.416** | 0.844→0.472 |
+
+**Verdict — three findings, none of which was the pre-registered guess:**
+1. **The tape substantially works in-distribution for reachability**: `cause` 0.731 → 0.926 in the
+   LM's own weights. Much of R4's wall was *one-shot answering*, and trace format did not matter
+   (inductive ≈ verbose — so the globality prediction went untested at these sizes).
+2. **Extrapolation improves (+0.10/+0.14) but does not close** (0.68–0.72 vs GNN 0.952): at unseen
+   size BOTH stages decay — writing (0.982→0.777) and clean reading (0.951→0.703) — compounding.
+3. **The confounding trap survives the tape, and the decomposition shows why, in two channels**:
+   (a) *the correlational shortcut invades the computation itself* — on confounded pairs the
+   model's own written closure implies the correct "no" only **0.562 ± 0.034** of the time (vs
+   0.979 on `cause`): it hallucinates X into anc*(Y) precisely when a confounder makes the pair
+   correlated; (b) *at unseen size it overrides even the true trace* — teacher-forced read on
+   confounded s4 is **0.416 ± 0.071** on an all-"no" set: the exonerating closure is in front of
+   it and it answers "yes" anyway. The bias lives in the weights at both the writing and the
+   reading stage — precisely the two failure modes a hard-coded message-passing architecture (R1)
+   cannot have.
+
+**Method note (kept — the branch's recurring lesson, now in eval form):** the first R2 runs read
+the answer off the incremental generation buffer, where early-finishing rows accumulate repeated
+`</t>` padding — a suffix never seen in training. The decomposition exposed it (model writes 0.982,
+reads clean traces 0.951, yet "agreed with itself" only 0.651) and the harness now re-encodes
+`prompt + own trace + single </t>` before reading. Teacher-free accuracy moved ~+0.25 on `cause`.
+Evidence: `results/pure_twostage_trace{_s*,diag_s*,fix_s*,conf_s*}.log`; superseded logs kept.
+
+**Implication for the ladder:** R2 sits strictly between R4 and R1 — reachability competence is
+buyable in-weights with a token tape; *robust confounding discipline and size-invariance are not,
+at this scale*. The R3 question sharpens accordingly: does latent iteration share the tape's two
+weaknesses, or is the symbolic tape itself the problem?
 
 ## 4. R3 — the LOOPED arm
 

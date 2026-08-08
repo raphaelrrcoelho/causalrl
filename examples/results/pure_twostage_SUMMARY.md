@@ -59,6 +59,32 @@ decoupling transfers to an external module but not into the weights.
   nuance (0.365→0.320) — multi-seed the loss ranges overlap (4L [0.287, 0.365, 0.405] vs 8L
   [0.320, 0.345, 0.352]); the accuracy conclusion (capacity doesn't fix it) is what replicates.
 
+## R2 — the trace arms (the ladder's next rung; design in `docs/causal_llm/LADDER.md`)
+
+Same substrate, but the model is trained to *write the computation* (a supervised backward-closure
+trace) before answering. 3 seeds, fixed harness:
+
+| metric | TRACE (inductive) | TRACEV (verbose) | R4 no-trace | GNN |
+|---|---|---|---|---|
+| `cause` s3 | **0.926 ± 0.009** | 0.930 ± 0.041 | 0.731 ± 0.094 | 1.000 |
+| `cause` s4 | 0.681 ± 0.014 | 0.723 ± 0.051 | 0.581 ± 0.084 | 0.952 |
+| `conf` s3 | 0.421 ± 0.018 | 0.377 ± 0.045 | 0.190 ± 0.150 | **1.000** |
+| `conf` s4 | 0.190 ± 0.031 | 0.342 ± 0.039 | 0.160 ± 0.133 | 0.893 |
+
+Decomposition (TRACE): on `cause`, writing 0.982→0.777 (s3→s4), own-trace-implied answer
+0.979→0.720, teacher-forced read of the TRUE trace 0.951→0.703, self-consistency 0.937→0.594. On
+`confounded`: writing 0.804→0.746, **own-trace-implied answer 0.562±0.034 at s3** (the shortcut
+corrupts the written computation), **teacher-forced read 0.416±0.071 at s4** (overrides the true
+trace on an all-"no" set). Read: the tape buys in-dist reachability in-weights; it does not buy
+size-invariance (both stages decay OOD) or confounding discipline (the bias infects writing AND
+reading) — the two failure modes the GNN architecture cannot have.
+
+**Eval-harness method note (kept):** the first R2 runs under-read teacher-free accuracy by ~0.25 —
+early-finishing rows in a generation batch accumulate repeated `</t>` padding before the answer
+read, a suffix never seen in training. Caught by the tftr/cons diagnostics (a model that writes
+0.982 and reads 0.951 does not "agree with itself" at 0.651), fixed by re-encoding
+`prompt + own trace + single </t>` before the read. Superseded logs kept (`trace_s*`, `tracediag_s*`).
+
 ## Logs
 
 | file | what |
@@ -68,3 +94,8 @@ decoupling transfers to an external module but not into the weights.
 | `pure_twostage_structonly_s0.log` | STRUCTONLY (4L/128d) seed 0, original |
 | `pure_twostage_multiseed_s{0,1,2}.log` | the multi-seed wave: DECOUPLED + STRUCTONLY per seed (s0 is a same-seed rerun — see drift note) |
 | `pure_twostage_structonly_8L192d_s{0,1,2}.log` | STRUCTONLY at 4.4x capacity, 3 seeds — rules out "too small" |
+| `pure_twostage_trace_smoke.log` | R2 FAST smoke |
+| `pure_twostage_trace_s{0,1,2}.log` | R2 first full runs — teacher-free acc UNDERSTATED by the eval artifact (superseded, kept) |
+| `pure_twostage_tracediag_s{0,1,2}.log` | R2 decomposition runs that CAUGHT the artifact (tftr/cons vs cons anomaly) |
+| `pure_twostage_tracefix_s{0,1,2}.log` | R2 canonical: fixed harness, both arms, full decomposition on `cause` |
+| `pure_twostage_traceconf_s{0,1,2}.log` | R2 canonical: decomposition extended to the CONFOUNDED trap |
