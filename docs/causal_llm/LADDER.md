@@ -177,11 +177,38 @@ in-weights story could still move.
 ## 5. Decoupled RLVR (the RL instantiation of the schedule thesis)
 
 Outcome-only RLVR is known not to produce causally important reasoning. Our fix mirrors Phase D:
-**verifiable process rewards on the emitted structure** — reward the graph the model writes (edge
-F1 via the `causalrl` oracle), the answer, and honesty (identifiability-gated abstention, extending
-`rlvr_causal_verifier.py` from its orphaned Act-5 toy onto the LM arc). Prediction: structure-level
-rewards close what outcome-level rewards can't. Builds on the R2 harness (the trace/graph is the
-rewardable intermediate). Sequenced after R2/R3.
+**verifiable process rewards on the emitted structure** — reward the trace the model writes (final-
+set F1 via the oracle) plus the answer, GRPO from a shared supervised-trace state
+(`causal_rlvr_trace.py`). Prediction: structure-level rewards repair the confounded trace
+corruption that teacher forcing can never see (it only shows TRUE traces, never the model's own).
+Abstention/identifiability-gating deferred to the Corr2Cause side (everything here is decidable).
+
+### RLVR RESULTS (2026-08-08, seed 0, three arms — an instrumented negative)
+
+| condition (300 GRPO steps) | conf s3 acc | conf s3 own-trace | cause s3 acc |
+|---|---|---|---|
+| supervised baseline (R2) | 0.404 | 0.556 | 0.932 |
+| OUTCOME reward, LR 5e-5 | 0.387 | 0.514 | 0.952 |
+| STRUCT reward, LR 5e-5 | 0.379 | 0.506 | **0.965** |
+| OUTCOME + CONFBOOST (½ batches confounded-pattern) | 0.404 | 0.514 | 0.937 |
+| STRUCT + CONFBOOST | 0.410 | 0.520 | 0.941 |
+
+(LR 1e-5: everything flat — under-powered; LR sweep was run to rule that out.)
+
+**Verdict: the hypothesis is refuted at this scale, and the instrumentation says precisely why.**
+Structure rewards polish `cause` slightly (0.932→0.965) but do NOT repair the confounded
+corruption — even when half of every RL batch is confounded-pattern (the exposure control).
+The tell is **reward saturation**: STRUCT's mean reward reaches **1.99 / 2.0** on the RL pool —
+the policy already writes near-perfect traces on its *training* confounded graphs, so group
+advantages vanish and there is no gradient. The corruption R2 measured lives in the
+**train→fresh-instance generalization gap** of a thin confounded slice (724 prompts at n=8000),
+not in on-policy behavior: on-policy RL cannot observe — let alone fix — a failure that never
+appears as a reward difference on its own distribution. This *sharpens* rather than contradicts
+the RLVR literature: outcome rewards don't induce faithful intermediate computation
+(arXiv:2604.22074), and process rewards can't either when the process is already reward-perfect
+in-distribution. What the diagnosis predicts would help is **data diversity on the confounded
+pattern** (a schedule/data fix, again — not a reward fix): more varied confounder configurations
+at train time. Evidence: `results/rlvr_trace_s0{,_lr5,_confboost}.log`.
 
 ## 6. The scale cell (GPU-gated)
 

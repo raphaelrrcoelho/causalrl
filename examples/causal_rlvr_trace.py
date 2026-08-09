@@ -49,6 +49,10 @@ RLSTEPS = int(os.environ.get("RLSTEPS", "30" if FAST else "300"))
 KSAMP = int(os.environ.get("KSAMP", "4"))
 RLLR = float(os.environ.get("RLLR", "1e-5"))
 BATCH_PROMPTS = 8
+# CONFBOOST=1: draw HALF of all RL batches from confounded-pattern prompts (corr AND NOT cause) —
+# the exposure control. In the natural causal-query pool those graphs are a small minority, so a
+# reward cannot repair a failure mode it almost never samples; this knob removes that explanation.
+CONFBOOST = os.environ.get("CONFBOOST") == "1"
 
 
 def true_closure(e):
@@ -141,15 +145,24 @@ def grpo(model, data, steps, use_struct, tag, seed):
     """Group-relative policy optimization over trace+answer samples."""
     opt = torch.optim.AdamW(model.parameters(), lr=RLLR)
     rng = random.Random(seed + 31)
-    # bucket the causal-query pool by prompt length (pad-free same-width sampling batches)
-    buckets: dict[int, list] = {}
-    for e in data:
-        if e["is_causal"]:
-            buckets.setdefault(len(build_prompt(e)), []).append(e)
-    widths = [w for w, b in buckets.items() if len(b) >= BATCH_PROMPTS]
-    weights = [len(buckets[w]) for w in widths]
+    # bucket the causal-query pool by prompt length (pad-free same-width sampling batches);
+    # CONFBOOST keeps a parallel bucket set of confounded-pattern prompts and alternates.
+    def make_buckets(rows):
+        b: dict[int, list] = {}
+        for e in rows:
+            b.setdefault(len(build_prompt(e)), []).append(e)
+        ws = [w for w, x in b.items() if len(x) >= BATCH_PROMPTS]
+        return b, ws, [len(b[w]) for w in ws]
+
+    causal = [e for e in data if e["is_causal"]]
+    conf_rows = [e for e in causal if e["corr"] and not e["cause"]]
+    pools = [make_buckets(causal)]
+    if CONFBOOST and conf_rows:
+        pools.append(make_buckets(conf_rows))
+        print(f"    [{tag}] CONFBOOST: {len(conf_rows)} confounded-pattern prompts", flush=True)
     model.eval()  # no dropout during sampling/scoring; grads still flow in rescore
     for step in range(steps):
+        buckets, widths, weights = pools[step % len(pools)]
         w = rng.choices(widths, weights=weights)[0]
         batch = rng.sample(buckets[w], BATCH_PROMPTS)
         prompts = [build_prompt(e) for e in batch]

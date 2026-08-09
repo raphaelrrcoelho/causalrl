@@ -103,9 +103,18 @@ weights), with the decoupled schedule as the invariant lever. In order:
    the token tape (0.664 vs 0.681); test-time T-scaling does not extrapolate; conf ≤ 0.42. So the
    OOD and confounding walls are **tape-independent** — iteration is the active ingredient, and
    what the R1 module uniquely keeps is size-invariance + shortcut-immune computation. Tables in
-   `LADDER.md` §R3-RESULTS. **NEXT FRONT ITEM → decoupled RLVR (ladder §5)**: verifiable
-   *structure* rewards via the `causalrl` oracle + identifiability-gated abstention on the R2
-   trace harness (outcome-only RLVR is known insufficient, arXiv:2604.22074).
+   `LADDER.md` §R3-RESULTS.
+3. ✅ **Decoupled RLVR done (2026-08-08, seed 0, 3 arms) — instrumented negative.** Structure
+   rewards polish `cause` (0.932→0.965) but cannot repair the confounded corruption even with
+   confounded-pattern prompts in half of every batch: STRUCT's reward SATURATES at 1.99/2.0 on
+   the RL pool — the policy is already trace-perfect on its training confounded graphs, so
+   advantages vanish. The corruption is a train→fresh-instance generalization gap on a thin
+   confounded slice, invisible to on-policy reward differences. Predicted fix = confounded-pattern
+   DATA DIVERSITY at train time (a schedule/data lever, not a reward lever) — that is the natural
+   next experiment. `LADDER.md` §RLVR-RESULTS; `results/rlvr_trace_s0*.log`.
+4. **NEXT front options:** (a) the confounded-diversity training experiment the RLVR diagnosis
+   predicts (cheap, CPU, closes the loop on the trap); (b) the GPU-gated cells; (c) the paper —
+   the ladder now has a complete R2/R3/RLVR story to fold into `PAPER.md` or a Paper-2 skeleton.
 3. **Decoupled RLVR** — verifiable *structure* rewards via the `causalrl` oracle + identifiability-
    gated abstention (outcome-only RLVR is known insufficient, arXiv:2604.22074); unifies the
    orphaned Act-5 thread with the LM arc.
