@@ -1,0 +1,35 @@
+R3 — latent iteration (weight-tied looped block), same STRUCTONLY substrate
+  seeds [2]; train T=8; eval T [2, 4, 8, 12, 16, 24]
+
+  seed 2: LoopedLM 218,752 params, train T=8
+    [looped T=8] epoch 1/12  loss 0.5782
+    [looped T=8] epoch 2/12  loss 0.4462
+    [looped T=8] epoch 3/12  loss 0.4417
+    [looped T=8] epoch 4/12  loss 0.4346
+    [looped T=8] epoch 5/12  loss 0.4315
+    [looped T=8] epoch 6/12  loss 0.4028
+    [looped T=8] epoch 7/12  loss 0.3364
+    [looped T=8] epoch 8/12  loss 0.2703
+    [looped T=8] epoch 9/12  loss 0.2424
+    [looped T=8] epoch 10/12  loss 0.2085
+    [looped T=8] epoch 11/12  loss 0.2216
+    [looped T=8] epoch 12/12  loss 0.1771
+
+==============================================================================
+  confounded = all-negative set (constant-'no' scores 1.000); read beside `cause`.
+  eval T          cause s3        cause s4         conf s3         conf s4
+  2          0.793+/-0.000   0.637+/-0.000   0.382+/-0.000   0.559+/-0.000
+  4          0.836+/-0.000   0.655+/-0.000   0.394+/-0.000   0.584+/-0.000
+  8          0.851+/-0.000   0.671+/-0.000   0.364+/-0.000   0.566+/-0.000  <- train T
+  12         0.864+/-0.000   0.671+/-0.000   0.350+/-0.000   0.541+/-0.000
+  16         0.867+/-0.000   0.660+/-0.000   0.335+/-0.000   0.524+/-0.000
+  24         0.871+/-0.000   0.661+/-0.000   0.332+/-0.000   0.529+/-0.000
+
+  references (same substrate, 3 seeds): R4 one-shot 4L = 0.731/0.581 cause,
+  0.190/0.160 conf · R2 token tape = 0.926/0.681 cause, 0.421/0.190 conf ·
+  GNN = 1.000/0.952 cause, 1.000/0.893 conf.
+
+  Reading: the block is applied T times with TIED weights -- iteration replaces
+  depth, state lives in activations. If accuracy climbs with eval T (and s4 wants
+  more T than s3), latent iteration does real work; where it plateaus vs R2 says
+  which tape -- tokens or activations -- carries causal computation further.

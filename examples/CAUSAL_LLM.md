@@ -129,6 +129,17 @@ The spine of the program, in the order it was discovered:
    `results/pure_twostage_trace*.log` (an eval-harness artifact was caught by the tftr/cons
    diagnostics and fixed — superseded logs kept).
 
+10. **R3 (the ladder): latent iteration converges with the token tape — and that convergence is
+    the finding.** A single weight-tied block looped T times (`causal_looped_lm.py`, **219K
+    params**, no trace) reaches `cause` s3 **0.862 ± 0.016** (vs R2's 0.926 at 809K, R4's 0.731)
+    and the **same s4 plateau** (0.664 ± 0.006 vs R2's 0.681) — iteration itself, not where the
+    state lives, is what buys in-dist reachability, and the OOD wall is **tape-independent**.
+    Test-time T-scaling does NOT extrapolate (s4 flat in eval loops; the hop-QA transfer of
+    arXiv:2604.07822 does not appear here), and the confounded trap stays far below the module
+    everywhere (best 0.42). The GNN keeps three unique properties: exact size-invariance,
+    shortcut-immune computation, 18–68× fewer params. Full tables in `LADDER.md` §R3-RESULTS;
+    evidence `results/looped_{fixed,jit}_s{0,1,2}.log`.
+
 L3 in a learned head: counterfactuals via twin-network abduction-action-prediction, climbing a
 crutch-removal ladder — fixed SCM (`causal_counterfactual_twin.py`, by-construction) → random
 parameters (`causal_counterfactual_general.py`, genuine generalization) → random topologies
@@ -388,6 +399,7 @@ true structure) · **honest-negative** (a kept negative result) · **fragile** (
 | `causal_perception_bottleneck.py` | the 0.43 is joint TRAINING, not perception | canonical |
 | `causal_hybrid_twostage.py` | the FIX: decoupled two-stage → 1.0 in-dist | canonical |
 | `causal_pure_twostage.py` | the missing 2×2 cell: decoupling does NOT transfer into the LM's weights. Localized + multi-seed (3 seeds) — not perception (edge F1 0.942±0.023), not undertraining (ceiling 0.594±0.012), not the shortcut (prose-free STRUCTONLY 0.731±0.094 / 0.190±0.150), not capacity (8L/192d 0.753±0.018); a 11.9K-param GNN gets 1.000/1.000 where the 809K-param LM gets ~0.73/0.19 on the same function. **+ R2 trace arms**: a supervised token tape lifts cause to 0.926±0.009 in-dist but leaves s4 at ~0.7 and the confounded trap at 0.42 — the shortcut invades the written computation itself (own-trace implies "no" only 0.562 on confounded; overrides the TRUE trace at s4, 0.416). Evidence in `results/pure_twostage_SUMMARY.md` + `docs/causal_llm/LADDER.md` | canonical-negative · localizes the wall · + R2 (ladder) |
+| `causal_looped_lm.py` | R3 (ladder): weight-tied looped block (219K params, latent iteration, no trace) — cause s3 0.862±0.016 / s4 0.664±0.006 ≈ R2's plateau at 3.7× fewer params; test-time T-scaling does NOT extrapolate; conf ≤0.42 everywhere. The two tapes converge ⇒ the OOD + confounding walls are tape-independent | canonical · R3 (ladder) |
 | `causal_reasoner_prototype.py` | axiomatic d-sep rule from traces (didactic) | superseded→ `causal_reasoner_train.py` |
 | `causal_reasoner_train.py` | hardened, device-agnostic reasoner trainer | support/infra |
 

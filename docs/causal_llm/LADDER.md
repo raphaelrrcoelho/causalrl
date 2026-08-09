@@ -130,11 +130,49 @@ weaknesses, or is the symbolic tape itself the problem?
 
 ## 4. R3 — the LOOPED arm
 
-Weight-tied GPT-2 (shared block iterated T times) at parameters matched to the 4L baseline, same
-STRUCTONLY substrate, same schedule. Falsifiable mechanistic check: required T should track graph
-diameter; test-time T-scaling on s4 is the extrapolation probe. Known failure mode from the lit:
-overthinking past the fixpoint — report the full T-curve, not the best T. Build after R2 lands
-(shares eval harness).
+Weight-tied GPT-2-style block iterated T times (`causal_looped_lm.py`, 219K params — 3.7× FEWER
+than the 809K one-shot baseline), same STRUCTONLY substrate, loss on the answer token only, no
+trace. Falsifiable mechanistic check: required T should track graph diameter; test-time T-scaling
+on s4 is the extrapolation probe. Known failure mode from the lit: overthinking past the fixpoint —
+report the full T-curve, not the best T.
+
+### R3 RESULTS (2026-08-08, 3 seeds × {fixed T=8, train-time T~U(4,12)})
+
+At eval T = 8 (train budget):
+
+| | cause s3 | cause s4 | conf s3 | conf s4 | params |
+|---|---|---|---|---|---|
+| R4 one-shot 4L | 0.731 ± 0.094 | 0.581 ± 0.084 | 0.190 ± 0.150 | 0.160 ± 0.133 | 809K |
+| R2 token tape | **0.926 ± 0.009** | 0.681 ± 0.014 | **0.421 ± 0.018** | 0.190 ± 0.031 | 809K |
+| **R3 latent tape (fixed)** | 0.862 ± 0.016 | 0.664 ± 0.006 | 0.340 ± 0.022 | **0.421 ± 0.132** | **219K** |
+| R3 latent tape (jitter) | 0.836 ± 0.075 | 0.629 ± 0.051 | 0.296 ± 0.063 | 0.409 ± 0.172 | 219K |
+| GNN (R1) | 1.000 | 0.952 | 1.000 | 0.893 | 11.9K |
+
+T-sweep: fixed-T climbs T2→T8 (0.820→0.862 s3 — iteration does real work up to the train budget)
+then plateaus with mild decay; jitter is flat everywhere (T-robust, as the recipe promises, but no
+gain from extra loops). **Test-time compute does NOT extrapolate**: s4 never improves with more
+iterations — the "more loops at eval = bigger graphs solved" transfer reported for hop-style QA
+(arXiv:2604.07822) does not appear on this causal substrate, and the diameter-tracking prediction
+is not supported. A FAST-budget model was fully fixpoint-flat (identical outputs ∀T≥4, smoke log) —
+the sweep only comes alive at full budget.
+
+**Verdict — the two tapes CONVERGE, and that is the finding:**
+1. Latent iteration reproduces most of the token tape's in-dist gain (0.862 vs 0.926, both ≫
+   0.731) with 3.7× fewer parameters and zero trace tokens — *iteration itself*, not where the
+   state lives, is the active ingredient behind R2's lift.
+2. Both tapes hit the SAME extrapolation plateau: s4 ≈ 0.63–0.68 (R2 0.681 ± 0.014, R3 0.664 ±
+   0.006) vs GNN 0.952. The OOD wall is **tape-independent**.
+3. Both leave the confounding trap far below the module (best in-dist 0.421; R3's conf-s4 0.421 ±
+   0.132 is the best OOD trap number any in-weights variant has posted, but high-variance and
+   still half the GNN's 0.893).
+4. Loop-count jitter buys T-robustness, not accuracy (means ≈ fixed, higher seed variance).
+
+**Implication for the ladder:** R2 and R3 are one rung, not two — "iterated computation in
+weights," token or latent, buys in-dist reachability and stalls in the same two places (size
+invariance, confounding discipline). What R1's explicit module still uniquely holds: exact
+size-generalization, immunity of the computation to the correlational shortcut, and 18×–68× fewer
+parameters. The decoupled-RLVR leg (§5) and the scale cell (§6) are the remaining ways the
+in-weights story could still move.
 
 ## 5. Decoupled RLVR (the RL instantiation of the schedule thesis)
 

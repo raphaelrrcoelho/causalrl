@@ -98,11 +98,14 @@ weights), with the decoupled schedule as the invariant lever. In order:
    the shortcut corrupts the written computation itself (own-trace implies "no" only 0.562 on
    confounded pairs) and at s4 overrides even the TRUE trace (0.416 teacher-forced on an all-"no"
    set). Results + method note in `LADDER.md` §R2-RESULTS and `results/pure_twostage_SUMMARY.md`.
-2. **R3 looped arm + the R2-vs-R3 head-to-head — NOW THE FRONT ITEM.** Token tape vs latent tape
-   on the same causal substrate (formal separation exists, arXiv:2605.30757; no causal instance).
-   R2 sharpened the question: does latent iteration share the tape's two weaknesses (OOD decay in
-   both stages; shortcut-corrupted computation on confounded pairs), or is the symbolic tape the
-   problem?
+2. ✅ **R3 done (2026-08-08, 3 seeds × {fixed-T, T-jitter}) — the tapes CONVERGE.** A weight-tied
+   looped block (219K params, no trace) reaches cause s3 0.862 ± 0.016 and the SAME s4 plateau as
+   the token tape (0.664 vs 0.681); test-time T-scaling does not extrapolate; conf ≤ 0.42. So the
+   OOD and confounding walls are **tape-independent** — iteration is the active ingredient, and
+   what the R1 module uniquely keeps is size-invariance + shortcut-immune computation. Tables in
+   `LADDER.md` §R3-RESULTS. **NEXT FRONT ITEM → decoupled RLVR (ladder §5)**: verifiable
+   *structure* rewards via the `causalrl` oracle + identifiability-gated abstention on the R2
+   trace harness (outcome-only RLVR is known insufficient, arXiv:2604.22074).
 3. **Decoupled RLVR** — verifiable *structure* rewards via the `causalrl` oracle + identifiability-
    gated abstention (outcome-only RLVR is known insufficient, arXiv:2604.22074); unifies the
    orphaned Act-5 thread with the LM arc.
