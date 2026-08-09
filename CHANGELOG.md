@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`examples/rocketpy_monitor.py`** — the first unambiguous win on this branch, and it comes from
+  asking *which mechanism moved* rather than *how uncertain am I*. Every prior architecture here
+  trusts its inputs and hedges its model; the faults that killed them were the other way round, and
+  a conformal band cannot help because its coverage is over the calibration distribution that an
+  input fault leaves. Against an altimeter drifting during flight — the realistic fault, since a
+  constant offset is both pad-zeroed away and *unobservable* from altitude and speed together — a
+  blind closed-form controller scores 300.6 / 283.3 / 265.3 / 247.8 points at 0/4/8/12 m/s and then
+  **0.0 with 6/6 destroyed vehicles from 16 m/s on**, while a monitored one holds **299.7 at every
+  rate with 0/6 unsafe** and estimates the rate as 4.00 / 8.00 / 12.00 / 16.00 / 20.00 / 25.00
+  against truth. At zero drift it estimates 0.00 and matches blind exactly — it does not invent a
+  fault where there is none. The detector is analytical redundancy (classical aerospace FDI, not an
+  invention here): speed comes from a different sensor, physics requires altitude change to equal
+  the integral of speed, and the residual attributes the discrepancy to a named mechanism, which is
+  what makes the fault correctable rather than merely survivable. **Caveat recorded in the file**:
+  RocketPy's speed channel is noiseless, so the reference is perfect and the estimate exact; two
+  drifting sensors are far harder to separate, and the linear ramp is exactly the shape
+  `residual / elapsed` assumes. The mechanism is established; the magnitude is flattered.
 - **`examples/rocketpy_faults.py`** — a fault-injection benchmark scored by the Spaceport America
   Cup / IREC apogee formula (theirs, not ours; only the target altitude is scaled to this
   airframe), because every earlier comparison on this branch ran on a benign mission where a good

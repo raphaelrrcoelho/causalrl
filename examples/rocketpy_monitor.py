@@ -30,6 +30,25 @@ causal framing contributes is the question it puts first: *which mechanism chang
 architecture here asked "how uncertain am I?" and answered it correctly while dying of a question it
 never asked.
 
+**Result.** The blind controller degrades with drift and then dies: 300.6, 283.3, 265.3, 247.8
+points at 0, 4, 8 and 12 m/s, and **0.0 with 6/6 destroyed vehicles from 16 m/s on**. The monitored
+one holds 299.7 at every rate with 0/6 unsafe, recovering a total loss to within 0.3% of nominal,
+and its rate estimates are 4.00, 8.00, 12.00, 16.00, 20.00, 25.00 against the truth.
+
+The row that could have falsified the design is the first: at zero drift the monitor estimates 0.00
+and scores identically to blind. It does not invent a fault when there is none, which is what the
+detection threshold is for -- a corrector that fires on integration noise has simply moved the
+failure rather than removed it.
+
+**What flatters this number.** The reference sensor is perfect: RocketPy hands the controller a
+noiseless vertical speed, so the dead-reckoned altitude has no error of its own and the estimate
+comes out exact. Real accelerometer integration drifts too, and two drifting sensors are much harder
+to separate than one drifting against one true -- the identity still breaks, but the residual no
+longer attributes cleanly to the altimeter. The drift here is also a pure linear ramp, which is
+precisely the shape ``residual / elapsed`` assumes. So this establishes that the *mechanism* is
+detectable and the fault correctable in principle; it does not establish the magnitude. A fair
+version would give the speed channel its own noise and bias and re-measure.
+
     pip install "causalrl[rocketpy]"
     python examples/rocketpy_monitor.py
 """
