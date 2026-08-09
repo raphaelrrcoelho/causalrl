@@ -1,0 +1,45 @@
+Decoupled RLVR on the R2 trace substrate — structure rewards vs outcome-only
+  seeds [0]  [FAST smoke]; 30 GRPO steps, K=4
+
+  seed 0: Phase A — supervised TRACE pretrain
+    [pretrain] epoch 1/4  loss 1.6489
+    [pretrain] epoch 2/4  loss 0.5771
+    [pretrain] epoch 3/4  loss 0.3826
+    [pretrain] epoch 4/4  loss 0.3325
+
+  --- BASELINE (supervised trace, before RL)
+    conf_s3    acc 0.046   own-trace-implied 0.172
+    conf_s4    acc 0.028   own-trace-implied 0.533
+    cause_s3   acc 0.605   own-trace-implied 0.675
+    cause_s4   acc 0.510   own-trace-implied 0.545
+
+  seed 0: Phase B — GRPO OUTCOME (30 steps, K=4)
+    [OUTCOME] step 5/30  mean reward 0.625
+    [OUTCOME] step 10/30  mean reward 0.688
+    [OUTCOME] step 25/30  mean reward 0.625
+    [OUTCOME] step 30/30  mean reward 0.625
+
+  --- AFTER RL — OUTCOME reward
+    conf_s3    acc 0.034   own-trace-implied 0.161
+    conf_s4    acc 0.009   own-trace-implied 0.505
+    cause_s3   acc 0.605   own-trace-implied 0.680
+    cause_s4   acc 0.510   own-trace-implied 0.525
+
+  seed 0: Phase B — GRPO STRUCT (30 steps, K=4)
+    [STRUCT] step 5/30  mean reward 1.519
+    [STRUCT] step 10/30  mean reward 1.554
+    [STRUCT] step 15/30  mean reward 1.938
+    [STRUCT] step 20/30  mean reward 1.969
+    [STRUCT] step 25/30  mean reward 1.486
+    [STRUCT] step 30/30  mean reward 1.417
+
+  --- AFTER RL — STRUCT reward
+    conf_s3    acc 0.046   own-trace-implied 0.126
+    conf_s4    acc 0.009   own-trace-implied 0.523
+    cause_s3   acc 0.605   own-trace-implied 0.670
+    cause_s4   acc 0.500   own-trace-implied 0.540
+
+  Reading: BASELINE row = R2's supervised ceiling. If STRUCT lifts the confounded
+  own-trace-implied answer (the corrupted-computation channel) and its accuracy while
+  OUTCOME does not, the decoupled-reward mechanism transfers to RL — the RL echo of
+  Phase D. If neither moves, on-policy exposure alone is not the missing ingredient.
