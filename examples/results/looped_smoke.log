@@ -1,0 +1,27 @@
+R3 — latent iteration (weight-tied looped block), same STRUCTONLY substrate
+  seeds [0]  [FAST smoke]; train T=8; eval T [2, 4, 8, 12, 16, 24]
+
+  seed 0: LoopedLM 218,752 params, train T=8
+    [looped T=8] epoch 1/4  loss 0.9573
+    [looped T=8] epoch 2/4  loss 0.4993
+    [looped T=8] epoch 3/4  loss 0.4532
+    [looped T=8] epoch 4/4  loss 0.4502
+
+==============================================================================
+  confounded = all-negative set (constant-'no' scores 1.000); read beside `cause`.
+  eval T          cause s3        cause s4         conf s3         conf s4
+  2          0.590+/-0.000   0.515+/-0.000   0.000+/-0.000   0.000+/-0.000
+  4          0.600+/-0.000   0.515+/-0.000   0.000+/-0.000   0.000+/-0.000
+  8          0.600+/-0.000   0.515+/-0.000   0.000+/-0.000   0.000+/-0.000  <- train T
+  12         0.600+/-0.000   0.515+/-0.000   0.000+/-0.000   0.000+/-0.000
+  16         0.600+/-0.000   0.515+/-0.000   0.000+/-0.000   0.000+/-0.000
+  24         0.600+/-0.000   0.515+/-0.000   0.000+/-0.000   0.000+/-0.000
+
+  references (same substrate, 3 seeds): R4 one-shot 4L = 0.731/0.581 cause,
+  0.190/0.160 conf · R2 token tape = 0.926/0.681 cause, 0.421/0.190 conf ·
+  GNN = 1.000/0.952 cause, 1.000/0.893 conf.
+
+  Reading: the block is applied T times with TIED weights -- iteration replaces
+  depth, state lives in activations. If accuracy climbs with eval T (and s4 wants
+  more T than s3), latent iteration does real work; where it plateaus vs R2 says
+  which tape -- tokens or activations -- carries causal computation further.
