@@ -79,6 +79,22 @@ ARMS = [a for a in os.environ.get("ARMS", "direct,joint,joint2x,decoupled").spli
 LAYERS = int(os.environ.get("LAYERS", "4"))
 EMBD = int(os.environ.get("EMBD", "128"))
 HEADS = int(os.environ.get("HEADS", "4"))
+# CONFAUG=N: append N extra CONFOUNDED-PATTERN examples (corr AND NOT cause, both query forms) to
+# the training data — the data-diversity lever the RLVR diagnosis predicts should repair the trap
+# (the corruption is a generalization gap on a thin ~9% slice; RL rewards can't reach it, more
+# varied confounder configurations at train time might).
+CONFAUG = int(os.environ.get("CONFAUG", "0"))
+
+
+def build_confaug(n_extra: int, seed: int):
+    """Sample fresh graphs, keep only confounded-pattern ones, until n_extra are collected."""
+    out = []
+    i = 0
+    while len(out) < n_extra:
+        batch = hy.build(4000, sizes=[2, 3], seed=seed + 1000 + i)
+        out += [e for e in batch if e["corr"] and not e["cause"]]
+        i += 1
+    return out[:n_extra]
 
 # Vocab = the shared Act-4 vocab, EXTENDED with scratchpad punctuation. The base words keep their
 # ids (list prefix is preserved), so examples built by ``hy`` can be reused verbatim. The trace
@@ -593,6 +609,10 @@ def run_seed(seed: int) -> dict:
     nt = 400 if FAST else 1500
 
     train_data = hy.build(n, sizes=[2, 3], seed=seed)
+    if CONFAUG:
+        extra_conf = build_confaug(CONFAUG, seed)
+        print(f"  CONFAUG: +{len(extra_conf)} confounded-pattern training examples", flush=True)
+        train_data = train_data + extra_conf
     t3 = hy.build(nt, [3], seed + 50)
     t4 = hy.build(nt, [4], seed + 60)
     c3, c4 = confounded(t3), confounded(t4)

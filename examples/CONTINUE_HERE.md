@@ -112,9 +112,14 @@ weights), with the decoupled schedule as the invariant lever. In order:
    confounded slice, invisible to on-policy reward differences. Predicted fix = confounded-pattern
    DATA DIVERSITY at train time (a schedule/data lever, not a reward lever) — that is the natural
    next experiment. `LADDER.md` §RLVR-RESULTS; `results/rlvr_trace_s0*.log`.
-4. **NEXT front options:** (a) the confounded-diversity training experiment the RLVR diagnosis
-   predicts (cheap, CPU, closes the loop on the trap); (b) the GPU-gated cells; (c) the paper —
-   the ladder now has a complete R2/R3/RLVR story to fold into `PAPER.md` or a Paper-2 skeleton.
+4. ✅ **Data lever done (CONFAUG, 3 seeds) — the trap survives that too.** 12× confounded-pattern
+   exposure: conf s3 0.439 ± 0.033 vs 0.421 ± 0.018, own-trace 0.585 ± 0.035 vs 0.562 ± 0.034 —
+   flat; `cause` destabilizes. **Five levers, one immovable trap** (traces, capacity, loops,
+   oracle rewards, data) — only the R1 module solves it. `LADDER.md` closing panel.
+5. **NEXT front options:** (a) the GPU-gated cells (decoupled schedule at 1–7B — the only cell
+   that could overturn the in-weights verdict — plus the old gate blockers); (b) the paper — the
+   ladder now has a COMPLETE R2/R3/RLVR/data-lever story ready for a Paper-2 skeleton ("Where
+   must causal computation live?") or as new sections of `PAPER.md`.
 3. **Decoupled RLVR** — verifiable *structure* rewards via the `causalrl` oracle + identifiability-
    gated abstention (outcome-only RLVR is known insufficient, arXiv:2604.22074); unifies the
    orphaned Act-5 thread with the LM arc.

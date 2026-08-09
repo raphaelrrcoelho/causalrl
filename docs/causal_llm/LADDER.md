@@ -206,9 +206,25 @@ not in on-policy behavior: on-policy RL cannot observe — let alone fix — a f
 appears as a reward difference on its own distribution. This *sharpens* rather than contradicts
 the RLVR literature: outcome rewards don't induce faithful intermediate computation
 (arXiv:2604.22074), and process rewards can't either when the process is already reward-perfect
-in-distribution. What the diagnosis predicts would help is **data diversity on the confounded
-pattern** (a schedule/data fix, again — not a reward fix): more varied confounder configurations
-at train time. Evidence: `results/rlvr_trace_s0{,_lr5,_confboost}.log`.
+in-distribution. The diagnosis predicted **data diversity on the confounded pattern** as the
+remaining lever — so we ran it. Evidence: `results/rlvr_trace_s0{,_lr5,_confboost}.log`.
+
+### The data lever (CONFAUG, 3 seeds) — the trap survives that too
+
+`CONFAUG=8000`: the supervised trace training set doubled with fresh confounded-pattern graphs
+(the ~9% slice becomes ~50%). Result: **conf s3 0.439 ± 0.033** (baseline 0.421 ± 0.018),
+own-trace-implied **0.585 ± 0.035** (baseline 0.562 ± 0.034) — flat within noise at 12× the
+exposure — while `cause` *destabilizes* (0.804 / 0.876 / 0.999 across seeds vs 0.926 ± 0.009).
+Evidence: `results/pure_twostage_confaug_s{0,1,2}.log`.
+
+**The closing panel of the confounding story.** At this scale and substrate, the confounded
+corruption has now survived five independent levers: supervised trace teacher-forcing (R2),
+parameter capacity (R4's 8L/192d), latent iteration (R3), on-policy oracle-verified structure
+rewards (RLVR, with the exposure control), and training-data enrichment (CONFAUG). One system gets
+it right: the explicit message-passing module (R1), whose architecture cannot express the
+correlational shortcut that in-weights computation keeps rediscovering. That is the strongest form
+of the branch's thesis to date — and the precise thing the GPU-scale cell (§6) would have to
+overturn.
 
 ## 6. The scale cell (GPU-gated)
 
