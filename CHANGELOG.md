@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`examples/rocketpy_faults.py`** — a fault-injection benchmark scored by the Spaceport America
+  Cup / IREC apogee formula (theirs, not ours; only the target altitude is scaled to this
+  airframe), because every earlier comparison on this branch ran on a benign mission where a good
+  closed form is unbeatable and every wrapper is dead weight. Five faults, each a *mechanism shift*
+  rather than added noise: a brake that jams part-deployed, an altimeter reading high, a drogue
+  that never deploys, an impulse below anything characterized, and wind past the fitted profile.
+  All pilots calibrate on clean flights only, and faults are injected between pilot and world so no
+  pilot gets privileged access to truth its sensors deny it. **Sensor bias is the discriminating
+  fault**: at 150 m it scores the learned autopilot 0.0 with 8/8 unsafe landings, while both
+  closed-form pilots survive at 255.4. Breaking-point sweep (largest bias every flight survives):
+  analytic **250 m**, crew **150 m**, learned **100 m** — the prediction that the crew would win
+  under faults was wrong, and instructively so. The crew releases *lower* than analytic (253-336 m
+  against a flat 400 m) because `min(safe)` minimises drift subject to the bound and so drives to
+  the bound's edge; the bound is correct in-distribution, but **a bound with zero slack has no
+  robustness to the one error it does not cover, and an input fault is exactly that error** —
+  conformal coverage is over the calibration distribution, and a biased altimeter leaves it. The
+  band answers "how wrong is my model here", never "am I actually here". Analytic won because its
+  400 m was not optimised at all: unearned slack is what saved it. Separately, the descent model
+  predicts impact *rising* with release altitude (6.70-7.17 m/s at 900 m against 5.17-6.06 at 400)
+  where the truth is flat at 5.98, so the admissible set discards the genuinely safest region — the
+  bound was applied faithfully to a model mistaken about the direction of its own physics.
 - **`examples/rocketpy_crew.py`** — four agents composed on the rule every earlier attempt broke:
   *a competitive architecture contains the best baseline as a component and spends its agents where
   that baseline is silent*. A navigator identifies the closed form's one unknown (`Cd = 1.146` from

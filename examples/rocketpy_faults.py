@@ -31,10 +31,39 @@ early-burnout    motor impulse far below anything the campaigns characterized.
 wind-shear       wind well beyond the profile the drift model was fitted on.
 ===============  ================================================================================
 
-The prediction being tested, recorded before running: the closed form wins clean and **degrades
-hardest under brake-jam and sensor-bias**, because it has no mechanism for doubting itself; the crew
-should win there or nowhere. If it wins nowhere, its safety layer is dead weight and this benchmark
-will have earned that conclusion rather than assumed it.
+The prediction recorded before running was that the closed form would degrade hardest under
+brake-jam and sensor-bias, having no mechanism for doubting itself, and that the crew would win
+there or nowhere. **The prediction was wrong in both halves**, and the way it was wrong is the most
+useful thing on this branch.
+
+Breaking points -- the largest altimeter bias every flight still survives::
+
+    analytic (closed form)   250 m
+    crew (bounded + veto)    150 m
+    learned autopilot        100 m
+
+*Sensor bias is the discriminating fault*: at 150 m it scores the learned autopilot 0.0 with 8/8
+unsafe landings, because its release threshold sits near 300 m and the bias fires it at the 150 m
+window floor where impact is 17.84 m/s. That part held.
+
+*The crew lost to the plain closed form*, and not by accident. Its release altitudes are 253-336 m
+against analytic's flat 400 m -- it releases **lower**, because ``min(safe)`` minimises drift
+subject to the bound, which drives it to the bound's edge. The bound is correct in-distribution
+(true impact at 300 m is 5.98 m/s, comfortably safe), so the crew is right whenever the sensors are.
+A bound with zero slack has no robustness to the one error it does not cover, and **an input fault
+is exactly that error**: conformal coverage is over the distribution it was calibrated on, and a
+biased altimeter moves the query off that distribution entirely. The band answers "how wrong is my
+model here", never "am I actually here".
+
+Analytic won because its 400 m was not optimised at all. Slack it never justified is what saved it,
+which is an uncomfortable but real argument against optimising to the edge of a bound in a
+safety-critical loop.
+
+*The descent model is also simply wrong at high release altitudes*: it predicts impact **rising**
+with altitude (6.70-7.17 m/s at 900 m against 5.17-6.06 at 400 m) where the truth is flat at 5.98.
+So the admissible set excludes the genuinely safest region -- only 35-39 of 48 grid points survive
+the filter, and the ones discarded are the high, safe ones. The bound was applied faithfully to a
+model that was mistaken about the direction of its own physics.
 
     pip install "causalrl[rocketpy]"
     python examples/rocketpy_faults.py
