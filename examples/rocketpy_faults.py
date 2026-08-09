@@ -76,7 +76,10 @@ from examples.rocketpy_crew import calibrate_impact_band
 TARGET_APOGEE = 1850.0
 IREC_TOLERANCE = 0.30  # the competition's +-30% band
 IREC_POINTS = 350.0  # the competition's apogee-accuracy allocation
-CHARACTERIZED_SPEED = 200.0
+# Set from the campaign, not by eye: the fastest state any brake decision was ever taken at.
+# The first version guessed 200 m/s when the true figure is 231.6, so the regime cap fired on
+# flights that were in fact characterized.
+CHARACTERIZED_SPEED = 231.6
 N_LOTS = 8
 LOT_SPREAD = 0.05
 SEED = 0
@@ -245,6 +248,30 @@ def crew_pilot(
     return brake, release
 
 
+def breaking_point(
+    make_fault: Callable[[float], Fault],
+    severities: Sequence[float],
+    pilots: dict[str, tuple[BrakeFn, ReleaseFn]],
+    lots: Sequence[float],
+) -> dict[str, float]:
+    """Largest severity at which every flight still lands safely.
+
+    A single fault magnitude cannot separate robust from lucky: analytic survives a 150 m altimeter
+    bias only because its hand-picked 400 m release constant happens to leave enough slack, which
+    says nothing about whether the constant was chosen well. Sweeping until each architecture breaks
+    replaces one arbitrary number with the quantity actually of interest -- how much reality has to
+    diverge from the model before this design kills the vehicle.
+    """
+    survived = dict.fromkeys(pilots, 0.0)
+    for severity in severities:
+        fault = make_fault(severity)
+        for name, (brake, release) in pilots.items():
+            outcomes = [fly(fault, float(lot), brake, release) for lot in lots]
+            if all(o.safe for o in outcomes):
+                survived[name] = severity
+    return survived
+
+
 def main() -> None:
     rng = np.random.default_rng(SEED)
     started = time.perf_counter()
@@ -302,6 +329,18 @@ def main() -> None:
         print(f"   {fault.name:16s}" + "".join(f"{c:>26s}" for c in cells))
 
     print(f"\n   {'TOTAL':16s}" + "".join(f"{totals[n]:>26.1f}" for n in pilots))
+
+    print("\n\nBreaking points: how far can reality diverge before the vehicle is lost?")
+    print("(IREC scores apogee only, so it cannot see a recovery decision. This can.)\n")
+    biases = [0.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0]
+    survived = breaking_point(
+        lambda b: Fault(f"bias-{b:.0f}", altimeter_bias=b), biases, pilots, lots
+    )
+    print(f"   {'architecture':26s} {'largest altimeter bias survived':>34s}")
+    for name in pilots:
+        value = survived[name]
+        marker = f"{value:.0f} m" if value < biases[-1] else f">= {value:.0f} m"
+        print(f"   {name:26s} {marker:>34s}")
     print(f"\nTotal wall clock {time.perf_counter() - started:.0f}s.")
 
 
