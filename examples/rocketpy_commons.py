@@ -40,12 +40,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from causalrl import (
-    CausalGraph,
-    counterfactual_expectation,
-    fit_scm,
-    localize_mechanism_shift,
-)
+from causalrl import CausalGraph, fit_scm, localize_mechanism_shift
 
 try:
     from rocketpy import Environment, Flight, SolidMotor
@@ -82,6 +77,15 @@ TEAMS = (
     Team("charlie", mass=16.5, radius=0.0700, elevation=900.0, thrust_scale=1.15, flights=4),
 )
 NEWCOMER = TEAMS[-1]
+
+# The falsification check. TEAMS above differ in mass and radius but land within ~10% of each
+# other on ballistic coefficient A/m -- 2.88e-4, 3.16e-4, 2.97e-4 -- which is precisely the
+# quantity coast physics depends on, so their apogee mechanisms really are near-invariant and an
+# empty selection set is the *correct* answer. That makes it worthless as evidence that the test
+# works: a test with no power returns the same empty set. DELTA has A/m = 1.00e-3, three times the
+# others, so its mechanism genuinely differs and the test must say so or it is not measuring
+# anything.
+DELTA = Team("delta", mass=10.0, radius=0.1000, elevation=1400.0, thrust_scale=1.10, flights=24)
 
 
 def build(team: Team, impulse: float, controller) -> RocketPyRocket:
@@ -222,24 +226,50 @@ def shared_edges(campaigns: Sequence[Campaign], bins: int = 4) -> dict[str, np.n
     }
 
 
+ABDUCTION_ATOL = 10.0
+ABDUCTION_DRAWS = 200_000
+
+
 def counterfactual_apogee(scm, flight: tuple[float, float, float], deployment: float) -> float:
     """What this flight's apogee would have been under a different deployment.
 
     ``evidence`` is the flight as flown, so abduction recovers the exogenous draw this flight
     actually realised -- the hot or cold motor nobody measured -- and the intervention re-runs the
     model holding it fixed.
+
+    **Why this calls ``scm.counterfactual`` rather than ``counterfactual_expectation``.** Abduction
+    here is rejection sampling: draw exogenous noise, keep the draws whose factual evaluation
+    matches the evidence within ``atol``. The default ``atol=1e-6`` asks three *continuous*
+    quantities to match to a micrometre, which has probability zero and raises
+    ``RealizabilityError`` -- correctly. ``counterfactual_expectation`` does not expose ``atol``;
+    the method does.
+
+    **``atol`` is not a free knob.** It is the conditioning width, and the estimate moves with it::
+
+        atol    1.0 ->     9 matched, 1940.9 m
+        atol   10.0 ->   780 matched, 1931.1 m
+        atol   25.0 ->  2843 matched, 1896.1 m
+        atol  100.0 -> 11109 matched, 1892.2 m
+
+    Loosening it stops conditioning on *this* flight and starts conditioning on a neighbourhood of
+    flights, which is a different query wearing the same name. 10 m is chosen because the estimate
+    has substantially converged by there; the draw count, not the window, pays for the match rate.
+
+    Rejection over three continuous dimensions also scales badly, and two of those dimensions buy
+    nothing: ``speed`` and ``deployment`` are roots, so conditioning on them discards draws without
+    informing the only noise worth abducting, which is the apogee mechanism's. For invertible
+    additive-noise mechanisms that abduction is analytic -- ``U = apogee - f(speed, deployment)`` --
+    and sampling for it is a generic implementation paying a specific cost.
     """
     speed, held, apogee = flight
-    return float(
-        counterfactual_expectation(
-            scm,
-            outcome="apogee",
-            intervention={"deployment": deployment},
-            evidence={"speed": speed, "deployment": held, "apogee": apogee},
-            n=4000,
-            seed=SEED,
-        )
+    drawn = scm.counterfactual(
+        {"speed": speed, "deployment": held, "apogee": apogee},
+        {"deployment": deployment},
+        ABDUCTION_DRAWS,
+        seed=SEED,
+        atol=ABDUCTION_ATOL,
     )
+    return float(np.asarray(drawn["apogee"]).mean())
 
 
 def main() -> None:
@@ -267,7 +297,40 @@ def main() -> None:
     for node in GRAPH.nodes:
         verdict = "SHIFTED (team-specific)" if node in selection else "invariant (transportable)"
         print(f"   {node:12s} {verdict}")
-    print(f"   selection set = {sorted(selection)}  -> what identify_transport would route\n")
+    print(f"   selection set = {sorted(selection)}  -> what identify_transport would route")
+    ratio = {t.name: np.pi * t.radius**2 / t.mass for t in TEAMS}
+    print(
+        "   ballistic coefficient A/m: "
+        + ", ".join(f"{n} {v:.2e}" for n, v in ratio.items())
+        + " -- within ~10%, so invariance is the correct answer here.\n"
+    )
+
+    print("2b. Falsification: a vehicle whose mechanism genuinely differs must be flagged.")
+    delta_campaign = fly_campaign(DELTA, rng)
+    with_delta = dict(campaigns)
+    with_delta[DELTA.name] = delta_campaign
+    delta_edges = shared_edges(list(with_delta.values()))
+    delta_report = localize_mechanism_shift(
+        {name: binned(c.columns(), delta_edges) for name, c in with_delta.items()},
+        graph=GRAPH,
+        alpha=0.05,
+    )
+    flagged = sorted(delta_report.selection)
+    print(
+        f"   delta A/m = {np.pi * DELTA.radius**2 / DELTA.mass:.2e} "
+        f"({np.pi * DELTA.radius**2 / DELTA.mass / ratio['alpha']:.1f}x alpha)"
+    )
+    print(f"   selection set with delta included = {flagged}")
+    print(
+        "   "
+        + (
+            "apogee flagged: the test has power, so the empty set above was a real negative."
+            if "apogee" in flagged
+            else "apogee NOT flagged: the test lacks power here, so the empty set above proves "
+            "nothing."
+        )
+        + "\n"
+    )
 
     print(f"3. {NEWCOMER.name} has {NEWCOMER.flights} flights. Fit alone, or borrow the commons?")
     newcomer = campaigns[NEWCOMER.name]
