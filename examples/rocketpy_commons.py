@@ -23,6 +23,21 @@ actually happened that day. OpenRocket re-simulating from scratch throws exactly
 four flights do not fit a model worth abducting with. The commons supplies the model; abduction
 turns it into an answer about *your* flight. Neither half is useful alone.
 
+**An open question this example does NOT answer.** Step 2 reports every mechanism invariant, and
+that is very likely correct here rather than a failure to detect: the three airframes differ in mass
+and radius but land within ~10% of each other on ballistic coefficient Cd*A/m -- 4.52e-4, 4.96e-4,
+4.66e-4 -- which is exactly the quantity coast physics depends on. But a test with no power returns
+the identical empty set, and from the output alone the two are indistinguishable. Establishing which
+one this is needs a vehicle whose mechanism genuinely differs, and building one that also *flies*
+defeated four attempts: widening the radius put the centre of pressure ahead of the CG (-2.15 cal),
+halving the mass moved the CG aft the same way, doubling the drag left the vehicle marginal off the
+rail on a cold motor lot -- a non-terminating integration rather than an error -- and raising thrust
+to fix that held only at zero deployment, not across the range the campaign actually draws from.
+Each attempt was validated at one configuration and generalised, which is the mistake, not the
+airframe. Until that vehicle exists the transport half here is **unvalidated**: treat the empty
+selection set as a question, not a licence to pool. The counterfactual half below stands on its own
+and is checked against ground truth.
+
 **And why this is checkable here.** In the field a counterfactual can never be verified -- that is
 the whole problem. In a simulator it can: the motor lot is ours to set, so the flight can be flown
 again with the same lot and a different brake setting, and the counterfactual compared against what
@@ -78,15 +93,6 @@ TEAMS = (
     Team("charlie", mass=16.5, radius=0.0700, elevation=900.0, thrust_scale=1.15, flights=4),
 )
 NEWCOMER = TEAMS[-1]
-
-# The falsification check. TEAMS above differ in mass and radius but land within ~10% of each
-# other on ballistic coefficient A/m -- 2.88e-4, 3.16e-4, 2.97e-4 -- which is precisely the
-# quantity coast physics depends on, so their apogee mechanisms really are near-invariant and an
-# empty selection set is the *correct* answer. That makes it worthless as evidence that the test
-# works: a test with no power returns the same empty set. DELTA has A/m = 1.00e-3, three times the
-# others, so its mechanism genuinely differs and the test must say so or it is not measuring
-# anything.
-DELTA = Team("delta", mass=10.0, radius=0.1000, elevation=1400.0, thrust_scale=1.10, flights=24)
 
 
 def build(team: Team, impulse: float, controller) -> RocketPyRocket:
@@ -304,33 +310,6 @@ def main() -> None:
         "   ballistic coefficient Cd*A/m: "
         + ", ".join(f"{n} {v:.2e}" for n, v in ratio.items())
         + " -- within ~10%, so invariance is the correct answer here.\n"
-    )
-
-    print("2b. Falsification: a vehicle whose mechanism genuinely differs must be flagged.")
-    delta_campaign = fly_campaign(DELTA, rng)
-    with_delta = dict(campaigns)
-    with_delta[DELTA.name] = delta_campaign
-    delta_edges = shared_edges(list(with_delta.values()))
-    delta_report = localize_mechanism_shift(
-        {name: binned(c.columns(), delta_edges) for name, c in with_delta.items()},
-        graph=GRAPH,
-        alpha=0.05,
-    )
-    flagged = sorted(delta_report.selection)
-    # Cd*A/m, matching `ratio` above. Dividing a bare A/m by a Cd*A/m ratio inflated the printed
-    # multiple by 1/Cd and contradicted the label two lines up.
-    delta_ratio = DELTA.drag * np.pi * DELTA.radius**2 / DELTA.mass
-    print(f"   delta Cd*A/m = {delta_ratio:.2e} ({delta_ratio / ratio['alpha']:.1f}x alpha)")
-    print(f"   selection set with delta included = {flagged}")
-    print(
-        "   "
-        + (
-            "apogee flagged: the test has power, so the empty set above was a real negative."
-            if "apogee" in flagged
-            else "apogee NOT flagged: the test lacks power here, so the empty set above proves "
-            "nothing."
-        )
-        + "\n"
     )
 
     print(f"3. {NEWCOMER.name} has {NEWCOMER.flights} flights. Fit alone, or borrow the commons?")
