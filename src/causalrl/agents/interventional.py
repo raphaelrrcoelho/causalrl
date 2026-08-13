@@ -63,10 +63,14 @@ class InterventionalAgent(ABC):
         ``space`` in the first place cannot violate it and should not pay to re-check.
         """
         if not space.permits(intervention):
+            # space.domain(...).contains(...), not space.values(...): asking a Continuous domain
+            # for an enumerable value list raises TypeError, which would replace the documented
+            # ValueError with an unrelated one at exactly the moment a caller is being told their
+            # intervention is inadmissible.
             offending = {
                 name: value
                 for name, value in intervention.items()
-                if name not in space.variables or value not in space.values(name)
+                if name not in space.variables or not space.domain(name).contains(value)
             }
             raise ValueError(
                 f"intervention {dict(intervention)!r} is not admissible in this "

@@ -217,3 +217,20 @@ def test_the_alpha_gate_also_refuses_rather_than_crashing_without_overlap() -> N
 
     assert cert.certified is False
     assert cert.conformal_lcb is None, "the gate cannot have run: it had nothing to calibrate on"
+
+
+def test_check_permitted_reports_a_continuous_violation_as_a_value_error() -> None:
+    """The documented error must survive a continuous domain.
+
+    ``check_permitted`` built its message with ``space.values(name)``, which raises ``TypeError``
+    on a ``Continuous`` domain -- replacing the documented ``ValueError`` with an unrelated one at
+    exactly the moment the caller is being told their intervention is inadmissible.
+    """
+    from causalrl import Continuous
+    from causalrl.agents.interventional import InterventionalAgent
+
+    space = InterventionSpace.create({"dose": Continuous(0.0, 1.0)})
+
+    with pytest.raises(ValueError, match="not admissible"):
+        InterventionalAgent.check_permitted({"dose": 5.0}, space)
+    assert InterventionalAgent.check_permitted({"dose": 0.5}, space) == {"dose": 0.5}

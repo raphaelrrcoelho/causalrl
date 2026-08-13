@@ -258,9 +258,20 @@ def _affine_mean_fn(coefficients: np.ndarray) -> Callable[[np.ndarray], np.ndarr
 
 
 def _r2(y: np.ndarray, predicted: np.ndarray) -> float:
+    """Coefficient of determination, ``nan`` when the target has no variance to explain.
+
+    A zero-variance target used to score a flat ``1.0`` regardless of the error, so a *single-row*
+    holdout — which every target has zero variance over — reported a perfect fit however wrong the
+    prediction was. With the default ``holdout=0.2`` that is any fit on fewer than about ten rows,
+    which is exactly the small-sample regime a caller most needs the score to be honest in.
+
+    ``nan`` rather than ``0.0``: R^2 is undefined here, not bad. A caller comparing scores will
+    propagate the ``nan`` instead of silently ranking an unmeasurable fit against measurable ones.
+    """
     total = float(np.sum((y - y.mean()) ** 2))
     if total == 0.0:
-        return 1.0
+        residual = float(np.sum((y - predicted) ** 2))
+        return float("nan") if residual > 0.0 else 1.0
     return float(1.0 - np.sum((y - predicted) ** 2) / total)
 
 

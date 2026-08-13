@@ -76,7 +76,7 @@ def counterfactual_interval(
     narrows the reported interval below the identified one. Raise ``n`` to shrink both effects;
     ``tight`` describes the estimator, not the number of correct digits.
     """
-    if scm.provenance != "fitted":
+    if scm.provenance not in ("fitted", "mixed"):
         raise ValueError(
             "counterfactual_interval is for fitted SCMs, whose noise-to-value coupling is not "
             "identified. A specified SCM's mechanisms are asserted by their author, so its "

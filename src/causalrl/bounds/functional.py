@@ -208,11 +208,17 @@ class FunctionalManskiBounds:
         """Average ``mu`` and (one-vs-rest, normalised) ``e`` over the supplied fold models."""
         mu = np.zeros((len(x), self.n_actions))
         e = np.zeros((len(x), self.n_actions))
+        # Per-action fold counts, not len(models): an action absent from one fold's train split has
+        # no outcome model there and contributes nothing to that fold's sum. Dividing by the total
+        # fold count shrinks its prediction toward zero, which tightens the Manski *upper* bound --
+        # an anti-conservative error, and the one direction a bound must never fail in.
+        fitted = np.zeros(self.n_actions)
         for outcome, propensity in models:
             raw = np.zeros((len(x), self.n_actions))
             for action in range(self.n_actions):
                 if action in outcome:
                     mu[:, action] += np.asarray(outcome[action].predict(x)).reshape(-1)
+                    fitted[action] += 1.0
                 if action in propensity:
                     raw[:, action] = np.clip(
                         np.asarray(propensity[action].predict_proba(x)).reshape(-1), 0.0, 1.0
@@ -221,7 +227,8 @@ class FunctionalManskiBounds:
                     raw[:, action] = 1.0  # sole logged action in this fold
             total = raw.sum(axis=1, keepdims=True)
             e += np.divide(raw, total, out=np.zeros_like(raw), where=total > 0.0)
-        return mu / len(models), e / len(models)
+        divisor = np.where(fitted > 0.0, fitted, 1.0)  # an action fitted nowhere stays at zero
+        return mu / divisor, e / len(models)
 
     @property
     def in_sample(self) -> tuple[FloatArray, FloatArray]:
