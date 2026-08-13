@@ -1,4 +1,5 @@
 """Regressions for the two anti-conservative bugs the adversarial review reproduced."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -21,10 +22,10 @@ def test_functional_manski_divides_by_per_action_fold_counts() -> None:
         def __init__(self, value: float) -> None:
             self.value = value
 
-        def predict(self, x):  # noqa: ANN001, ANN202
+        def predict(self, x):
             return np.full(len(x), self.value)
 
-        def predict_proba(self, x):  # noqa: ANN001, ANN202
+        def predict_proba(self, x):
             return np.full(len(x), 1.0)
 
     bounds = FunctionalManskiBounds(n_actions=2)
