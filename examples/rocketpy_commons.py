@@ -68,6 +68,7 @@ class Team:
     elevation: float
     thrust_scale: float
     flights: int
+    drag: float = 0.5  # airframe Cd; the other half of the ballistic coefficient
 
 
 TEAMS = (
@@ -112,8 +113,8 @@ def build(team: Team, impulse: float, controller) -> RocketPyRocket:
         radius=team.radius,
         mass=team.mass,
         inertia=(6.3, 6.3, 0.034),
-        power_off_drag=0.5,
-        power_on_drag=0.5,
+        power_off_drag=team.drag,
+        power_on_drag=team.drag,
         center_of_mass_without_motor=0.0,
         coordinate_system_orientation="tail_to_nose",
     )
@@ -298,9 +299,9 @@ def main() -> None:
         verdict = "SHIFTED (team-specific)" if node in selection else "invariant (transportable)"
         print(f"   {node:12s} {verdict}")
     print(f"   selection set = {sorted(selection)}  -> what identify_transport would route")
-    ratio = {t.name: np.pi * t.radius**2 / t.mass for t in TEAMS}
+    ratio = {t.name: t.drag * np.pi * t.radius**2 / t.mass for t in TEAMS}
     print(
-        "   ballistic coefficient A/m: "
+        "   ballistic coefficient Cd*A/m: "
         + ", ".join(f"{n} {v:.2e}" for n, v in ratio.items())
         + " -- within ~10%, so invariance is the correct answer here.\n"
     )
@@ -316,10 +317,10 @@ def main() -> None:
         alpha=0.05,
     )
     flagged = sorted(delta_report.selection)
-    print(
-        f"   delta A/m = {np.pi * DELTA.radius**2 / DELTA.mass:.2e} "
-        f"({np.pi * DELTA.radius**2 / DELTA.mass / ratio['alpha']:.1f}x alpha)"
-    )
+    # Cd*A/m, matching `ratio` above. Dividing a bare A/m by a Cd*A/m ratio inflated the printed
+    # multiple by 1/Cd and contradicted the label two lines up.
+    delta_ratio = DELTA.drag * np.pi * DELTA.radius**2 / DELTA.mass
+    print(f"   delta Cd*A/m = {delta_ratio:.2e} ({delta_ratio / ratio['alpha']:.1f}x alpha)")
     print(f"   selection set with delta included = {flagged}")
     print(
         "   "
