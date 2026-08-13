@@ -15,9 +15,9 @@ implementation (MIT, https://github.com/XilunZhangRobo/COMPASS-Sim2Real) was con
 parameterisation, loss and optimisation loop; causalrl's usual "from the paper only" rule does not
 apply to this file and saying so is cheaper than implying otherwise.
 
-**The problem it solves.** Every team knows their simulator is wrong and tunes it back to reality by
-hand -- a drag multiplier here, a mass tweak there -- chosen so last flight matches. Which parameters
-to tune is picked case by case and does not scale. COMPASS learns the mapping from environment
+**The problem it solves.** Every team knows the simulator is wrong and tunes it back by hand -- a
+drag multiplier here, a mass tweak there -- chosen so the last flight matches. Which parameters to
+tune is picked case by case and does not scale. COMPASS learns the mapping from environment
 parameters to the *sim-to-real gap*, and learns a sparse causal mask over that mapping at the same
 time, so the parameters that matter are discovered rather than nominated.
 
@@ -37,6 +37,33 @@ time, so the parameters that matter are discovered rather than nominated.
 **What can be scored here that cannot be scored on a real robot.** We choose which parameters are
 wrong, so the mask can be checked against the truth (did it find the miscalibrated ones and reject
 the rest?) and the recovered values can be checked against the values we injected.
+
+**Result: the two halves of the method come apart here.**
+
+*Parameter recovery works.* Descent through the frozen model closes **97%** of the ``brake_cd``
+error (1.200 -> 1.866 against a true 1.850) and **70%** of ``airframe_cd`` (0.500 -> 0.626 against
+0.680), from a black-box simulator that was never differentiated. That is the half worth having.
+
+*Causal discovery does not.* The mask keeps every parameter -- 3/3 edges each -- and the learned
+probabilities are flat: 0.968 for ``airframe_cd`` and 0.948 for ``brake_cd``, the two that are
+genuinely wrong, against 0.972, 0.974 and 0.967 for the three that are already right. The wrong
+parameters are not merely un-pruned, they are not even *ranked* above the correct ones -- the most
+miscalibrated parameter has the lowest probability of the five. There is no signal here to threshold
+differently; at the paper's default ``sparsity_weight=0.01`` the penalty never bites against this
+domain's MSE scale.
+
+*And the mask's failure has a visible cost.* Because ``wind`` survives, the optimiser is free to
+move it, and it does: 8.0 -> 10.7 against a true 8.0. A parameter that was already correct absorbs
+error belonging elsewhere, which is precisely what pruning exists to prevent.
+
+**What separates this from the paper, and might explain it.** COMPASS runs *multiple outer
+iterations* with a decaying sparsity weight (``sw_discount``), implying a schedule that starts
+firmer than the single-shot default used here; this reproduction does one pass. The gap target is
+also a three-element summary rather than full trajectories, so there are three edges per parameter
+to prune rather than hundreds, and a sparsity penalty averaged over so few edges is a weaker signal.
+Either could account for the flat mask. What can be said from this run is narrower than the paper's
+claim and is stated as such: **on this domain, at this setting, the optimisation transfers and the
+discovery does not.**
 
     pip install "causalrl[rocketpy,torch]"
     python examples/rocketpy_compass.py
@@ -80,7 +107,7 @@ SPREAD = {"airframe_cd": 0.25, "mass": 3.0, "thrust_scale": 0.18, "brake_cd": 0.
 
 N_SAMPLES = 140
 EPOCHS = 4000
-SPARSITY_WEIGHT = 0.01
+SPARSITY_WEIGHT = 0.01  # the paper's default
 OPTIMIZE_STEPS = 2000
 
 
@@ -116,9 +143,9 @@ def environment_for(wind: float) -> Environment:
 def rollout(vehicle: Vehicle, deployment: float) -> np.ndarray:
     """Trajectory summary: apogee, speed at the brake floor, and time to apogee.
 
-    A summary rather than the full trajectory the paper differences. The gap has to be a fixed-length
-    vector for the decoder to predict, and three physically distinct quantities is enough to make the
-    identification non-trivial while keeping a flight campaign affordable.
+    A summary rather than the full trajectory the paper differences. The gap has to be a
+    fixed-length vector for the decoder to predict, and three physically distinct quantities is
+    enough to make the identification non-trivial while keeping a flight campaign affordable.
     """
     seen: dict[str, float] = {}
     thrust = [(t, f * vehicle.thrust_scale) for t, f in BASE_THRUST]
@@ -206,8 +233,8 @@ class CausalSim2Real(nn.Module):
 
     The mask is the causal graph: ``mask[i, j] = 1`` says input ``i`` is allowed to influence gap
     component ``j``. It is *learned jointly with* the regression rather than fixed in advance, which
-    is the paper's central move -- the alternative is nominating tunable parameters by hand, which is
-    the practice COMPASS exists to replace.
+    is the paper's central move -- the alternative is nominating tunable parameters by hand, which
+    is the practice COMPASS exists to replace.
 
     ``n_actions`` trailing input rows are excluded from the sparsity penalty. An action is a thing
     the experiment varied, not a candidate explanation for the simulator being wrong, so penalising
@@ -328,6 +355,7 @@ def main() -> None:
             print(f"   epoch {epoch + 1:5d}  mse {mse:.4f}")
 
     with torch.no_grad():
+        probability = torch.sigmoid(model.mask_logits)[: len(PARAMETERS)]
         kept = model.sample_mask(threshold=0.5)[: len(PARAMETERS)].sum(dim=1)
     print("\n3. What the mask kept -- the discovered causes of the gap:")
     selected = []
@@ -337,7 +365,10 @@ def main() -> None:
         truth = "(really wrong)" if name in WRONG else "(really fine)"
         if edges > 0:
             selected.append(name)
-        print(f"   {name:14s} {verdict:7s} {edges}/{targets.shape[1]} edges  {truth}")
+        print(
+            f"   {name:14s} {verdict:7s} {edges}/{targets.shape[1]} edges  "
+            f"p={probability[index].mean().item():.3f}  {truth}"
+        )
     hits = sorted(set(selected) & set(WRONG))
     false_positives = sorted(set(selected) - set(WRONG))
     print(f"   found {hits}; false positives {false_positives}")
@@ -353,12 +384,18 @@ def main() -> None:
     ).requires_grad_(True)
     inner = torch.optim.Adam([guess], lr=5e-3)
     action_grid = torch.tensor([[d] for d in DEPLOYMENTS], dtype=torch.float32)
-    zero = torch.zeros(len(DEPLOYMENTS), targets.shape[1])
+    # A raw gap of zero is NOT a standardised gap of zero -- it is -gap_mean/gap_scale. Targeting
+    # zeros in standardised space asks the optimiser for the *mean* gap over the randomisation,
+    # which is a different and much less useful request. The unused gap_mean/gap_scale that ruff
+    # flagged was the tell.
+    target_gap = torch.tensor(
+        np.tile((0.0 - gap_mean) / gap_scale, (len(DEPLOYMENTS), 1)), dtype=torch.float32
+    )
     for _ in range(OPTIMIZE_STEPS):
         inner.zero_grad()
         batch = torch.cat([guess.expand(len(DEPLOYMENTS), -1), action_grid], dim=1)
         # Drive the predicted gap to zero: the parameters that make the simulator match reality.
-        objective = F.mse_loss(model(batch, threshold=0.5), zero)
+        objective = F.mse_loss(model(batch, threshold=0.5), target_gap)
         objective.backward()
         inner.step()
 
