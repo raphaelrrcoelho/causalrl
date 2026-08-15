@@ -61,11 +61,17 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer  # no
 
 import causal_corr2cause_learned as L  # noqa: E402
 
-CKPT = os.environ.get("CKPT", f"{ROOT}/.b1_burst.pt")   # rolling checkpoint (model+opt+steps)
+MODEL = os.environ.get("B1_MODEL", "distilbert-base-uncased")
+_SLUG = MODEL.split("/")[-1]
+# Default ckpt/cache paths carry the model slug: the ENC cache stores TOKEN IDS, which are
+# tokenizer-specific — reusing distilbert ids under a different vocab would be a silent poison.
+CKPT = os.environ.get("CKPT", f"{ROOT}/.b1_burst_{_SLUG}.pt")  # rolling ckpt (model+opt+steps)
 INIT = os.environ.get("INIT", "")                       # optional warm-start weights (model only)
-ENC = os.environ.get("ENC", f"{ROOT}/.b1_enc.pt")       # cached encoded train subset
-MODEL = "distilbert-base-uncased"
+ENC = os.environ.get("ENC", f"{ROOT}/.b1_enc_{_SLUG}.pt")  # cached encoded train subset
 MAXLEN, LR, N_SUB, SEED = 512, 3e-5, 20000, 0
+# OPT=adafactor: torch.optim.Adafactor (factored states, ~zero optimizer memory) — the only way a
+# 355M model + grads fits this 6 GB card; adamw stays the default for parity with the B1 runs.
+OPT = os.environ.get("OPT", "adamw")
 EFF_BATCH = int(os.environ.get("EFF_BATCH", os.environ.get("BS", "8")))  # effective batch (learning)
 MICRO = int(os.environ.get("MICRO", str(EFF_BATCH)))                     # micro-batch (memory)
 ACCUM = max(1, EFF_BATCH // MICRO)
@@ -78,8 +84,9 @@ SAVE_EVERY = int(os.environ.get("SAVE_EVERY", "1000"))
 EVAL_AT_END = os.environ.get("EVAL_AT_END", "0") not in ("", "0", "false")
 if DEVICE == "cuda" and not torch.cuda.is_available():
     DEVICE = "cpu"
-print(f"[b1] device={DEVICE} threads={NT} mode={MODE} steps={STEPS} eff_batch={EFF_BATCH} "
-      f"micro={MICRO} accum={ACCUM} grad_ckpt={GC} maxlen={MAXLEN}", flush=True)
+print(f"[b1] model={MODEL} opt={OPT} device={DEVICE} threads={NT} mode={MODE} steps={STEPS} "
+      f"eff_batch={EFF_BATCH} micro={MICRO} accum={ACCUM} grad_ckpt={GC} maxlen={MAXLEN}",
+      flush=True)
 
 tok = AutoTokenizer.from_pretrained(MODEL)
 model = AutoModelForSequenceClassification.from_pretrained(MODEL, num_labels=2).to(DEVICE)
@@ -89,7 +96,10 @@ if GC:
         model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
     except TypeError:
         model.gradient_checkpointing_enable()
-opt = torch.optim.AdamW(model.parameters(), lr=LR)
+if OPT == "adafactor":
+    opt = torch.optim.Adafactor(model.parameters(), lr=LR)
+else:
+    opt = torch.optim.AdamW(model.parameters(), lr=LR)
 steps = 0
 if os.path.exists(CKPT):
     st = torch.load(CKPT, map_location=DEVICE, weights_only=True)

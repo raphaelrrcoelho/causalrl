@@ -116,10 +116,28 @@ weights), with the decoupled schedule as the invariant lever. In order:
    exposure: conf s3 0.439 ± 0.033 vs 0.421 ± 0.018, own-trace 0.585 ± 0.035 vs 0.562 ± 0.034 —
    flat; `cause` destabilizes. **Five levers, one immovable trap** (traces, capacity, loops,
    oracle rewards, data) — only the R1 module solves it. `LADDER.md` closing panel.
-5. **NEXT front options:** (a) the GPU-gated cells (decoupled schedule at 1–7B — the only cell
-   that could overturn the in-weights verdict — plus the old gate blockers); (b) the paper — the
-   ladder now has a COMPLETE R2/R3/RLVR/data-lever story ready for a Paper-2 skeleton ("Where
-   must causal computation live?") or as new sections of `PAPER.md`.
+5. **IN FLIGHT (user chose the GPU cells, 2026-08-15):** three runs — (i) RoBERTa-large i.i.d.
+   point via `causal_corr2cause_b1_lm.py` (now `B1_MODEL`/`OPT=adafactor` configurable; GPU bursts
+   ≤~20 min with the atomic ckpt/resume, ckpts+logs on /mnt/c, never /tmp); (ii) the scale cell
+   `causal_scale_cell.py` (Qwen2.5-0.5B, hand-rolled fp32-LoRA over frozen bf16, STRUCTONLY arm,
+   burst ckpts — refs to beat: cause 0.731/0.581, conf 0.190/0.160); (iii) paraphrase axis:
+   `causal_corr2cause_perception.py` with `PERC_MODEL=google/bert_uncased_L-4_H-512_A-8` (CPU).
+6. **QUEUED, GATED on those results (user-approved 2026-08-15) — the two causalrl plug-ins:**
+   - **Certificate-graded abstention RLVR on Corr2Cause** — reward calibrated modality via the
+     library oracle (MEC necessity trichotomy; `identify_effect_certified`/`NotIdentifiableError`,
+     `certify_decision` family). GATE: run only if the RoBERTa point confirms the
+     trained-decoupling story (i.i.d. ≤ GNN 0.927 AND the OOD collapse reproduces) and the
+     paraphrase retrain doesn't break the perception front-end.
+   - **Scale cell stage 2 — L2/L3 queries** — extend the 0.5B substrate with interventional
+     (per-sample `do()`) and counterfactual (`abduct_*`, `build_unrolled_scm`) queries, labels
+     minted by causalrl. GATE: run only if the 0.5B cell is at least competitive on `cause` s3
+     (≳0.73); either trap outcome supports it.
+   Both must import causalrl from the INSTALLED package (resolves to the up-to-date main
+   checkout), never from this worktree's June-era `src/`. NB: installed `__version__` reads 1.0.0
+   — stale editable metadata (known trap); trust the export surface / CI, not local metadata.
+7. **Paper:** the ladder is a COMPLETE R2/R3/RLVR/data-lever story ready for a Paper-2 skeleton
+   ("Where must causal computation live?") or as new `PAPER.md` sections — whenever the user
+   wants venue.
 3. **Decoupled RLVR** — verifiable *structure* rewards via the `causalrl` oracle + identifiability-
    gated abstention (outcome-only RLVR is known insufficient, arXiv:2604.22074); unifies the
    orphaned Act-5 thread with the LM arc.
