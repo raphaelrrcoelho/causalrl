@@ -5,6 +5,35 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`EmpiricalGame` + `PayoffError`** (`causalrl.magames`, exported top-level) — the finite game
+  whose payoff table was *measured* rather than given, and the error that comes with it.
+  `EmpiricalGame.from_samples(strategies, samples)` averages a complete round-robin over a strategy
+  pool (the standard empirical-game-theoretic construction), keeping each cell's standard error and
+  replication count; `.to_game()` materialises the normal form over integer actions in the pool's
+  own order, so `run_no_regret` / `cce_regret` / `certify_cce_do` apply unchanged and a marginal
+  reads back by strategy name. `.payoff_error(alpha=..., functional_terms=...)` turns those standard
+  errors into the cellwise bound the certificate layer accepts (a normal interval Bonferroni-
+  corrected over every cell, so it holds simultaneously — which is what the LPs need).
+- **`certify_cce_do(..., payoff_error=...)`** — the seam that stops a measured table being certified
+  as if it were the game. A deviation gain is a difference of two estimated cells, so the polytope
+  is relaxed by `2 * utility` (the same slot a measured regret occupies, for the same reason) and
+  the resulting bounds are widened by the functional's own error. `value` still reports the
+  partial-identification region of the table as handed over; the new `ci` reports what also survives
+  the measurement, at the recorded `alpha`; vacuity is judged on `ci`; and `IDENTIFIED` is withheld
+  with a `Hedge` saying why — a functional constant over an *estimated* polytope is constant in the
+  estimate, which is not the same claim. Recorded as a checkable `Assumption("payoff-estimate")`.
+  Omitting the argument leaves existing certificates untouched.
+- **`NoRegretRun.marginal(agent)` / `NoRegretRun.boundary_mass(agent)`** — two more reads of the
+  realized joint the run already carries, beside `empirical_joint` and `regret`. `marginal` is what
+  one agent played; `boundary_mass` is the mass on the extreme actions of an ordered action grid,
+  the diagnostic for an equilibrium that is capped by where the grid was stopped rather than settled
+  where the game puts it.
+- **`examples/empirical_game_pool.py`** — the measured case end to end: a thin round-robin abstains
+  where a thick one certifies, and a truncated action grid is caught by its own boundary mass.
+
 ## [3.0.0] - 2026-08-07
 
 ### Added

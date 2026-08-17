@@ -64,6 +64,8 @@ jobs:
           done
       - name: Smoke-test the columnar-simulator worked example
         run: uv run python examples/columnar_sim_example.py
+      - name: Smoke-test the empirical-game worked example
+        run: uv run python examples/empirical_game_pool.py
 
   nuts:
     # Dedicated lane for the optional NUTS/NumPyro abduction backend (§7.1). Isolated on py3.11

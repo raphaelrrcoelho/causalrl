@@ -74,6 +74,35 @@ class NoRegretRun:
         """The measured realized regret at the full horizon — pass it as ``epsilon``."""
         return self.regret_trace[-1][1]
 
+    def marginal(self, agent: str) -> dict[int, float]:
+        """What one agent played: the realized joint summed over everyone else.
+
+        Keyed by the agent's own actions, including any it never played (weight 0.0), so the values
+        always sum to 1. An agent pinned by ``do`` did not learn, so its marginal is the
+        intervention itself.
+        """
+        if agent not in self.agents:
+            raise KeyError(f"unknown agent: {agent!r}")
+        index = self.agents.index(agent)
+        played: dict[int, float] = {}
+        for profile, weight in zip(self.profiles, self.weights, strict=True):
+            action = profile[index]
+            played[action] = played.get(action, 0.0) + float(weight)
+        return played
+
+    def boundary_mass(self, agent: str) -> float:
+        """Realized mass on the extreme actions of ``agent``'s action set.
+
+        Meaningful only when the actions are an *ordered* grid — a discretisation of a quantity,
+        not a set of labelled strategies — in which case this is the truncation diagnostic: mass
+        pressed against the smallest or largest action means the play may be capped by where the
+        grid was stopped rather than settled where the game puts it, and the honest response is to
+        widen the grid and re-run. An agent with a single available action scores 1.0.
+        """
+        played = self.marginal(agent)
+        extremes = {min(played), max(played)}
+        return sum(played[action] for action in extremes)
+
 
 def _payoff_range(game: CausalGame, agent: str) -> float:
     values = list(game.utilities[agent].values())

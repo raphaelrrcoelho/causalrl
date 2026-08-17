@@ -17,6 +17,7 @@ from causalrl.games import CausalGame
 from causalrl.identification.bounds import Interval
 from causalrl.magames import (
     CCEPolytope,
+    PayoffError,
     cce_bounds,
     cce_polytope,
     cce_regret,
@@ -228,3 +229,147 @@ def test_certificate_reports_epsilon_sensitivity() -> None:
     assert (hi1 - hi0) / h == pytest.approx(sens["upper"], abs=1e-5)
     assert (lo1 - lo0) / h == pytest.approx(sens["lower"], abs=1e-5)
     assert sens["width"] == pytest.approx(sens["upper"] - sens["lower"], abs=1e-9)
+
+
+# --- the payoff table itself is an estimate ------------------------------------------------------
+
+
+def _table_game(
+    first: Mapping[tuple[int, int], float], second: Mapping[tuple[int, int], float], size: int
+) -> CausalGame:
+    """A 2-player game from two explicit tables, both keyed by ``(A1 action, A2 action)``."""
+
+    def one(own: int, others: tuple[int, ...], params: Mapping[str, float]) -> float:
+        return first[(own, others[0])]
+
+    def two(own: int, others: tuple[int, ...], params: Mapping[str, float]) -> float:
+        return second[(others[0], own)]
+
+    actions = tuple(range(size))
+    return Population(
+        agents=("A1", "A2"),
+        types={
+            "A1": AgentType(name="a1", actions=actions, payoff=one),
+            "A2": AgentType(name="a2", actions=actions, payoff=two),
+        },
+    ).to_game()
+
+
+def _own_payoff(table: Mapping[tuple[int, int], float]):
+    def functional(profile: Mapping[str, int]) -> float:
+        return table[(profile["A1"], profile["A2"])]
+
+    return functional
+
+
+def test_payoff_error_widens_the_interval_to_cover_the_game_the_table_estimates() -> None:
+    """The soundness property: measure a game to within delta, and the true bounds are inside.
+
+    Twenty random 3x3 games, each measured with every cell moved by at most ``delta``. A deviation
+    gain is a difference of two measured cells, so relaxing the polytope by ``2 * delta`` makes the
+    estimated feasible set contain the true one; the functional's own error then widens the result.
+    The `missed` counter is the null: without that widening the reported interval really does fall
+    on the wrong side of the truth, so the test is not passing on slack alone.
+    """
+    rng = np.random.default_rng(0)
+    delta, epsilon, size = 0.15, 0.05, 3
+    missed = 0
+    for _ in range(20):
+        keys = [(i, j) for i in range(size) for j in range(size)]
+        truth = ({k: float(rng.uniform(0.0, 1.0)) for k in keys} for _ in range(2))
+        true_one, true_two = truth
+        measured_one = {k: v + float(rng.uniform(-delta, delta)) for k, v in true_one.items()}
+        measured_two = {k: v + float(rng.uniform(-delta, delta)) for k, v in true_two.items()}
+
+        certificate = certify_cce_do(
+            _table_game(measured_one, measured_two, size),
+            _own_payoff(measured_one),
+            no_regret=False,
+            epsilon=epsilon,
+            payoff_error=PayoffError(utility=delta, functional=delta),
+        )
+        true_interval = cce_bounds(
+            _table_game(true_one, true_two, size), _own_payoff(true_one), epsilon=epsilon
+        )
+
+        assert certificate.ci is not None
+        assert certificate.ci.lower <= true_interval.lower + 1e-9
+        assert certificate.ci.upper >= true_interval.upper + -1e-9
+        assert isinstance(certificate.value, Interval)
+        if (
+            certificate.value.lower > true_interval.lower + 1e-9
+            or certificate.value.upper < true_interval.upper - 1e-9
+        ):
+            missed += 1
+    assert missed > 0
+
+
+def test_measured_payoffs_cannot_buy_an_identification_claim() -> None:
+    """A functional constant over the *estimated* polytope is not constant over the game's."""
+    game = _zero_sum_game()  # every CCE achieves the value: width is exactly zero
+    exact = certify_cce_do(game, _welfare(game), epsilon=0.0)
+    estimated = certify_cce_do(
+        game, _welfare(game), epsilon=0.0, payoff_error=PayoffError(utility=0.05, functional=0.1)
+    )
+
+    assert exact.kind is Kind.IDENTIFIED
+    assert estimated.kind is Kind.BOUNDED
+    assert estimated.hedge is not None  # and it says why the constancy did not survive
+    assert any(a.name == "payoff-estimate" for a in estimated.assumptions)
+
+
+def test_an_exact_payoff_error_licenses_exactly_what_no_payoff_error_does() -> None:
+    """Zero error is not the same object as no claim about error, but it must certify the same."""
+    game = _zero_sum_game()
+    stated = certify_cce_do(game, _welfare(game), epsilon=0.0, payoff_error=PayoffError(0.0))
+    silent = certify_cce_do(game, _welfare(game), epsilon=0.0)
+
+    assert stated.kind is silent.kind is Kind.IDENTIFIED
+    for field in ("claim", "kind", "value", "alpha", "ci", "assumptions", "witness", "hedge"):
+        assert getattr(stated, field) == getattr(silent, field)  # all but the run's timestamp
+
+
+def test_omitting_payoff_error_leaves_todays_certificate_untouched() -> None:
+    """The seam is opt-in: an exact game certifies byte-for-byte as it did before."""
+    game = _symmetric_game(_ANTI)
+    certificate = certify_cce_do(game, _welfare(game), epsilon=0.1)
+
+    assert certificate.alpha is None
+    assert certificate.ci is None
+    assert "payoff_error" not in certificate.witness.detail
+    assert [a.name for a in certificate.assumptions] == ["finite-game", "no-regret"]
+
+
+def test_the_reported_level_travels_with_the_widened_interval() -> None:
+    """``ci`` is the interval at ``alpha``; ``value`` stays the partial-identification region."""
+    game = _symmetric_game(_ANTI)
+    certificate = certify_cce_do(
+        game,
+        _welfare(game),
+        epsilon=0.1,
+        payoff_error=PayoffError(utility=0.05, functional=0.1, alpha=0.05),
+    )
+
+    assert certificate.alpha == 0.05
+    assert isinstance(certificate.value, Interval)
+    assert certificate.ci is not None
+    assert certificate.ci.lower < certificate.value.lower
+    assert certificate.ci.upper > certificate.value.upper
+
+
+def test_enough_payoff_error_makes_the_certificate_abstain() -> None:
+    """Measurement noise big enough to swamp the functional's range certifies nothing at all."""
+    game = _symmetric_game(_ANTI)
+    certificate = certify_cce_do(
+        game, _welfare(game), epsilon=0.05, payoff_error=PayoffError(utility=5.0, functional=5.0)
+    )
+
+    assert certificate.kind is Kind.EMPIRICAL
+    assert certificate.hedge is not None
+
+
+def test_payoff_error_rejects_impossible_bounds() -> None:
+    with pytest.raises(ValueError, match="nonnegative"):
+        PayoffError(utility=-0.1)
+    with pytest.raises(ValueError, match="alpha"):
+        PayoffError(utility=0.1, alpha=1.5)

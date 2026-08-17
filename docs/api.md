@@ -259,6 +259,10 @@ one-call front door over the layers below.
 
 ::: causalrl.magames.population.Population
 
+::: causalrl.magames.empirical.EmpiricalGame
+
+::: causalrl.magames.cce.PayoffError
+
 ::: causalrl.magames.learning.run_no_regret
 
 ::: causalrl.magames.learning.NoRegretRun

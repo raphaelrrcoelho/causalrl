@@ -228,6 +228,74 @@ def test_top_level_exports() -> None:
         assert getattr(causalrl, name) is not None
 
 
+# --- reading the realized joint: the per-agent views ---------------------------------------------
+
+
+def _cournot_population(actions: tuple[int, ...], total: float = 12.0) -> Population:
+    """A contested-quantity game: each unit sold depresses the price both sellers face.
+
+    ``payoff = own * (total - own - other)``, whose symmetric equilibrium is ``total / 3``. It is
+    the smallest game with the property the boundary diagnostic exists to catch: whether the
+    equilibrium is *inside* the grid it was solved on depends entirely on where the grid stops.
+    """
+
+    def payoff(own: int, others: tuple[int, ...], params: Mapping[str, float]) -> float:
+        return float(own) * (total - float(own) - float(others[0]))
+
+    agent_type = AgentType(name="seller", actions=actions, payoff=payoff)
+    return Population(agents=("A1", "A2"), types={"A1": agent_type, "A2": agent_type})
+
+
+def test_marginal_is_the_per_agent_view_of_the_realized_joint() -> None:
+    """What one agent played, read off the joint the run already carries."""
+    population = _symmetric_population(_DOMINANT)
+    learned = run_no_regret(population, 4_000, seed=0)
+    blind = run_no_regret(population, 4_000, explore=1.0, seed=0)
+
+    marginal = learned.marginal("A1")
+    assert sum(marginal.values()) == pytest.approx(1.0)
+    assert marginal[1] > 0.9  # the dominant action; payoff-blind play sits at 0.5
+    assert blind.marginal("A1")[1] == pytest.approx(0.5, abs=0.05)
+    for action, weight in marginal.items():  # it *is* the joint, summed over the other agent
+        assert weight == pytest.approx(
+            sum(w for p, w in learned.empirical_joint.items() if p[0] == action)
+        )
+
+
+def test_marginal_of_an_agent_pinned_by_do_is_a_point_mass() -> None:
+    """A pinned agent does not learn, so its marginal is the intervention itself."""
+    run = run_no_regret(_symmetric_population(_ANTI), 500, do={"A2": 0}, seed=0)
+
+    assert run.marginal("A2") == {0: 1.0}
+
+
+def test_marginal_rejects_an_agent_outside_the_population() -> None:
+    run = run_no_regret(_symmetric_population(_DOMINANT), 100, seed=0)
+
+    with pytest.raises(KeyError):
+        run.marginal("A3")
+
+
+def test_boundary_mass_is_near_zero_when_the_grid_contains_the_equilibrium() -> None:
+    """The equilibrium quantity is 4, and the grid runs to 6: nothing is pressed against an edge."""
+    run = run_no_regret(_cournot_population((0, 1, 2, 3, 4, 5, 6)), 20_000, seed=0)
+
+    assert run.marginal("A1")[4] > 0.8  # the interior equilibrium
+    assert run.boundary_mass("A1") < 0.1
+
+
+def test_boundary_mass_catches_an_equilibrium_capped_by_its_own_action_grid() -> None:
+    """Same game, grid truncated below the equilibrium: every unit of mass sits on the edge.
+
+    This is the failure the diagnostic exists for — an answer that looks converged but is really
+    the grid's maximum, and would move again if the grid were widened.
+    """
+    run = run_no_regret(_cournot_population((0, 1, 2)), 20_000, seed=0)
+
+    assert run.marginal("A1")[2] > 0.9
+    assert run.boundary_mass("A1") > 0.9
+
+
 # --- the learners themselves --------------------------------------------------------------------
 
 
